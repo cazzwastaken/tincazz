@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { type PayoutTier, payoutBps, wager } from '../src/features/gamba/config.js';
 import { evaluate } from '../src/features/gamba/evaluate.js';
 import { spinGamba } from '../src/features/gamba/index.js';
+import { maxPotWin, potContribution, potShare, rareWinShare } from '../src/features/gamba/pot.js';
 
 describe('evaluate', () => {
   it('classifies all 21^3 draws', () => {
@@ -33,6 +35,31 @@ describe('evaluate', () => {
     const returned = totalBps / (21 ** 3 * 10_000);
     expect(returned).toBeGreaterThanOrEqual(0.985);
     expect(returned).toBeLessThanOrEqual(0.995);
+  });
+
+  it('loses on average at every bet, however big the pot gets', () => {
+    const tierCounts: Partial<Record<PayoutTier, number>> = {};
+    for (let a = 0; a < 21; a++) {
+      for (let b = 0; b < 21; b++) {
+        for (let c = 0; c < 21; c++) {
+          const draws = [a, b, c];
+          const { tier } = evaluate(spinGamba(() => draws.shift() ?? 0));
+          tierCounts[tier] = (tierCounts[tier] ?? 0) + 1;
+        }
+      }
+    }
+    for (let bet = wager.minBet; bet <= wager.maxBet; bet++) {
+      const amount = 1_000_000_000_000 + potContribution(bet);
+      let total = 0;
+      for (const [tier, count] of Object.entries(tierCounts) as [PayoutTier, number][]) {
+        const potWon =
+          tier === 'cppTriple'
+            ? Math.min(potShare(amount, bet), maxPotWin(bet, tier))
+            : rareWinShare(amount, bet, tier);
+        total += count * (Math.floor((bet * payoutBps[tier]) / 10_000) + potWon);
+      }
+      expect(total / 21 ** 3, `bet ${bet}`).toBeLessThan(bet);
+    }
   });
 
   it('pays the jackpot for three cpp', () => {

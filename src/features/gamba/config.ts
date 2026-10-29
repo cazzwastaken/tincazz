@@ -37,16 +37,20 @@ export const payoutBps = {
  * Progressive pot: seed, share of each bet added to it (only for bets over `contributionAbove`),
  * and the bet that earns a full share.
  *
- * `shareBps` is what the rarer wins take from the pot's excess over the seed, in basis points (the
- * jackpot takes the whole pot). Taken from the excess, a share never mints coins or pulls the pot
- * under the seed, and each win takes at most a tenth of it, so the pot pays out steadily instead of
- * sitting until a 1 in 9,261 jackpot. A full-share spin pays out about 0.05% of the excess on
- * average, about three and a half times what the jackpot alone does.
+ * `shareBps` is what a rare win takes from the pot's excess over the seed, in basis points (the
+ * jackpot takes the whole pot). Only the python triple (1 in 1,158) takes a share; taken from the
+ * excess, it never mints coins or pulls the pot under the seed.
+ *
+ * `maxWinPerBet` limits what one win can take from the pot to a multiple of its bet, and the rest
+ * stays in the pot. The pot can grow without limit and still never make a spin a winner on average:
+ * with these limits it adds at most (80 + 8 × 1) / 9,261 ≈ 0.95% of the bet, under the ~1.26%
+ * house edge.
  */
 export const pot = {
   seed: 10_000,
   contributionPercent: 3,
   contributionAbove: 100,
   fullShareBet: 500,
-  shareBps: { pythonPair: 25, cppPair: 100, ytTriple: 100, pythonTriple: 1_000 },
+  shareBps: { pythonTriple: 500 },
+  maxWinPerBet: { cppTriple: 80, pythonTriple: 1 },
 } as const;

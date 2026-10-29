@@ -21,16 +21,27 @@ function tierShareBps(tier: PayoutTier): number {
   return shares[tier] ?? 0;
 }
 
-/** What a rare (non-jackpot) win takes from the pot: a share of its excess, scaled by the bet. */
+/** What a win of `tier` may take from the pot at most: a multiple of the bet; 0 for none. */
+export function maxPotWin(bet: number, tier: PayoutTier): number {
+  const limits: Partial<Record<PayoutTier, number>> = pot.maxWinPerBet;
+  return (limits[tier] ?? 0) * bet;
+}
+
+/**
+ * What a rare (non-jackpot) win takes from the pot: a share of its excess, scaled by the bet and
+ * limited by `maxPotWin`.
+ */
 export function rareWinShare(amount: number, bet: number, tier: PayoutTier): number {
   const excess = Math.max(0, amount - pot.seed);
-  return potShare(Math.floor((excess * tierShareBps(tier)) / 10_000), bet);
+  const share = potShare(Math.floor((excess * tierShareBps(tier)) / 10_000), bet);
+  return Math.min(share, maxPotWin(bet, tier));
 }
 
 /**
  * Adds the bet's contribution to the guild pot (creating it at the seed) and pays out what the
  * tier wins: the share on a jackpot, topping the remainder up to the seed, or a share of the
- * excess on a rarer win. Does not touch wallets.
+ * excess on a rarer win. Either is limited by `maxPotWin` and the rest stays in the pot. Does not
+ * touch wallets.
  */
 export function settlePot(
   tx: DbOrTx,
@@ -52,7 +63,7 @@ export function settlePot(
     return { potWon, pot: remaining };
   }
 
-  const potWon = potShare(afterContribution, bet);
+  const potWon = Math.min(potShare(afterContribution, bet), maxPotWin(bet, tier));
   const remaining = Math.max(pot.seed, afterContribution - potWon);
   tx.update(pots)
     .set({ amount: remaining, lastWinnerId: userId, lastWonAt: now })
