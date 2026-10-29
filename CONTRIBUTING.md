@@ -79,7 +79,8 @@ schema drift apart, and builds the Docker image for every pull request.
 
 The economy is balanced deliberately. Changes here get extra review:
 - Gamba targets a ~1% house edge. `test/gamba-evaluate.test.ts` fails if the return leaves
-  98.5–99.5%.
+  98.5–99.5%. Pot prizes are capped per bet (`pot.maxWinPerBet`) so a huge pot never makes a
+  spin profitable on average; the same test guards it.
 - Gamba stays low-volatility: most of the return sits in the common pairs. Do not move it into rare
   tiers to make a headline multiplier bigger.
 - Dice payouts (`returnBps` in `src/features/dice/config.ts`) return 99%.
