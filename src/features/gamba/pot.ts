@@ -39,7 +39,7 @@ export function rareWinShare(amount: number, bet: number, tier: PayoutTier): num
 
 /**
  * Adds the bet's contribution to the guild pot (creating it at the seed) and pays out what the
- * tier wins: the share on a jackpot, topping the remainder up to the seed, or a share of the
+ * tier wins: the pot's share on a jackpot, topping the remainder up to the seed, or a share of the
  * excess on a rarer win. Either is limited by `maxPotWin` and the rest stays in the pot. Does not
  * touch wallets.
  */
