@@ -25,7 +25,7 @@ import {
 } from '../src/features/economy/index.js';
 import { pot } from '../src/features/gamba/config.js';
 import { InvalidBetError, settleSpin } from '../src/features/gamba/index.js';
-import { potContribution } from '../src/features/gamba/pot.js';
+import { maxPotWin, potContribution } from '../src/features/gamba/pot.js';
 import { markDeparted, markPresent, members } from '../src/features/members/index.js';
 import { leaderboardPage, leaderboardRank } from '../src/features/stats/index.js';
 import { expectLedgerConsistent } from './support/ledger.js';
@@ -175,6 +175,9 @@ async function apply(db: Db, step: Op, now: number): Promise<number> {
         randomInt: draws(step.reels),
       });
       const before = potBefore + potContribution(played.bet);
+      expect(played.potWon, 'a win takes at most its per-bet cap').toBeLessThanOrEqual(
+        maxPotWin(played.bet, played.evaluation.tier),
+      );
       if (played.evaluation.result !== 'jackpot') {
         // A rarer win pays from the excess over the seed: the pot loses exactly what was won.
         expect(played.potWon, 'a rare win takes at most the excess').toBeLessThanOrEqual(
