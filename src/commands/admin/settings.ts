@@ -11,6 +11,12 @@ import type { AutoRoleTarget } from '../../db/schema.js';
 import type { ModEvent } from '../../features/logs/events.js';
 import { type LogKind, logKinds, logMod, modLogCard, sendLog } from '../../features/logs/index.js';
 import {
+  addGameChannel,
+  clearGameChannels,
+  gameChannels,
+  removeGameChannel,
+} from '../../features/settings/game-channels.js';
+import {
   botCannotAssign,
   botFacts,
   logChannelAlreadySet,
@@ -45,6 +51,13 @@ export class SettingsCommand extends Command {
         .setDescription('Which log')
         .setRequired(true)
         .addChoices(...logKinds.map((k) => ({ name: k, value: k })));
+
+    const gameChannelOption = (o: import('discord.js').SlashCommandChannelOption) =>
+      o
+        .setName('channel')
+        .setDescription('The channel')
+        .setRequired(true)
+        .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement);
 
     const roleOption = (o: import('discord.js').SlashCommandRoleOption) =>
       o.setName('role').setDescription('The role').setRequired(true);
@@ -100,6 +113,26 @@ export class SettingsCommand extends Command {
                 .addRoleOption(roleOption)
                 .addStringOption(targetOption),
             ),
+        )
+        .addSubcommandGroup((group) =>
+          group
+            .setName('games')
+            .setDescription('Where gamba, coinflip and dice can be played (default: everywhere)')
+            .addSubcommand((sub) =>
+              sub
+                .setName('allow')
+                .setDescription('Allow the games in a channel (limits them to the listed channels)')
+                .addChannelOption(gameChannelOption),
+            )
+            .addSubcommand((sub) =>
+              sub
+                .setName('remove')
+                .setDescription('Stop allowing the games in a channel')
+                .addChannelOption(gameChannelOption),
+            )
+            .addSubcommand((sub) =>
+              sub.setName('reset').setDescription('Allow the games in every channel again'),
+            ),
         ),
     );
   }
@@ -115,6 +148,9 @@ export class SettingsCommand extends Command {
     if (group === 'logs' && sub === 'clear') return this.logsClear(interaction);
     if (group === 'autorole' && sub === 'add') return this.autoroleAdd(interaction);
     if (group === 'autorole' && sub === 'remove') return this.autoroleRemove(interaction);
+    if (group === 'games' && sub === 'allow') return this.gamesAllow(interaction);
+    if (group === 'games' && sub === 'remove') return this.gamesRemove(interaction);
+    if (group === 'games' && sub === 'reset') return this.gamesReset(interaction);
     if (!group && sub === 'show') return this.show(interaction);
     return interaction.reply(errorReply('Unknown subcommand.'));
   }
@@ -247,6 +283,55 @@ export class SettingsCommand extends Command {
     );
   }
 
+  private async gamesAllow(interaction: ChatInputCommandInteraction) {
+    const channel = interaction.options.getChannel('channel', true);
+    const guildId = interaction.guildId as string;
+    const result = addGameChannel(this.container.db, guildId, channel.id, Date.now());
+    if (result === 'exists') {
+      return interaction.reply(errorReply(`<#${channel.id}> is already a game channel.`));
+    }
+    if (result === 'full') {
+      return interaction.reply(errorReply('You can list at most 25 game channels.'));
+    }
+    return interaction.reply(
+      cardReply(
+        card(
+          accents.brand,
+          `Games are now limited to ${gameChannels(this.container.db, guildId)
+            .map((id) => `<#${id}>`)
+            .join(', ')}.`,
+        ),
+        { ephemeral: true },
+      ),
+    );
+  }
+
+  private async gamesRemove(interaction: ChatInputCommandInteraction) {
+    const channel = interaction.options.getChannel('channel', true);
+    const guildId = interaction.guildId as string;
+    if (!removeGameChannel(this.container.db, guildId, channel.id)) {
+      return interaction.reply(errorReply(`<#${channel.id}> isn't a game channel.`));
+    }
+    const left = gameChannels(this.container.db, guildId);
+    const text =
+      left.length === 0
+        ? `Removed <#${channel.id}>. Games can be played in every channel again.`
+        : `Removed <#${channel.id}>. Games are limited to ${left.map((id) => `<#${id}>`).join(', ')}.`;
+    return interaction.reply(cardReply(card(accents.brand, text), { ephemeral: true }));
+  }
+
+  private async gamesReset(interaction: ChatInputCommandInteraction) {
+    const removed = clearGameChannels(this.container.db, interaction.guildId as string);
+    if (removed === 0) {
+      return interaction.reply(errorReply('Games are already allowed in every channel.'));
+    }
+    return interaction.reply(
+      cardReply(card(accents.brand, 'Games can be played in every channel again.'), {
+        ephemeral: true,
+      }),
+    );
+  }
+
   private async show(interaction: ChatInputCommandInteraction) {
     const guild = interaction.guild;
     const guildId = interaction.guildId as string;
@@ -275,7 +360,11 @@ export class SettingsCommand extends Command {
       });
     return interaction.reply(
       cardReply(
-        settingsCard({ autoRoles: { member: roleView('member'), bot: roleView('bot') }, logs }),
+        settingsCard({
+          autoRoles: { member: roleView('member'), bot: roleView('bot') },
+          logs,
+          gameChannels: gameChannels(this.container.db, guildId),
+        }),
         {
           ephemeral: true,
         },

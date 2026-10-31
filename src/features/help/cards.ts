@@ -31,7 +31,7 @@ export function helpCard(prefix: string): ContainerBuilder {
       `\`/collect\`: ${coins(collect.perHour)} coins per hour, stacking for up to ${collect.maxHours} hours`,
       `\`/bailout\`: ${coins(bailout.base)} coins plus ${coins(bailout.perStreakDay)} per daily streak day when you hold under ${coins(bailout.belowBalance)} coins, every ${bailoutMinutes} minutes`,
       `Chatting earns ${coins(chatReward.amount)} coins per message, at most once every ${chatReward.cooldownMs / 1000} seconds`,
-      '`/balance`, `/stats` and `/leaderboard` show where you stand',
+      `\`/balance\` (or \`${prefix}bal\`), \`/stats\` and \`/leaderboard\` show where you stand`,
     ].join('\n'),
     [
       '## Bets',

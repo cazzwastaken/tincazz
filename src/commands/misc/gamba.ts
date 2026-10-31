@@ -17,6 +17,7 @@ import {
 } from '../../features/gamba/index.js';
 import { spinLogEvent } from '../../features/logs/economy.js';
 import { logEconomy } from '../../features/logs/send.js';
+import { gameChannelDenied } from '../../features/settings/index.js';
 import { cardReply, errorReply } from '../../features/ui/index.js';
 
 export class GambaCommand extends Command {
@@ -43,6 +44,13 @@ export class GambaCommand extends Command {
   }
 
   public override async messageRun(message: Message, args: Args) {
+    const denied = gameChannelDenied(
+      this.container.db,
+      message.guildId as string,
+      message.channelId,
+      message.channel,
+    );
+    if (denied) return message.reply(denied);
     const bet = (await args.restResult('string')).unwrapOr(undefined);
     const userId = message.author.id;
     try {
@@ -72,6 +80,13 @@ export class GambaCommand extends Command {
   }
 
   public override async chatInputRun(interaction: ChatInputCommandInteraction) {
+    const denied = gameChannelDenied(
+      this.container.db,
+      interaction.guildId as string,
+      interaction.channelId,
+      interaction.channel,
+    );
+    if (denied) return interaction.reply(errorReply(denied));
     const bet = interaction.options.getString('bet') ?? undefined;
     const userId = interaction.user.id;
     const member: JackpotMember | null = interaction.inCachedGuild() ? interaction.member : null;

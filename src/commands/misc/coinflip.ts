@@ -35,6 +35,7 @@ import {
 } from '../../features/coinflip/index.js';
 import { getOrCreateWallet } from '../../features/economy/index.js';
 import { parseBet } from '../../features/gamba/index.js';
+import { gameChannelDenied } from '../../features/settings/index.js';
 import { cardReply, errorReply } from '../../features/ui/index.js';
 
 /** Where a flip came from: a slash interaction or a prefix message. Both run the same bodies. */
@@ -110,6 +111,13 @@ export class CoinflipCommand extends Command {
   }
 
   public override async messageRun(message: Message, args: Args) {
+    const denied = gameChannelDenied(
+      this.container.db,
+      message.guildId as string,
+      message.channelId,
+      message.channel,
+    );
+    if (denied) return message.reply(denied);
     const rest = (await args.restResult('string')).unwrapOr('');
     const surface = this.messageSurface(message);
     const parsed = parseFlipArgs(rest.split(/\s+/));
@@ -143,6 +151,13 @@ export class CoinflipCommand extends Command {
   }
 
   public override async chatInputRun(interaction: ChatInputCommandInteraction) {
+    const denied = gameChannelDenied(
+      this.container.db,
+      interaction.guildId as string,
+      interaction.channelId,
+      interaction.channel,
+    );
+    if (denied) return interaction.reply(errorReply(denied));
     const bet = interaction.options.getString('bet') ?? undefined;
     const requested = interaction.options.getString('side');
     const side: FlipSide = flipSides.find((value) => value === requested) ?? 'heads';

@@ -14,3 +14,6 @@ export const dangerousPermissions: bigint =
   PermissionFlagsBits.MentionEveryone |
   PermissionFlagsBits.ManageWebhooks |
   PermissionFlagsBits.ModerateMembers;
+
+/** At most this many channels can be listed for the games in one guild. */
+export const gameChannels = { max: 25 } as const;

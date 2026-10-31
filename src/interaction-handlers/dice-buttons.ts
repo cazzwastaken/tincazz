@@ -10,6 +10,7 @@ import {
   rollFrames,
   settleRoll,
 } from '../features/dice/index.js';
+import { gameChannelDenied } from '../features/settings/index.js';
 import { errorReply } from '../features/ui/index.js';
 
 export class DiceButtonsHandler extends InteractionHandler {
@@ -27,6 +28,13 @@ export class DiceButtonsHandler extends InteractionHandler {
 
   /** Roll again: the owner rolls the same bet on the same call, on the same card. */
   public override async run(interaction: ButtonInteraction, id: RollAgainId) {
+    const denied = gameChannelDenied(
+      this.container.db,
+      interaction.guildId as string,
+      interaction.channelId,
+      interaction.channel,
+    );
+    if (denied) return interaction.reply(errorReply(denied));
     const userId = interaction.user.id;
     if (userId !== id.userId) {
       return interaction.reply(errorReply(notYourRoll));

@@ -10,6 +10,7 @@ import {
   spin,
   spinErrorText,
 } from '../features/gamba/index.js';
+import { gameChannelDenied } from '../features/settings/index.js';
 import { cardReply, errorReply } from '../features/ui/index.js';
 
 export class GambaButtonsHandler extends InteractionHandler {
@@ -26,6 +27,13 @@ export class GambaButtonsHandler extends InteractionHandler {
   }
 
   public override async run(interaction: ButtonInteraction, id: SpinButtonId) {
+    const denied = gameChannelDenied(
+      this.container.db,
+      interaction.guildId as string,
+      interaction.channelId,
+      interaction.channel,
+    );
+    if (denied) return interaction.reply(errorReply(denied));
     const userId = interaction.user.id;
     if (userId !== id.userId) {
       return interaction.reply(errorReply(notYourSpin));

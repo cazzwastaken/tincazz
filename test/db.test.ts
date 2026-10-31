@@ -35,6 +35,7 @@ describe('database', () => {
     expect((tables as string[]).sort()).toEqual([
       'flips',
       'guild_auto_roles',
+      'guild_game_channels',
       'guild_settings',
       'job_runs',
       'ledger',
@@ -170,7 +171,7 @@ describe('database', () => {
       { guildId: 'g', amount: 7, lastWinnerId: null, lastWonAt: null },
     ]);
     expect(second.$client.prepare('select count(*) from __drizzle_migrations').pluck().get()).toBe(
-      6,
+      7,
     );
     closeDatabase(second);
   });

@@ -39,8 +39,9 @@ src/
   config/env.ts   zod schema for environment variables
   db/             SQLite schema (Drizzle) and `openDatabase`, exposed as `container.db`
   commands/       one file per command, grouped in folders by category
-    admin/        `/settings` (log channels and join auto-roles; Manage Server)
-    economy/      slash commands for coins (/balance, /daily, /collect, /bailout, /eco)
+    admin/        `/settings` (log channels, join auto-roles and game channels; Manage Server)
+    economy/      slash commands for coins (/balance, also `?bal` / `?balance`, /daily, /collect,
+                  /bailout, /eco)
     general/      `?ping` / `/ping`, `?help` / `/help`
     misc/         games: `?gamba` / `/gamba`, `?coinflip` / `/coinflip` (aliases `?cf`, `?flip`),
                   `?dice` / `/dice` (alias `?roll`)
@@ -67,8 +68,9 @@ src/
     presence/     the bot's rotating status (live pot, last jackpot, spins today), started from
                   the ready listener
     scheduler/    the hourly tick that runs periodic jobs (started from the ready listener)
-    settings/     per-guild settings store: log channels, auto-roles, their cards and role
-                  assignment
+    settings/     per-guild settings store: log channels, auto-roles, game channels (the games
+                  work everywhere until some are listed; `gameChannelDenied` gates gamba, coinflip
+                  and dice commands and buttons), their cards and role assignment
     stats/        read-only profile, recent plays and leaderboard queries, `lb:*` custom IDs and
                   cards
     ui/           shared Components V2 card helpers
