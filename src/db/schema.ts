@@ -190,6 +190,17 @@ export const guildAutoRoles = sqliteTable(
   (table) => [primaryKey({ columns: [table.guildId, table.roleId, table.target] })],
 );
 
+/** Channels where the games may be played in a guild. No rows means every channel. */
+export const guildGameChannels = sqliteTable(
+  'guild_game_channels',
+  {
+    guildId: text('guild_id').notNull(),
+    channelId: text('channel_id').notNull(),
+    createdAt: integer('created_at').notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.guildId, table.channelId] })],
+);
+
 export const jobRuns = sqliteTable('job_runs', {
   name: text('name').primaryKey(),
   lastRunAt: integer('last_run_at').notNull(),

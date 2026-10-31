@@ -10,6 +10,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createClient } from '../src/client.js';
 import { openDatabase } from '../src/db/index.js';
 import { logChannelAlreadySet, settingsNeedsManageServer } from '../src/features/settings/cards.js';
+import { addGameChannel, gameChannels } from '../src/features/settings/game-channels.js';
 import {
   addAutoRole,
   autoRoles,
@@ -281,5 +282,36 @@ describe('/settings autorole', () => {
     addAutoRole(container.db, '2', '7', 'member', 1);
     const result = await run(undefined, 'show', {}, { guild: guildWithBot() });
     expect(result.text).toContain('<@&7> ⚠️ role no longer exists');
+  });
+});
+
+describe('/settings games', () => {
+  it('limits the games to a channel, lists it and lifts the limit again', async () => {
+    const channel = fakeChannel('c1');
+    const allow = await run('games', 'allow', { channel });
+    expect(allow.text).toContain('limited to <#c1>');
+    expect(gameChannels(container.db, '2')).toEqual(['c1']);
+
+    const again = await run('games', 'allow', { channel });
+    expect(again.text).toContain('already a game channel');
+
+    const show = await run(undefined, 'show');
+    expect(show.text).toContain('**Game channels:** <#c1>');
+
+    const remove = await run('games', 'remove', { channel });
+    expect(remove.text).toContain('every channel again');
+    expect(gameChannels(container.db, '2')).toEqual([]);
+
+    const missing = await run('games', 'remove', { channel });
+    expect(missing.text).toContain("isn't a game channel");
+  });
+
+  it('resets the list and needs Manage Server', async () => {
+    addGameChannel(container.db, '2', 'c1', 1);
+    await run('games', 'reset');
+    expect(gameChannels(container.db, '2')).toEqual([]);
+    const denied = await run('games', 'allow', { channel: fakeChannel('c2') }, { permissions: 0n });
+    expect(denied.text).toContain(settingsNeedsManageServer);
+    expect(gameChannels(container.db, '2')).toEqual([]);
   });
 });

@@ -12,6 +12,8 @@ export const logChannelAlreadySet = (kind: LogKind, id: string) =>
 export interface SettingsView {
   autoRoles: Record<AutoRoleTarget, { roleId: string; problem?: string }[]>;
   logs: Record<LogKind, { channelId?: string; problem?: string }>;
+  /** Channels the games are limited to; empty means every channel. */
+  gameChannels: string[];
 }
 
 const warn = (problem?: string) => (problem ? ` ⚠️ ${problem}` : '');
@@ -35,6 +37,7 @@ export function settingsCard(view: SettingsView): ContainerBuilder {
       `**Auto-roles (bots):** ${roles('bot')}`,
       `**Economy log:** ${log('economy')}`,
       `**Mod log:** ${log('mod')}`,
+      `**Game channels:** ${view.gameChannels.length === 0 ? 'all channels' : view.gameChannels.map((id) => `<#${id}>`).join(', ')}`,
     ].join('\n'),
   );
 }

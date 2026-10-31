@@ -31,6 +31,7 @@ import {
   settleChallenge,
   tryClose,
 } from '../features/coinflip/index.js';
+import { gameChannelDenied } from '../features/settings/index.js';
 import { cardReply, errorReply, withoutActionRows } from '../features/ui/index.js';
 
 export class CoinflipButtonsHandler extends InteractionHandler {
@@ -47,6 +48,13 @@ export class CoinflipButtonsHandler extends InteractionHandler {
   }
 
   public override async run(interaction: ButtonInteraction, id: CoinflipId) {
+    const denied = gameChannelDenied(
+      this.container.db,
+      interaction.guildId as string,
+      interaction.channelId,
+      interaction.channel,
+    );
+    if (denied) return interaction.reply(errorReply(denied));
     // Errors keep the card as it was: a stale button only gets a private explanation.
     try {
       if (id.kind === 'again') {
