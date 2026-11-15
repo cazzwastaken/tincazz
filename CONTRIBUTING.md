@@ -24,6 +24,7 @@ Issues labelled `good first issue` or `help wanted` are good places to start.
 
 You need Node.js 24+ (see `.node-version`), [pnpm](https://pnpm.io) and a Discord bot of your own
 to test with. Do not test against the production bot.
+
 1. Fork the repository and clone your fork.
 2. Create a test application and bot as described in
    [Create the bot](README.md#create-the-bot-once), and invite it to a private test server.
@@ -78,6 +79,7 @@ schema drift apart, and builds the Docker image for every pull request.
 ## Economy and gamba
 
 The economy is balanced deliberately. Changes here get extra review:
+
 - Gamba targets a ~1% house edge. `test/gamba-evaluate.test.ts` fails if the return leaves
   98.5–99.5%. Pot prizes are capped per bet (`pot.maxWinPerBet`) so a huge pot never makes a
   spin profitable on average; the same test guards it.
