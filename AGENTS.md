@@ -220,6 +220,7 @@ ID (see `features/gamba/custom-ids.ts`), so handlers must ignore IDs they cannot
 
 This repository is **public**. Never commit tokens, keys, `.env` files, server/user IDs that are
 meant to stay private, or logs containing them.
+
 - Real values live only in `.env` (gitignored) locally and in the `.env` file on the server.
   `.env.example` documents the variables with empty or safe placeholder values.
 - The Docker image contains no secrets; they are injected at runtime through `env_file`.

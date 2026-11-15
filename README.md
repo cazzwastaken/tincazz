@@ -4,6 +4,7 @@ Discord bot for the cazzwastaken community server, built with TypeScript, discor
 Sapphire framework.
 
 Currently implemented:
+
 - `?ping` / `/ping`: the bot's latency
 - `?help` / `/help`: the games, the ways to earn coins and the bet limits (built from the config)
 - `?gamba [bet]` / `/gamba bet:<bet>`: wagered spins with a progressive pot (see below).
@@ -92,6 +93,7 @@ most your balance after the spin. Only the player can use the buttons.
 ## First-time server setup
 
 Run these as someone with Manage Server:
+
 - `/settings logs set type:<economy|mod> channel:<channel>`: where economy and moderation logs go
   (`/settings logs clear` stops a log). The bot needs View Channel and Send Messages in log
   channels. The economy log records admin give/take, jackpots and member events; big spins,
