@@ -63,13 +63,14 @@ those double the stake. The cpp triple's main prize is the pot and the jackpot r
 Bets of 100 or less add nothing to the shared pot. Bets over 100 add 3% of the whole bet,
 rounded down to whole coins. The pot starts at 10,000 coins and never drops below that seed.
 
-A python triple also pays 5% of the pot above the seed, on top of its 25x payout. Pairs and yt
-triples take nothing from the pot. A cpp triple wins the pot, up to 80x its bet (see below). Both pot prizes are full-sized
+A python triple also pays 8% of the pot above the seed, on top of its 25x payout. Pairs and yt
+triples take nothing from the pot. A cpp triple wins the pot, up to 96x its bet (see below). Both pot prizes are full-sized
 at bets of 500 or more and scale by `bet / 500` below that, rounded down to whole coins.
 
-One win takes at most 80x its bet from the pot for a jackpot and 1x its bet for a python triple;
-the rest stays in the pot. For example, a 500-coin jackpot takes up to 40,000 coins and a
-10,000-coin one up to 800,000. This keeps every spin a loss on average however big the pot gets.
+One win takes at most 96x its bet from the pot for a jackpot and 2x its bet for a python triple;
+the rest stays in the pot. For example, a 500-coin jackpot takes up to 48,000 coins and a
+10,000-coin one up to 960,000. A python triple on a 500-coin bet takes up to 1,000 coins.
+This keeps every spin a loss on average however big the pot gets.
 If a jackpot leaves the pot below the seed, it is topped back up.
 
 `?gamba` replies to you with the reels (plus a follow-up on a win), with no buttons. Every `/gamba`
