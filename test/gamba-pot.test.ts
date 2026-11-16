@@ -41,10 +41,10 @@ describe('potShare', () => {
 });
 
 describe('maxPotWin', () => {
-  it('limits a jackpot to 80x and a python triple to 1x its bet', () => {
-    expect(maxPotWin(500, 'cppTriple')).toBe(40_000);
-    expect(maxPotWin(10_000, 'cppTriple')).toBe(800_000);
-    expect(maxPotWin(500, 'pythonTriple')).toBe(500);
+  it('limits a jackpot to 96x and a python triple to 2x its bet', () => {
+    expect(maxPotWin(500, 'cppTriple')).toBe(48_000);
+    expect(maxPotWin(10_000, 'cppTriple')).toBe(960_000);
+    expect(maxPotWin(500, 'pythonTriple')).toBe(1_000);
   });
 
   it('lets no other tier take from the pot', () => {
@@ -55,20 +55,20 @@ describe('maxPotWin', () => {
 });
 
 describe('rareWinShare', () => {
-  it('takes 5% of the excess over the seed on a python triple', () => {
-    expect(rareWinShare(15_000, 500, 'pythonTriple')).toBe(250);
-    expect(rareWinShare(100_000, 10_000, 'pythonTriple')).toBe(4_500);
+  it('takes 8% of the excess over the seed on a python triple', () => {
+    expect(rareWinShare(15_000, 500, 'pythonTriple')).toBe(400);
+    expect(rareWinShare(100_000, 10_000, 'pythonTriple')).toBe(7_200);
   });
 
-  it('caps a python triple at its bet', () => {
-    expect(rareWinShare(300_000, 500, 'pythonTriple')).toBe(500);
-    expect(rareWinShare(300_000, 10_000, 'pythonTriple')).toBe(10_000);
-    expect(rareWinShare(300_000, 10, 'pythonTriple')).toBe(10);
+  it('caps a python triple at twice its bet', () => {
+    expect(rareWinShare(300_000, 500, 'pythonTriple')).toBe(1_000);
+    expect(rareWinShare(300_000, 10_000, 'pythonTriple')).toBe(20_000);
+    expect(rareWinShare(300_000, 10, 'pythonTriple')).toBe(20);
   });
 
   it('scales the share below the full-share bet', () => {
-    // 5% of the 5,000 excess is 250, scaled to 100 / 500 of it.
-    expect(rareWinShare(15_000, 100, 'pythonTriple')).toBe(50);
+    // 8% of the 5,000 excess is 400, scaled to 100 / 500 of it.
+    expect(rareWinShare(15_000, 100, 'pythonTriple')).toBe(80);
   });
 
   it('pays nothing for pairs, yt triples or a pot at the seed', () => {
@@ -104,32 +104,32 @@ describe('settlePot', () => {
     expect(settlePot(db, 'g', 100, 'cppTriple', 'u', 1)).toEqual({ potWon: 2_000, pot: 10_000 });
   });
 
-  it('caps a jackpot at 80x its bet and keeps the rest in the pot', () => {
+  it('caps a jackpot at 96x its bet and keeps the rest in the pot', () => {
     const db = openDatabase(':memory:');
     settlePot(db, 'g', 100, 'none', 'u', 1);
     db.update(pots).set({ amount: 100_000 }).where(eq(pots.guildId, 'g')).run();
-    // Its share would be 2,000, but a 10-coin bet takes at most 800.
-    expect(settlePot(db, 'g', 10, 'cppTriple', 'u', 2)).toEqual({ potWon: 800, pot: 99_200 });
+    // Its share would be 2,000, but a 10-coin bet takes at most 960.
+    expect(settlePot(db, 'g', 10, 'cppTriple', 'u', 2)).toEqual({ potWon: 960, pot: 99_040 });
   });
 
-  it('pays a full-share jackpot at most 80x its bet from a big pot', () => {
+  it('pays a full-share jackpot at most 96x its bet from a big pot and credits the winner', () => {
     const db = openDatabase(':memory:');
     settlePot(db, 'g', 100, 'none', 'u', 1);
     db.update(pots).set({ amount: 1_000_000 }).where(eq(pots.guildId, 'g')).run();
-    expect(settlePot(db, 'g', 500, 'cppTriple', 'u', 2)).toEqual({ potWon: 40_000, pot: 960_015 });
-    expect(rowOf(db, 'g')).toMatchObject({ amount: 960_015, lastWinnerId: 'u', lastWonAt: 2 });
+    expect(settlePot(db, 'g', 500, 'cppTriple', 'u', 2)).toEqual({ potWon: 48_000, pot: 952_015 });
+    expect(rowOf(db, 'g')).toMatchObject({ amount: 952_015, lastWinnerId: 'u', lastWonAt: 2 });
   });
 
   it('pays a rare win from the excess without touching the last winner', () => {
     const db = openDatabase(':memory:');
     settlePot(db, 'g', 500, 'cppTriple', 'w', 1);
     db.update(pots).set({ amount: 300_000 }).where(eq(pots.guildId, 'g')).run();
-    // 300,015 after the contribution: 5% of the 290,015 excess is 14,500, capped at the bet.
+    // 300,015 after the contribution: 8% of the 290,015 excess is 23,201, capped at twice the bet.
     expect(settlePot(db, 'g', 500, 'pythonTriple', 'u', 2)).toEqual({
-      potWon: 500,
-      pot: 299_515,
+      potWon: 1_000,
+      pot: 299_015,
     });
-    expect(rowOf(db, 'g')).toMatchObject({ amount: 299_515, lastWinnerId: 'w', lastWonAt: 1 });
+    expect(rowOf(db, 'g')).toMatchObject({ amount: 299_015, lastWinnerId: 'w', lastWonAt: 1 });
   });
 
   it('drains a big pot only slowly toward the seed under repeated rare wins', () => {

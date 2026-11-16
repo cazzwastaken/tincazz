@@ -43,14 +43,14 @@ export const payoutBps = {
  *
  * `maxWinPerBet` limits what one win can take from the pot to a multiple of its bet, and the rest
  * stays in the pot. The pot can grow without limit and still never make a spin a winner on average:
- * with these limits it adds at most (80 + 8 × 1) / 9,261 ≈ 0.95% of the bet, under the ~1.26%
- * house edge.
+ * with these limits it adds at most (96 + 8 × 2) / 9,261 ≈ 1.21% of the bet, under the ~1.26%
+ * house edge. Bets above 100 contribute 3%, more than the maximum expected pot payout.
  */
 export const pot = {
   seed: 10_000,
   contributionPercent: 3,
   contributionAbove: 100,
   fullShareBet: 500,
-  shareBps: { pythonTriple: 500 },
-  maxWinPerBet: { cppTriple: 80, pythonTriple: 1 },
+  shareBps: { pythonTriple: 800 },
+  maxWinPerBet: { cppTriple: 96, pythonTriple: 2 },
 } as const;
