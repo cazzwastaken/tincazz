@@ -1,3 +1,13 @@
+export {
+  type BubbleArgs,
+  type BubbleStyle,
+  bubbleUsage,
+  commandRemainder,
+  memeUsage,
+  parseBubbleArgs,
+  parseMemeArgs,
+  type TailSide,
+} from './args.js';
 export { limits } from './config.js';
 export { ImagingError, messages } from './errors.js';
 export { downloadImage, type Fetcher, type ImageFormat, sniffImage } from './fetch.js';
