@@ -13,6 +13,13 @@ export const noMentionNames: MentionNames = {
   channels: new Map(),
 };
 
+/** The one set of mention patterns. Global, but only used with `replace` and `matchAll`, which are safe with that. */
+export const mentionPatterns = {
+  user: /<@!?(\d+)>/g,
+  role: /<@&(\d+)>/g,
+  channel: /<#(\d+)>/g,
+} as const;
+
 /**
  * Turns raw user text into a plain caption: mentions and custom emoji become readable text,
  * invisible characters go, whitespace is normalised and the line count is capped. Does not
@@ -20,9 +27,12 @@ export const noMentionNames: MentionNames = {
  */
 export function sanitizeCaption(raw: string, names: MentionNames): string {
   const text = raw
-    .replace(/<@!?(\d+)>/g, (_m, id: string) => `@${names.users.get(id) ?? 'unknown-user'}`)
-    .replace(/<@&(\d+)>/g, (_m, id: string) => `@${names.roles.get(id) ?? 'unknown-role'}`)
-    .replace(/<#(\d+)>/g, (_m, id: string) => `#${names.channels.get(id) ?? 'unknown-channel'}`)
+    .replace(mentionPatterns.user, (_m, id: string) => `@${names.users.get(id) ?? 'unknown-user'}`)
+    .replace(mentionPatterns.role, (_m, id: string) => `@${names.roles.get(id) ?? 'unknown-role'}`)
+    .replace(
+      mentionPatterns.channel,
+      (_m, id: string) => `#${names.channels.get(id) ?? 'unknown-channel'}`,
+    )
     .replace(/<a?:(\w+):\d+>/g, ':$1:')
     .replace(/\r\n/g, '\n')
     .replace(/[^\P{Cc}\n\t]|[^\P{Cf}‍]/gu, '');

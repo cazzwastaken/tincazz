@@ -20,7 +20,7 @@ import {
   type SourceInputs,
   type StickerData,
 } from './source.js';
-import type { MentionNames } from './text.js';
+import { type MentionNames, mentionPatterns } from './text.js';
 
 const avatarOptions = { size: 512, extension: 'png', forceStatic: false } as const;
 
@@ -133,18 +133,18 @@ export function interactionMentionNames(
   const users = new Map<string, string>();
   const roles = new Map<string, string>();
   const channels = new Map<string, string>();
-  for (const [, id] of text.matchAll(/<@!?(\d+)>/g)) {
+  for (const [, id] of text.matchAll(mentionPatterns.user)) {
     if (!id) continue;
     const member = interaction.guild?.members.cache.get(id);
     const user = interaction.client.users.cache.get(id);
     const name = member?.displayName ?? (user ? (user.globalName ?? user.username) : undefined);
     if (name !== undefined) users.set(id, name);
   }
-  for (const [, id] of text.matchAll(/<@&(\d+)>/g)) {
+  for (const [, id] of text.matchAll(mentionPatterns.role)) {
     const role = id ? interaction.guild?.roles.cache.get(id) : undefined;
     if (id && role) roles.set(id, role.name);
   }
-  for (const [, id] of text.matchAll(/<#(\d+)>/g)) {
+  for (const [, id] of text.matchAll(mentionPatterns.channel)) {
     const channel = id ? interaction.guild?.channels.cache.get(id) : undefined;
     if (id && channel) channels.set(id, channel.name);
   }

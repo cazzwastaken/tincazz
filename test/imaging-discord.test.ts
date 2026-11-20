@@ -209,7 +209,7 @@ describe('produceImage', () => {
   });
 
   it('returns queue ImagingErrors as messages', async () => {
-    const jobs = new ImageJobs();
+    const jobs = new ImageJobs({ timeoutMs: 50 });
     const fetcher = vi.fn<Fetcher>(() => new Promise<Response>(() => {}));
     produceImage({ url }, op, 'u1', { fetch: fetcher, jobs }).catch(() => {});
     expect(await produceImage({ url }, op, 'u1', { fetch: fetcher, jobs })).toEqual({
