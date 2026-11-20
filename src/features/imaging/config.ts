@@ -6,6 +6,8 @@ export const limits = {
   maxRedirects: 3,
   maxSourceSide: 4096,
   maxSourcePages: 1000,
+  /** width x page height x pages a source may decode to, before any resize */
+  maxSourcePixels: 250_000_000,
   maxFrames: 100,
   maxStripPixels: 512 * 1024 * 100,
   maxWidth: 512,

@@ -1,12 +1,14 @@
-import sharp from 'sharp';
+import sharp, { type Metadata } from 'sharp';
 import { limits } from './config.js';
 import { ImagingError, messages } from './errors.js';
 import { type Frames, sampleGroups } from './frames.js';
 
 /** Source pages decoded per sharp call: bounds memory on long animations. */
 const chunkPages = 25;
-/** GIF players treat a missing delay as about this long. */
+/** Browsers and Discord play a missing delay, or one of 10 ms or less, at this speed. */
 const defaultDelayMs = 100;
+const playedDelay = (ms: number | undefined) =>
+  ms === undefined || ms <= 10 ? defaultDelayMs : ms;
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
@@ -24,19 +26,31 @@ export async function decodeFrames(input: Buffer, options: { maxWidth: number })
   }
 }
 
+/** Source size from the header probe: a single page is measured after EXIF orientation. */
+function sourceSize(head: Metadata) {
+  const pages = head.pages ?? 1;
+  if (pages === 1) {
+    return { width: head.autoOrient.width, pageHeight: head.autoOrient.height, pages };
+  }
+  return { width: head.width, pageHeight: head.pageHeight ?? head.height, pages };
+}
+
+/** Whether a probed source is over the per-frame, page count or total decode budget. */
+export function sourceTooLarge(source: { width: number; pageHeight: number; pages: number }) {
+  return (
+    source.width > limits.maxSourceSide ||
+    source.pageHeight > limits.maxSourceSide ||
+    source.pages > limits.maxSourcePages ||
+    source.width * source.pageHeight * source.pages > limits.maxSourcePixels
+  );
+}
+
 async function decode(input: Buffer, maxWidth: number): Promise<Frames> {
   const head = await sharp(input).metadata();
-  const srcWidth = head.width;
-  const srcPageHeight = head.pageHeight ?? head.height;
-  const total = head.pages ?? 1;
+  const source = sourceSize(head);
+  const { width: srcWidth, pageHeight: srcPageHeight, pages: total } = source;
   if (!srcWidth || !srcPageHeight) throw new ImagingError(messages.notImage);
-  if (
-    srcWidth > limits.maxSourceSide ||
-    srcPageHeight > limits.maxSourceSide ||
-    total > limits.maxSourcePages
-  ) {
-    throw new ImagingError(messages.tooManyPixels);
-  }
+  if (sourceTooLarge(source)) throw new ImagingError(messages.tooManyPixels);
 
   const width = clamp(srcWidth, limits.minWidth, maxWidth);
   const pageHeight = Math.max(1, Math.round((srcPageHeight * width) / srcWidth));
@@ -48,9 +62,7 @@ async function decode(input: Buffer, maxWidth: number): Promise<Frames> {
   const data = Buffer.alloc(frameBytes * groups.length);
   const delay =
     total > 1
-      ? groups.map((group) =>
-          group.reduce((sum, page) => sum + (head.delay?.[page] ?? defaultDelayMs), 0),
-        )
+      ? groups.map((group) => group.reduce((sum, page) => sum + playedDelay(head.delay?.[page]), 0))
       : [0];
 
   // Output frame i is the first page of group i. Walk the source in chunks and copy those pages.
@@ -61,7 +73,10 @@ async function decode(input: Buffer, maxWidth: number): Promise<Frames> {
       page: start,
       pages: count,
       limitInputPixels: limits.maxSourceSide ** 2 * chunkPages,
+      // EXIF orientation only applies to a single still image
+      autoOrient: total === 1,
     })
+      .timeout({ seconds: limits.jobTimeoutMs / 1000 })
       .resize({ width, height: pageHeight, fit: 'fill' })
       .ensureAlpha()
       .raw()

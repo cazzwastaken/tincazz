@@ -9,7 +9,7 @@ export {
   type TailSide,
 } from './args.js';
 export { limits } from './config.js';
-export { decodeFrames } from './decode.js';
+export { decodeFrames, sourceTooLarge } from './decode.js';
 export { encodeGif, type GifTuning } from './encode.js';
 export { ImagingError, messages } from './errors.js';
 export { downloadImage, type Fetcher, type ImageFormat, sniffImage } from './fetch.js';

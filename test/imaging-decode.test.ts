@@ -1,6 +1,13 @@
 import { randomBytes } from 'node:crypto';
+import sharp from 'sharp';
 import { describe, expect, it } from 'vitest';
-import { decodeFrames, ImagingError, messages } from '../src/features/imaging/index.js';
+import {
+  decodeFrames,
+  ImagingError,
+  limits,
+  messages,
+  sourceTooLarge,
+} from '../src/features/imaging/index.js';
 import { frameColor, makeGif, makeJpeg, makePng, pixelAt } from './support/images.js';
 
 describe('decodeFrames', () => {
@@ -79,5 +86,65 @@ describe('decodeFrames', () => {
     await expect(decodeFrames(gif.subarray(0, 40), { maxWidth: 512 })).rejects.toThrow(
       new ImagingError(messages.notImage),
     );
+  });
+
+  it('plays delays of 10 ms or less at 100 ms, as browsers do', async () => {
+    const zero = await makeGif({ width: 256, height: 8, frames: 3, delay: 0, loop: 0 });
+    expect((await decodeFrames(zero, { maxWidth: 512 })).delay).toEqual([100, 100, 100]);
+    const fast = await makeGif({ width: 256, height: 8, frames: 3, delay: [10, 20, 0], loop: 0 });
+    expect((await decodeFrames(fast, { maxWidth: 512 })).delay).toEqual([100, 20, 100]);
+  });
+
+  it('applies EXIF orientation to a still JPEG', async () => {
+    // stored 40x20, left half red and right half blue; orientation 6 turns it 90 degrees clockwise
+    const stored = Buffer.alloc(40 * 20 * 3);
+    for (let i = 0; i < 40 * 20; i++) {
+      const left = i % 40 < 20;
+      stored[i * 3] = left ? 255 : 0;
+      stored[i * 3 + 2] = left ? 0 : 255;
+    }
+    const jpeg = await sharp(stored, { raw: { width: 40, height: 20, channels: 3 } })
+      .jpeg({ quality: 100 })
+      .withMetadata({ orientation: 6 })
+      .toBuffer();
+    expect((await sharp(jpeg).metadata()).orientation).toBe(6);
+
+    const frames = await decodeFrames(jpeg, { maxWidth: 512 });
+    expect(frames).toMatchObject({ width: 256, pageHeight: 512, pages: 1 });
+    const [topR, , topB] = pixelAt(frames, 0, 128, 10);
+    const [bottomR, , bottomB] = pixelAt(frames, 0, 128, 500);
+    expect(topR).toBeGreaterThan(200);
+    expect(topB).toBeLessThan(55);
+    expect(bottomR).toBeLessThan(55);
+    expect(bottomB).toBeGreaterThan(200);
+  });
+});
+
+describe('sourceTooLarge', () => {
+  const side = limits.maxSourceSide;
+
+  it('accepts sources inside every budget', () => {
+    expect(sourceTooLarge({ width: 480, pageHeight: 270, pages: 150 })).toBe(false);
+    expect(sourceTooLarge({ width: side, pageHeight: side, pages: 1 })).toBe(false);
+    expect(sourceTooLarge({ width: 256, pageHeight: 256, pages: limits.maxSourcePages })).toBe(
+      false,
+    );
+  });
+
+  it('rejects an oversized frame or too many pages', () => {
+    expect(sourceTooLarge({ width: side + 1, pageHeight: 10, pages: 1 })).toBe(true);
+    expect(sourceTooLarge({ width: 10, pageHeight: side + 1, pages: 1 })).toBe(true);
+    expect(sourceTooLarge({ width: 10, pageHeight: 10, pages: limits.maxSourcePages + 1 })).toBe(
+      true,
+    );
+  });
+
+  it('rejects many large pages that pass each per-frame check', () => {
+    expect(sourceTooLarge({ width: side, pageHeight: side, pages: 15 })).toBe(true);
+    expect(sourceTooLarge({ width: side, pageHeight: side, pages: limits.maxSourcePages })).toBe(
+      true,
+    );
+    expect(sourceTooLarge({ width: 1000, pageHeight: 1000, pages: 250 })).toBe(false);
+    expect(sourceTooLarge({ width: 1000, pageHeight: 1000, pages: 251 })).toBe(true);
   });
 });
