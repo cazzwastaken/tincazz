@@ -8,6 +8,7 @@ export {
   parseMemeArgs,
   type TailSide,
 } from './args.js';
+export { applyBubble, type BubbleGeometry, bubbleGeometry, bubbleSvg } from './bubble.js';
 export { limits } from './config.js';
 export { decodeFrames, sourceTooLarge } from './decode.js';
 export { encodeGif, type GifTuning } from './encode.js';
