@@ -9,9 +9,12 @@ export {
   type TailSide,
 } from './args.js';
 export { limits } from './config.js';
+export { decodeFrames } from './decode.js';
+export { encodeGif, type GifTuning } from './encode.js';
 export { ImagingError, messages } from './errors.js';
 export { downloadImage, type Fetcher, type ImageFormat, sniffImage } from './fetch.js';
 export { captionFont, captionFontFile, emojiFontFile, ensureFonts } from './fonts.js';
+export { type Frames, fromSharp, halveFrames, sampleGroups, toSharp } from './frames.js';
 export {
   type AttachmentData,
   type EmbedData,
