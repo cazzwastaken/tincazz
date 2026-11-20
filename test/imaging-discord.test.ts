@@ -1,4 +1,4 @@
-import { AttachmentBuilder, PermissionFlagsBits, StickerFormatType } from 'discord.js';
+import { AttachmentBuilder, Collection, PermissionFlagsBits, StickerFormatType } from 'discord.js';
 import { describe, expect, it, vi } from 'vitest';
 import {
   avatarUrl,
@@ -115,7 +115,7 @@ describe('avatarUrl', () => {
 describe('messageInputs', () => {
   const base = (extra: Stub) =>
     cast<Msg>({
-      attachments: { first: () => undefined },
+      attachments: new Collection(),
       guild: null,
       client: { users: { fetch: vi.fn(async () => null) } },
       ...extra,
@@ -169,6 +169,38 @@ describe('messageInputs', () => {
 
     const missing = await messageInputs(base({}), { userId: '1' });
     expect(missing.avatarUrl).toBeUndefined();
+  });
+  it('uses the first image attachment, not a file before it', async () => {
+    const text = {
+      url: 'https://cdn.discordapp.com/attachments/1/2/notes.txt',
+      contentType: 'text/plain',
+    };
+    const image = {
+      url: 'https://cdn.discordapp.com/attachments/1/2/cat.png',
+      contentType: 'image/png',
+    };
+    const unknown = { url: 'https://cdn.discordapp.com/attachments/1/2/x', contentType: null };
+    const inputs = (entries: [string, object][]) =>
+      messageInputs(base({ attachments: new Collection(entries) }), {});
+    expect(
+      (
+        await inputs([
+          ['1', text],
+          ['2', image],
+        ])
+      ).attachment,
+    ).toEqual(image);
+    expect(
+      (
+        await inputs([
+          ['1', text],
+          ['2', unknown],
+          ['3', image],
+        ])
+      ).attachment,
+    ).toEqual(unknown);
+    // with no image, the first attachment still gives its own error (video, not an image)
+    expect((await inputs([['1', text]])).attachment).toEqual(text);
   });
 });
 

@@ -77,8 +77,11 @@ export async function messageInputs(
   args: { url?: string; userId?: string },
 ): Promise<SourceInputs> {
   const inputs: SourceInputs = {};
-  const first = message.attachments.first();
-  if (first) inputs.attachment = attachmentData(first);
+  // The first image (or untyped) attachment; with none, the first one, so it gets its own error.
+  const attachment =
+    message.attachments.find((a) => a.contentType === null || a.contentType.startsWith('image/')) ??
+    message.attachments.first();
+  if (attachment) inputs.attachment = attachmentData(attachment);
   if (args.url !== undefined) inputs.url = args.url;
 
   if (args.userId !== undefined) {
