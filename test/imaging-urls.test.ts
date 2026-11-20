@@ -23,9 +23,23 @@ describe('checkUrl', () => {
     for (const u of [
       'https://tenor.com/view/do-not-run-python-gif-123',
       'https://www.tenor.com/view/x-gif-1',
+      'https://tenor.com/en-GB/view/x-gif-1',
+      'https://tenor.com/de/view/x-gif-1',
+      'https://www.tenor.com/pt-BR/view/x-gif-1',
     ]) {
       const r = checkUrl(u);
       expect(r.ok && r.kind).toBe('tenorPage');
+    }
+  });
+
+  it('rejects tenor locale paths that are not a gif page', () => {
+    for (const u of [
+      'https://tenor.com/en-GB/view/',
+      'https://tenor.com/en-GB/search/cat',
+      'https://tenor.com/english/view/x-gif-1',
+      'https://tenor.com/a/b/view/x-gif-1',
+    ]) {
+      expect(checkUrl(u)).toEqual({ ok: false, reason: 'notAllowed' });
     }
   });
 

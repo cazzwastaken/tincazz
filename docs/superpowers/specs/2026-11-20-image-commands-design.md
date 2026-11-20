@@ -132,7 +132,7 @@ https only. Exact hosts or listed suffixes:
 - Discord: `cdn.discordapp.com`, `media.discordapp.net`, `images-ext-*.discordapp.net` (Discord's
   external image proxy)
 - Tenor: `media.tenor.com`, `media1.tenor.com`, `c.tenor.com`; page links `tenor.com/view/...`
-  are resolved to the GIF by reading the page's `og:image` meta tag (the page fetch is also
+  (also under a locale, `tenor.com/en-GB/view/...`) are resolved to the GIF by reading the page's `og:image` meta tag (the page fetch is also
   allowlisted and capped at 2 MiB)
 - Giphy: `media.giphy.com`, `media*.giphy.com`, `i.giphy.com`; page links
   `giphy.com/gifs/<slug>-<id>` map to `https://i.giphy.com/<id>.gif` without a fetch

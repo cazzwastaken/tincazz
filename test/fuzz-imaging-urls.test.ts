@@ -3,6 +3,26 @@ import { describe, expect, it } from 'vitest';
 import { checkUrl, extractUrls, isAllowedHost } from '../src/features/imaging/index.js';
 
 describe('checkUrl properties', () => {
+  it('classifies any tenor view page, with or without a locale, as a tenor page', () => {
+    const letters = (n: number) =>
+      fc.array(fc.constantFrom(...'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'), {
+        minLength: n,
+        maxLength: n,
+      });
+    const locale = fc.oneof(
+      fc.constant(''),
+      letters(2).map((l) => `/${l.join('')}`),
+      fc.tuple(letters(2), letters(2)).map(([a, b]) => `/${a.join('')}-${b.join('')}`),
+    );
+    const slug = fc.stringMatching(/^[a-z0-9-]{1,30}$/);
+    fc.assert(
+      fc.property(locale, slug, (l, s) => {
+        const r = checkUrl(`https://tenor.com${l}/view/${s}`);
+        expect(r.ok && r.kind).toBe('tenorPage');
+      }),
+    );
+  });
+
   it('never throws and only approves https on allowed hosts', () => {
     fc.assert(
       fc.property(fc.oneof(fc.string(), fc.webUrl(), fc.string({ unit: 'binary' })), (s) => {

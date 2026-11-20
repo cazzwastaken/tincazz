@@ -27,6 +27,8 @@ const tenorPageHosts = new Set(['tenor.com', 'www.tenor.com']);
 const giphyPageHosts = new Set(['giphy.com', 'www.giphy.com']);
 
 const giphyPath = /^\/gifs\/(?:[^/]*-)?([A-Za-z0-9]+)\/?$/;
+/** `/view/<slug>`, optionally under a locale such as `/de/` or `/en-GB/` */
+const tenorPagePath = /^\/(?:[a-z]{2}(?:-[a-z]{2})?\/)?view\/./i;
 
 export function isAllowedHost(hostname: string): boolean {
   const host = hostname.toLowerCase();
@@ -52,9 +54,7 @@ export function checkUrl(raw: string): UrlCheck {
   if (!isAllowedHost(url.hostname)) return notAllowed;
 
   if (tenorPageHosts.has(url.hostname)) {
-    return url.pathname.startsWith('/view/') && url.pathname.length > '/view/'.length
-      ? { ok: true, url, kind: 'tenorPage' }
-      : notAllowed;
+    return tenorPagePath.test(url.pathname) ? { ok: true, url, kind: 'tenorPage' } : notAllowed;
   }
 
   if (giphyPageHosts.has(url.hostname)) {
