@@ -14,13 +14,17 @@ const clamp = (value: number, min: number, max: number) => Math.min(max, Math.ma
 
 /**
  * Decode an image or animation into a strip at the working width (enlarged to `limits.minWidth`,
- * shrunk to `maxWidth`). Animations over the frame cap are sampled evenly: each kept frame stands
+ * shrunk to `maxWidth`). An aborted `signal` stops the decode between chunks and throws its reason. Animations over the frame cap are sampled evenly: each kept frame stands
  * for a run of consecutive pages and gets their summed delay, so the total time is kept.
  */
-export async function decodeFrames(input: Buffer, options: { maxWidth: number }): Promise<Frames> {
+export async function decodeFrames(
+  input: Buffer,
+  options: { maxWidth: number; signal?: AbortSignal },
+): Promise<Frames> {
   try {
-    return await decode(input, options.maxWidth);
+    return await decode(input, options.maxWidth, options.signal);
   } catch (error) {
+    if (options.signal?.aborted) throw error;
     if (error instanceof ImagingError) throw error;
     throw new ImagingError(messages.notImage);
   }
@@ -45,7 +49,8 @@ export function sourceTooLarge(source: { width: number; pageHeight: number; page
   );
 }
 
-async function decode(input: Buffer, maxWidth: number): Promise<Frames> {
+async function decode(input: Buffer, maxWidth: number, signal?: AbortSignal): Promise<Frames> {
+  signal?.throwIfAborted();
   const head = await sharp(input).metadata();
   const source = sourceSize(head);
   const { width: srcWidth, pageHeight: srcPageHeight, pages: total } = source;
@@ -68,6 +73,7 @@ async function decode(input: Buffer, maxWidth: number): Promise<Frames> {
   // Output frame i is the first page of group i. Walk the source in chunks and copy those pages.
   let next = 0;
   for (let start = 0; start < total && next < groups.length; start += chunkPages) {
+    signal?.throwIfAborted();
     const count = Math.min(chunkPages, total - start);
     const { data: chunk, info } = await sharp(input, {
       page: start,

@@ -147,4 +147,13 @@ describe('sourceTooLarge', () => {
     expect(sourceTooLarge({ width: 1000, pageHeight: 1000, pages: 250 })).toBe(false);
     expect(sourceTooLarge({ width: 1000, pageHeight: 1000, pages: 251 })).toBe(true);
   });
+
+  it('throws the abort reason when the signal is aborted, not notImage', async () => {
+    const gif = await makeGif({ width: 100, height: 80, frames: 3, delay: 40, loop: 0 });
+    const controller = new AbortController();
+    controller.abort();
+    await expect(decodeFrames(gif, { maxWidth: 512, signal: controller.signal })).rejects.toBe(
+      controller.signal.reason,
+    );
+  });
 });

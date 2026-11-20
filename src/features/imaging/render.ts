@@ -30,7 +30,6 @@ const squeezed: GifTuning = { dither: 0, interFrameMaxError: 32 };
 /** From best quality to smallest output; the first step that fits the byte limit wins. */
 const ladder: readonly LadderStep[] = [
   { maxWidth: 512 },
-  { maxWidth: 512, tuning: { interFrameMaxError: 16 } },
   { maxWidth: 512, tuning: squeezed },
   { maxWidth: 384, tuning: squeezed },
   { maxWidth: 256, tuning: squeezed },
@@ -46,13 +45,15 @@ function operate(frames: Frames, op: ImageOperation): Promise<Frames> {
 /**
  * Decode, apply the operation and encode, walking the size ladder until the GIF fits `maxBytes`.
  * The decode and operation run once per distinct working width and only that width's frames are
- * kept; the last step halves the already processed 256 wide frames.
+ * kept. An aborted `signal` is checked before every decode and encode, so a timed out job stops
+ * at the next step instead of running the whole ladder; the last step halves the already processed 256 wide frames.
  */
 export async function renderImage(
   input: Buffer,
   op: ImageOperation,
-  options: { maxBytes?: number } = {},
+  options: { maxBytes?: number; signal?: AbortSignal } = {},
 ): Promise<RenderResult> {
+  const { signal } = options;
   const maxBytes = options.maxBytes ?? limits.outputBytes;
   let frames: Frames | undefined;
   let frameMaxWidth = 0;
@@ -60,7 +61,7 @@ export async function renderImage(
   for (const [step, rung] of ladder.entries()) {
     if (rung.maxWidth !== frameMaxWidth) {
       frames = undefined; // drop the previous width's buffers before building the next
-      const decoded = await decodeFrames(input, { maxWidth: rung.maxWidth });
+      const decoded = await decodeFrames(input, { maxWidth: rung.maxWidth, signal });
       // Decoding clamps up to the minimum width, so a narrow source can land on the width it
       // already encoded at: a new width step that resulted in the same width cannot shrink the
       // output, skip it.
@@ -69,6 +70,7 @@ export async function renderImage(
       if (frames.width === encodedWidth) continue;
     }
     if (frames === undefined) continue;
+    signal?.throwIfAborted();
     const current = rung.halve ? halveFrames(frames) : frames;
     const gif = await encodeGif(current, rung.tuning);
     encodedWidth = current.width;

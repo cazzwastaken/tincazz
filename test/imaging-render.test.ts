@@ -1,6 +1,9 @@
 import sharp from 'sharp';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
+  decodeFrames,
+  encodeGif,
+  halveFrames,
   type ImageOperation,
   ImagingError,
   messages,
@@ -76,5 +79,54 @@ describe('renderImage', () => {
     const b = await renderImage(input, meme);
     const heightOf = async (gif: Buffer) => (await sharp(gif).metadata()).height ?? 0;
     expect(await heightOf(b.gif)).toBeGreaterThan(await heightOf(a.gif));
+  });
+
+  it('reaches the last step for a narrow source and keeps ladder numbering', async () => {
+    const input = await makeGif({ width: 100, height: 80, frames: 4, delay: 40, loop: 0 });
+    const full = await renderImage(input, bubble);
+    // widths 384 and 256 repeat the 256 wide encode of a narrow source, so they are skipped
+    const decoded = await decodeFrames(input, { maxWidth: 256 });
+    const { applyBubble } = await import('../src/features/imaging/index.js');
+    const processed = await applyBubble(decoded, { style: 'white', tail: 'left' });
+    const halved = await encodeGif(halveFrames(processed), { dither: 0, interFrameMaxError: 32 });
+    expect(halved.length).toBeLessThan(full.gif.length);
+    const result = await renderImage(input, bubble, { maxBytes: halved.length });
+    expect(result.step).toBe(4);
+    expect(result.width).toBe(256);
+    expect(result.pages).toBe(2);
+  });
+
+  it('rejects without encoding when the signal is already aborted', async () => {
+    const input = await makeGif({ width: 100, height: 80, frames: 3, delay: 40, loop: 0 });
+    const gif = vi.spyOn(Object.getPrototypeOf(sharp()), 'gif');
+    try {
+      const controller = new AbortController();
+      controller.abort();
+      await expect(renderImage(input, bubble, { signal: controller.signal })).rejects.toBe(
+        controller.signal.reason,
+      );
+      expect(gif).not.toHaveBeenCalled();
+    } finally {
+      gif.mockRestore();
+    }
+  });
+
+  it('stops the ladder when aborted after step 0', async () => {
+    const input = await makeGif({ width: 100, height: 80, frames: 4, delay: 40, loop: 0 });
+    const controller = new AbortController();
+    const proto = Object.getPrototypeOf(sharp());
+    const original = proto.gif;
+    const gif = vi.spyOn(proto, 'gif').mockImplementation(function (this: unknown, ...args) {
+      controller.abort();
+      return original.apply(this, args);
+    });
+    try {
+      await expect(
+        renderImage(input, bubble, { maxBytes: 100, signal: controller.signal }),
+      ).rejects.toMatchObject({ name: 'AbortError' });
+      expect(gif).toHaveBeenCalledTimes(1);
+    } finally {
+      gif.mockRestore();
+    }
   });
 });
