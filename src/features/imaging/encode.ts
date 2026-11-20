@@ -6,6 +6,7 @@ import { type Frames, toSharp } from './frames.js';
 export interface GifTuning {
   interFrameMaxError?: number;
   dither?: number;
+  effort?: number;
 }
 
 /**

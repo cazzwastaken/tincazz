@@ -7,7 +7,9 @@ import {
   type ImageOperation,
   ImagingError,
   messages,
+  predictRungBytes,
   renderImage,
+  rungPredictedOver,
   sniffImage,
 } from '../src/features/imaging/index.js';
 import { makeGif, makePng } from './support/images.js';
@@ -66,6 +68,24 @@ describe('renderImage', () => {
     expect(result.gif.length).toBeLessThanOrEqual(maxBytes);
   }, 60_000);
 
+  it('skips a rung predicted to stay over the limit and retries with effort 4', async () => {
+    const input = await noisyGif(600, 400, 5);
+    const first = await renderImage(input, bubble);
+    expect(first).toMatchObject({ step: 0, width: 512 });
+    // step 1 (same width) predicts 0.9 x size, still over; step 2 at 384 predicts about half
+    const maxBytes = Math.floor(first.gif.length * 0.8);
+    const gif = vi.spyOn(Object.getPrototypeOf(sharp()), 'gif');
+    try {
+      const result = await renderImage(input, bubble, { maxBytes });
+      expect(result).toMatchObject({ step: 2, width: 384 });
+      expect(result.gif.length).toBeLessThanOrEqual(maxBytes);
+      const efforts = gif.mock.calls.map(([options]) => (options as { effort?: number }).effort);
+      expect(efforts).toEqual([7, 4]);
+    } finally {
+      gif.mockRestore();
+    }
+  }, 60_000);
+
   it('rejects with outputTooBig when no step fits', async () => {
     const input = await makeGif({ width: 100, height: 80, frames: 3, delay: 40, loop: 0 });
     const error = await renderImage(input, bubble, { maxBytes: 100 }).catch((e) => e);
@@ -84,11 +104,16 @@ describe('renderImage', () => {
   it('reaches the last step for a narrow source and keeps ladder numbering', async () => {
     const input = await makeGif({ width: 100, height: 80, frames: 4, delay: 40, loop: 0 });
     const full = await renderImage(input, bubble);
-    // widths 384 and 256 repeat the 256 wide encode of a narrow source, so they are skipped
+    // steps 1 to 3 are predicted to stay over (and 384 and 256 repeat the 256 wide encode of a
+    // narrow source), halving is predicted to fit
     const decoded = await decodeFrames(input, { maxWidth: 256 });
     const { applyBubble } = await import('../src/features/imaging/index.js');
     const processed = await applyBubble(decoded, { style: 'white', tail: 'left' });
-    const halved = await encodeGif(halveFrames(processed), { dither: 0, interFrameMaxError: 32 });
+    const halved = await encodeGif(halveFrames(processed), {
+      dither: 0,
+      interFrameMaxError: 32,
+      effort: 4,
+    });
     expect(halved.length).toBeLessThan(full.gif.length);
     const result = await renderImage(input, bubble, { maxBytes: halved.length });
     expect(result.step).toBe(4);
@@ -128,5 +153,28 @@ describe('renderImage', () => {
     } finally {
       gif.mockRestore();
     }
+  });
+});
+
+describe('rung prediction', () => {
+  const measured = { bytes: 20_000_000, width: 512 };
+
+  it('scales the measured size by the width squared and halves for half the frames', () => {
+    expect(predictRungBytes(measured, { width: 512 })).toBe(20_000_000);
+    expect(predictRungBytes(measured, { width: 384 })).toBe(11_250_000);
+    expect(predictRungBytes(measured, { width: 256 })).toBe(5_000_000);
+    expect(predictRungBytes(measured, { width: 256, halve: true })).toBe(2_500_000);
+  });
+
+  it('skips a rung only when 0.9 of its prediction is still over the limit', () => {
+    const max = 10 * 1024 ** 2;
+    expect(rungPredictedOver(measured, { width: 512 }, max)).toBe(true);
+    expect(rungPredictedOver(measured, { width: 384 }, max)).toBe(false);
+    // 0.9 x 11.25 MB = 10.125 MB: over a 10 MB limit, not over 10.2 MB
+    expect(rungPredictedOver(measured, { width: 384 }, 10_000_000)).toBe(true);
+    expect(rungPredictedOver(measured, { width: 384 }, 10_200_000)).toBe(false);
+    expect(rungPredictedOver({ bytes: 11_000_000, width: 512 }, { width: 512 }, 10_000_000)).toBe(
+      false,
+    );
   });
 });

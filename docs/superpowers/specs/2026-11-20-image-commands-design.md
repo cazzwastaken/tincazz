@@ -119,7 +119,10 @@ command -> discord.ts (gather inputs) -> source.ts (pick) -> jobs.ts (lock, queu
 | Cooldown         | 10 s per user per command                           | Sapphire `cooldownDelay`                        |
 
 Size ladder when the encoded GIF is over the limit: retry at width 384, then 256, then with half
-the frames (delays doubled), then fail with "too big even after shrinking".
+the frames (delays doubled), then fail with "too big even after shrinking". Retries encode squeezed
+(no dither, inter-frame error 32) at effort 4. After an encode over the limit, a rung is skipped
+when 0.9 × its predicted size (last size × (width / last width)², halved for half the frames) is
+still over, so a big animation does not spend the job timeout on encodes that cannot fit.
 
 ## Allowed URL hosts
 
