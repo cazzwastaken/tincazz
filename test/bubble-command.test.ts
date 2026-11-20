@@ -1,4 +1,4 @@
-import { Collection, Events, PermissionFlagsBits } from 'discord.js';
+import { Collection, Events, MessageFlags, PermissionFlagsBits } from 'discord.js';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createClient } from '../src/client.js';
 import { bubbleUsage, messages } from '../src/features/imaging/index.js';
@@ -143,6 +143,24 @@ describe('/bubble', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it('drops the public deferred reply when something unexpected throws', async () => {
+    stubFetch();
+    const interaction = slash('u8', { url: tenor });
+    // Sapphire loads the command in its own module graph, so a spy on the shared job queue would
+    // not reach it. Make gathering the inputs throw instead: anything that is not an ImagingError.
+    interaction.options.getString = () => {
+      throw new TypeError('boom');
+    };
+    await runSlash(interaction);
+
+    expect(interaction.deleteReply).toHaveBeenCalled();
+    expect(interaction.followUp).toHaveBeenCalledWith({
+      content: 'Something went wrong running that. It has been logged.',
+      flags: MessageFlags.Ephemeral,
+    });
+    expect(interaction.editReply).not.toHaveBeenCalled();
+  });
+
   it('shows the usage when nothing was given', async () => {
     stubFetch();
     const interaction = slash('u3');
@@ -194,8 +212,7 @@ describe('?bubble', () => {
     const second = prefixMessage('?bubble', 'u7', { attachment: true });
     await runPrefix(second);
     const [text] = second.reply.mock.calls[0] as unknown as [unknown];
-    expect(typeof text).toBe('string');
-    expect((text as string).length).toBeGreaterThan(0);
+    expect(text).toEqual(expect.stringMatching(/cooldown|wait|seconds?/i));
     expect(second.reply.mock.calls[0]?.[0]).not.toHaveProperty('files');
   });
 });

@@ -64,15 +64,23 @@ export class BubbleCommand extends Command {
 
   public override async chatInputRun(interaction: ChatInputCommandInteraction) {
     await interaction.deferReply();
-    const result = await produceImage(
-      interactionInputs(interaction),
-      {
-        kind: 'bubble',
-        style: (interaction.options.getString('style') ?? 'transparent') as BubbleStyle,
-        tail: (interaction.options.getString('tail') ?? 'left') as TailSide,
-      },
-      interaction.user.id,
-    );
+    let result: Awaited<ReturnType<typeof produceImage>>;
+    try {
+      result = await produceImage(
+        interactionInputs(interaction),
+        {
+          kind: 'bubble',
+          style: (interaction.options.getString('style') ?? 'transparent') as BubbleStyle,
+          tail: (interaction.options.getString('tail') ?? 'left') as TailSide,
+        },
+        interaction.user.id,
+      );
+    } catch (error) {
+      // The generic error listener follows up ephemerally, but the first follow-up would replace
+      // the public "thinking..." message and stay public, so drop it first.
+      await interaction.deleteReply().catch(() => undefined);
+      throw error;
+    }
     if ('file' in result) {
       return interaction.editReply({ files: [result.file] });
     }
