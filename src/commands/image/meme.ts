@@ -58,7 +58,7 @@ export class MemeCommand extends Command {
     let text: string;
     try {
       text = sanitizeCaption(raw, interactionMentionNames(interaction, raw));
-      if (text.length > limits.captionChars) throw new ImagingError(messages.captionTooLong);
+      if (text.length > limits.captionChars) throw new ImagingError(messages.captionTooLongChars);
     } catch (error) {
       if (error instanceof ImagingError) return interaction.reply(errorReply(error.message));
       throw error;
@@ -85,7 +85,7 @@ export class MemeCommand extends Command {
     let text: string;
     try {
       text = sanitizeCaption(parsed.text, messageMentionNames(message));
-      if (text.length > limits.captionChars) throw new ImagingError(messages.captionTooLong);
+      if (text.length > limits.captionChars) throw new ImagingError(messages.captionTooLongChars);
     } catch (error) {
       if (error instanceof ImagingError) return message.reply(error.message);
       throw error;

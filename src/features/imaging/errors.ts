@@ -1,3 +1,5 @@
+import { limits } from './config.js';
+
 /** An expected failure whose message is safe to show the user as is. */
 export class ImagingError extends Error {
   override name = 'ImagingError';
@@ -12,6 +14,7 @@ export const messages = {
   tooManyPixels: 'That image is too large to work with.',
   outputTooBig: 'The result is too big even after shrinking.',
   captionTooLong: 'That caption is too long for this image.',
+  captionTooLongChars: `Keep the caption under ${limits.captionChars} characters.`,
   emptyCaption: 'Give the meme some text.',
   lottie: "I can't use that kind of sticker.",
   busyUser: 'You already have an image in progress.',

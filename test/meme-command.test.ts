@@ -168,7 +168,8 @@ describe('/meme', () => {
     const interaction = slash('m3', { text: 'a'.repeat(201), url: tenor });
     await runSlashReply(interaction);
 
-    expect(interaction.reply).toHaveBeenCalledWith(errorReply(messages.captionTooLong));
+    expect(messages.captionTooLongChars).toBe('Keep the caption under 200 characters.');
+    expect(interaction.reply).toHaveBeenCalledWith(errorReply(messages.captionTooLongChars));
     expect(interaction.deferReply).not.toHaveBeenCalled();
     expect(fetchMock).not.toHaveBeenCalled();
   });
@@ -259,7 +260,7 @@ describe('?meme', () => {
     const message = prefixMessage(`?meme ${'a'.repeat(201)}`, 'm8', { attachment: true });
     await runPrefix(message);
 
-    expect(message.reply).toHaveBeenCalledWith(messages.captionTooLong);
+    expect(message.reply).toHaveBeenCalledWith(messages.captionTooLongChars);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
