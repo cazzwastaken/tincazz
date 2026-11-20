@@ -27,9 +27,9 @@ Currently implemented:
   moment before the result shows; Roll again repeats the same bet and call
 - `?dice [bet] [high|low|seven|doubles|=2…12]` (alias `?roll`): the same dice from a message,
   arguments in any order (`?dice =12 50`)
-- `/bubble` & `?bubble [white|transparent] [left|right]`: put a speech bubble on an image or GIF.
-  Attach one, paste a Discord, Tenor or Giphy link, pick a user (their avatar) or reply to a
-  message with an image. The result is a GIF
+- `/bubble` & `?bubble [white|transparent] [left|right] [link | @user]`: put a speech bubble on an
+  image or GIF. Attach one, paste a Discord, Tenor or Giphy link, pick a user (their avatar) or
+  reply to a message with an image. The result is a GIF
 - `/meme text:<text>` & `?meme <text>`: add a white caption bar above an image or GIF, from the
   same sources. Sources are only fetched from Discord, Tenor and Giphy links
 - `/balance`, `/daily`, `/collect`, `/bailout`: your coins and the ways to earn more:

@@ -84,8 +84,9 @@ src/
   interaction-handlers/  one file per component handler (gamba, coinflip and dice buttons,
                   leaderboard paging and category select)
   listeners/      one file per Discord/Sapphire event listener (member join, leave and
-                  screening, channel and role delete cleanup, chat rewards, ready, and a
-                  generic ephemeral reply when a command or handler throws)
+                  screening, channel and role delete cleanup, chat rewards, ready, a generic
+                  ephemeral reply when a command or handler throws, and a reply explaining why
+                  a precondition denied a command, such as a cooldown)
 assets/fonts/     the OFL fonts used for image captions, each with its licence file
 drizzle/          generated SQL migrations, committed and shipped in the image
 test/             Vitest tests
