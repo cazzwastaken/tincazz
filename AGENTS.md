@@ -43,6 +43,7 @@ src/
     economy/      slash commands for coins (/balance, also `?bal` / `?balance`, /daily, /collect,
                   /bailout, /eco)
     general/      `?ping` / `/ping`, `?help` / `/help`
+    image/        `?bubble` / `/bubble` (speech bubble on an image or GIF)
     misc/         games: `?gamba` / `/gamba`, `?coinflip` / `/coinflip` (aliases `?cf`, `?flip`),
                   `?dice` / `/dice` (alias `?roll`)
     stats/        slash commands for profiles and boards (/stats, /leaderboard)
