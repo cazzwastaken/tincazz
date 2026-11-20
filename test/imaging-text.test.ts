@@ -45,6 +45,14 @@ describe('sanitizeCaption', () => {
     expect(sanitizeCaption(seven, noMentionNames).split('\n')).toHaveLength(5);
   });
 
+  it('treats every unicode line break as a new line, so all count towards the cap', () => {
+    for (const sep of ['\r\n', '\r', '\u{0085}', '\u{2028}', '\u{2029}']) {
+      expect(sanitizeCaption(`a${sep}b`, noMentionNames)).toBe('a\nb');
+      const seven = Array.from({ length: 7 }, (_, i) => `l${i}`).join(sep);
+      expect(sanitizeCaption(seven, noMentionNames)).toBe('l0\nl1\nl2\nl3\nl4');
+    }
+  });
+
   it('throws when nothing is left', () => {
     expect(() => sanitizeCaption('​​', noMentionNames)).toThrow(ImagingError);
     expect(() => sanitizeCaption('  \n ', noMentionNames)).toThrow(messages.emptyCaption);

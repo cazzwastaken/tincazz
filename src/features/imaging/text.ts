@@ -34,7 +34,7 @@ export function sanitizeCaption(raw: string, names: MentionNames): string {
       (_m, id: string) => `#${names.channels.get(id) ?? 'unknown-channel'}`,
     )
     .replace(/<a?:(\w+):\d+>/g, ':$1:')
-    .replace(/\r\n/g, '\n')
+    .replace(/\r\n|[\r\u{0085}\u{2028}\u{2029}]/gu, '\n')
     .replace(/[^\P{Cc}\n\t]|[^\P{Cf}‍]/gu, '');
 
   const lines = text

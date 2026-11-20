@@ -11,7 +11,22 @@ const texts = [
   fc.string(),
   fc.string({ unit: 'grapheme' }),
   fc.string({ unit: 'binary' }),
-  fc.stringMatching(/^[<>@#&!:a0-9 \n\r\t​‍]*$/),
+  fc
+    .array(
+      fc.constantFrom(
+        ...'<>@#&!:a01 \n\r\t',
+        '\u{0085}',
+        '\u{2028}',
+        '\u{2029}',
+        '\u{200B}',
+        '\u{200C}',
+        '\u{200D}',
+        '\u{202E}',
+        '\u{E0067}',
+        '\u{1F3F4}',
+      ),
+    )
+    .map((chars) => chars.join('')),
 ];
 
 function attempt(x: string): string | undefined {
@@ -32,6 +47,7 @@ describe.each(texts.map((arb, i) => [i, arb] as const))(
           const out = attempt(x);
           if (out === undefined) return;
           expect(out.split('\n').length).toBeLessThanOrEqual(5);
+          expect(/[\r\u{0085}\u{2028}\u{2029}]/u.test(out)).toBe(false);
           expect(/[^\P{Cc}\n]/u.test(out)).toBe(false);
           expect(out).toBe(out.trim());
           expect(out.length).toBeGreaterThan(0);
