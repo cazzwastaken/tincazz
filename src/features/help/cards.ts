@@ -26,6 +26,11 @@ export function helpCard(prefix: string): ContainerBuilder {
       `\`/dice\` & \`${prefix}dice\`: call the roll of two dice, e.g. \`${prefix}dice =12 50\``,
     ].join('\n'),
     [
+      '## Fun',
+      `\`/bubble\` & \`${prefix}bubble\`: put a speech bubble on an image or GIF, e.g. reply to one with \`${prefix}bubble white\``,
+      `\`/meme\` & \`${prefix}meme\`: add a caption bar, e.g. \`${prefix}meme when the build passes\``,
+    ].join('\n'),
+    [
       '## Coins',
       `\`/daily\`: ${coins(daily.base)} coins plus ${coins(daily.perStreakDay)} per streak day (up to ${daily.streakCap} days), and ${cashback.percent}% cashback on yesterday's losses (up to ${coins(cashback.max)})`,
       `\`/collect\`: ${coins(collect.perHour)} coins per hour, stacking for up to ${collect.maxHours} hours`,

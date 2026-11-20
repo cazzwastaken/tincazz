@@ -75,6 +75,25 @@ describe('helpCard', () => {
     expect(card).toContain('all, half or 2.5k');
   });
 
+  it('has a Fun section with the image commands', () => {
+    const card = text();
+    expect(card).toContain('## Fun');
+    for (const entry of ['/bubble', '?bubble', '/meme', '?meme']) {
+      expect(card).toContain(entry);
+    }
+  });
+
+  it('lists every image command, so a new one cannot skip help', () => {
+    const commands = [...client.stores.get('commands').values()].filter(
+      (command) => command.category === 'image',
+    );
+    expect(commands.length).toBeGreaterThanOrEqual(2);
+    const card = text();
+    for (const command of commands) {
+      expect(card, `/${command.name} is missing from /help`).toContain(`/${command.name}`);
+    }
+  });
+
   it('lists every misc command, so a new game cannot skip help', () => {
     const commands = [...client.stores.get('commands').values()].filter(
       (command) => command.category === 'misc',
