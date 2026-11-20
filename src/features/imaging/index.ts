@@ -17,6 +17,7 @@ export { ImagingError, messages } from './errors.js';
 export { downloadImage, type Fetcher, type ImageFormat, sniffImage } from './fetch.js';
 export { captionFont, captionFontFile, emojiFontFile, ensureFonts } from './fonts.js';
 export { type Frames, fromSharp, halveFrames, sampleGroups, toSharp } from './frames.js';
+export { ImageJobs, imageJobs } from './jobs.js';
 export { type ImageOperation, type RenderResult, renderImage } from './render.js';
 export {
   type AttachmentData,
