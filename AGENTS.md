@@ -43,6 +43,8 @@ src/
     economy/      slash commands for coins (/balance, also `?bal` / `?balance`, /daily, /collect,
                   /bailout, /eco)
     general/      `?ping` / `/ping`, `?help` / `/help`
+    image/        `?bubble` / `/bubble` (speech bubble on an image or GIF), `?meme` / `/meme`
+                  (white caption bar above one); thin, all logic is in `features/imaging/`
     misc/         games: `?gamba` / `/gamba`, `?coinflip` / `/coinflip` (aliases `?cf`, `?flip`),
                   `?dice` / `/dice` (alias `?roll`)
     stats/        slash commands for profiles and boards (/stats, /leaderboard)
@@ -61,6 +63,11 @@ src/
                   result cards and the shared `spin()` flow used by commands and buttons (every
                   spin is a wager, default 1)
     help/         the help card, built from the economy and wager config so it cannot drift
+    imaging/      `/bubble` and `/meme` logic: the URL allowlist (`urls.ts`), the capped downloader
+                  with redirect checks, source picking (attachment, link, reply, avatar, sticker),
+                  decode, bubble and caption rendering with sharp, GIF encoding with a size ladder,
+                  the job queue (timeout, concurrency, per-user lock), prefix argument parsing,
+                  caption sanitising and the Discord adapters
     logs/         log channels: event types and cards, fire-and-forget `sendLog`, economy
                   events (admin adjustments, jackpots and member events)
     members/      departed-member tracking: hidden from boards and ranks, daily reconcile
@@ -77,8 +84,10 @@ src/
   interaction-handlers/  one file per component handler (gamba, coinflip and dice buttons,
                   leaderboard paging and category select)
   listeners/      one file per Discord/Sapphire event listener (member join, leave and
-                  screening, channel and role delete cleanup, chat rewards, ready, and a
-                  generic ephemeral reply when a command or handler throws)
+                  screening, channel and role delete cleanup, chat rewards, ready, a generic
+                  ephemeral reply when a command or handler throws, and a reply explaining why
+                  a precondition denied a command, such as a cooldown)
+assets/fonts/     the OFL fonts used for image captions, each with its licence file
 drizzle/          generated SQL migrations, committed and shipped in the image
 test/             Vitest tests
 .github/          CI, image publishing, Dependabot, issue forms, PR template and CODEOWNERS
@@ -151,6 +160,11 @@ ID (see `features/gamba/custom-ids.ts`), so handlers must ignore IDs they cannot
   cooldown or rate check in `expectCooldownsHeld`.
 - A new way to move coins with user impact should consider an economy log event. Logging is
   fire-and-forget after the transaction commits: it must never block or fail the action.
+- Image commands fetch sources only from the allowlist in `src/features/imaging/urls.ts` (Discord,
+  Tenor and Giphy hosts, https only, every redirect hop checked). Never widen it to arbitrary
+  hosts: that is an SSRF hole.
+- Fonts in `assets/fonts/` must be OFL (or similarly licensed) and committed with their licence
+  file. The runtime image needs `fontconfig` and `assets/` (see the Dockerfile) to render captions.
 - Log through `this.container.logger` / `client.logger`, not `console`.
 - Keep logic that can be tested without Discord in plain functions and cover it with Vitest.
 - Anything that parses user input (bet strings, custom IDs, option strings) also gets

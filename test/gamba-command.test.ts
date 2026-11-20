@@ -157,7 +157,7 @@ describe('gamba', () => {
       );
     });
 
-    it('does nothing in DMs', async () => {
+    it('does not run in DMs, and the denial is answered', async () => {
       mockRandomInt(0);
       const message = makeMessage(client, '?gamba', {
         guild: null,
@@ -168,7 +168,8 @@ describe('gamba', () => {
       client.emit(Events.MessageCreate, message as never);
       await new Promise((resolve) => setTimeout(resolve, 200));
 
-      expect(message.reply).not.toHaveBeenCalled();
+      expect(message.reply).toHaveBeenCalledTimes(1);
+      expect(message.reply).toHaveBeenCalledWith(expect.stringMatching(/\S/));
       expect(message.member?.roles.add).not.toHaveBeenCalled();
     });
 
