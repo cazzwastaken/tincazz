@@ -10,6 +10,7 @@ import {
   messageInputs,
   messageMentionNames,
   messages,
+  pickSource,
   produceImage,
   replyData,
   replyWithImage,
@@ -54,7 +55,9 @@ describe('replyData', () => {
         url: 'https://tenor.com/view/x-1',
         provider: 'Tenor',
         imageUrl: null,
+        imageProxyUrl: null,
         thumbnailUrl: 'https://media.tenor.com/t.png',
+        thumbnailProxyUrl: null,
         hasVideo: true,
       },
     ]);
@@ -62,6 +65,33 @@ describe('replyData', () => {
       { url: 'https://cdn.discordapp.com/stickers/1.json', format: 'lottie' },
     ]);
     expect(data.content).toBe('hi');
+  });
+
+  it('keeps the discord proxy urls of an embed image and thumbnail', () => {
+    const proxy = 'https://images-ext-1.discordapp.net/external/abc/https/i.imgur.com/a.gif';
+    const data = replyData(
+      cast<Msg>({
+        attachments: col([]),
+        embeds: [
+          {
+            url: 'https://imgur.com/a',
+            provider: { name: 'Imgur' },
+            image: { url: 'https://i.imgur.com/a.gif', proxyURL: proxy },
+            thumbnail: { url: 'https://i.imgur.com/t.gif', proxyURL: `${proxy}?t` },
+            video: null,
+          },
+        ],
+        stickers: col([]),
+        content: '',
+      }),
+    );
+    expect(data.embeds[0]).toMatchObject({
+      imageUrl: 'https://i.imgur.com/a.gif',
+      imageProxyUrl: proxy,
+      thumbnailUrl: 'https://i.imgur.com/t.gif',
+      thumbnailProxyUrl: `${proxy}?t`,
+    });
+    expect(pickSource({ reply: data })).toMatchObject({ ok: true, check: { url: new URL(proxy) } });
   });
 });
 

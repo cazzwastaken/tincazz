@@ -10,7 +10,9 @@ const embed = (e: Partial<ReplyData['embeds'][number]>): ReplyData['embeds'][num
   url: null,
   provider: null,
   imageUrl: null,
+  imageProxyUrl: null,
   thumbnailUrl: null,
+  thumbnailProxyUrl: null,
   hasVideo: false,
   ...e,
 });
@@ -105,6 +107,23 @@ describe('pickSource reply', () => {
         pick({ embeds: [embed({ imageUrl: 'https://evil.example/a.png', thumbnailUrl: png })] }),
       ),
     ).toBe(png);
+  });
+  it('falls back to the discord proxy of an embed image, then the thumbnail and its proxy', () => {
+    const proxy = 'https://images-ext-1.discordapp.net/external/abc/https/i.imgur.com/a.gif';
+    const imgur = 'https://i.imgur.com/a.gif';
+    expect(href(pick({ embeds: [embed({ imageUrl: imgur, imageProxyUrl: proxy })] }))).toBe(proxy);
+    expect(
+      href(
+        pick({
+          embeds: [embed({ imageUrl: imgur, thumbnailUrl: imgur, thumbnailProxyUrl: proxy })],
+        }),
+      ),
+    ).toBe(proxy);
+    expect(
+      href(pick({ embeds: [embed({ imageUrl: imgur, imageProxyUrl: imgur, thumbnailUrl: png })] })),
+    ).toBe(png);
+    // the original image wins over its proxy when both are allowed
+    expect(href(pick({ embeds: [embed({ imageUrl: png, imageProxyUrl: proxy })] }))).toBe(png);
   });
   it('uses a png sticker and skips lottie', () => {
     expect(

@@ -64,8 +64,9 @@ First match wins:
 3. User avatar (slash `user`, or `?bubble` mention / ID token): the guild avatar when set, else the
    user avatar, animated when available, 512px
 4. Prefix only: the replied-to message: first image attachment, then embeds (Tenor / Giphy embeds
-   via their page URL, other embeds via `image.url` then `thumbnail.url`), then a sticker in PNG,
-   APNG or GIF format (Lottie stickers are rejected), then the first allowlisted URL in its content
+   via their page URL, other embeds via `image.url`, its `proxyURL`, `thumbnail.url`, its
+   `proxyURL`: the first allowed wins), then a sticker in PNG, APNG or GIF format (Lottie stickers
+   are rejected), then the first allowlisted URL in its content
 5. Nothing: an error with the usage text
 
 ## Architecture

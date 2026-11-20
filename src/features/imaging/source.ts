@@ -10,7 +10,10 @@ export interface EmbedData {
   url: string | null;
   provider: string | null;
   imageUrl: string | null;
+  /** Discord's images-ext proxy of the image, allowed when the original host is not */
+  imageProxyUrl: string | null;
   thumbnailUrl: string | null;
+  thumbnailProxyUrl: string | null;
   hasVideo: boolean;
 }
 
@@ -76,7 +79,12 @@ function pickAttachment(a: AttachmentData): SourcePick {
 function pickEmbed(e: EmbedData): Allowed | null {
   const page = allowed(e.url);
   if (page && (page.kind === 'tenorPage' || isTenorOrGiphy(page.url.hostname))) return page;
-  return allowed(e.imageUrl) ?? allowed(e.thumbnailUrl);
+  return (
+    allowed(e.imageUrl) ??
+    allowed(e.imageProxyUrl) ??
+    allowed(e.thumbnailUrl) ??
+    allowed(e.thumbnailProxyUrl)
+  );
 }
 
 function pickReply(reply: ReplyData): SourcePick {
