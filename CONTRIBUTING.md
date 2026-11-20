@@ -89,6 +89,10 @@ The economy is balanced deliberately. Changes here get extra review:
   `test/dice-evaluate.test.ts` fails if the return leaves 98.5–99.5%.
 - A new coin faucet needs its own ledger reason, a claim function in `src/features/economy/` that
   writes in one transaction, and coverage in `test/fuzz-economy.test.ts`.
+- Image commands fetch sources only from the allowlist in `src/features/imaging/urls.ts`; never
+  widen it to arbitrary hosts (SSRF).
+- Add fonts to `assets/fonts/` only if they are OFL (or similarly licensed), with their licence
+  file. The runtime image needs `fontconfig` and `assets/` to render captions.
 
 Explain the reasoning (and the numbers) in the pull request.
 
