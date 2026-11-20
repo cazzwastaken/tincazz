@@ -6,6 +6,8 @@ import {
   type Frames,
   fromSharp,
   halveFrames,
+  ImagingError,
+  messages,
   sampleGroups,
   sniffImage,
   toSharp,
@@ -101,5 +103,18 @@ describe('encodeGif', () => {
     const frames = strip(256, 32, [40, 40]);
     const gif = await encodeGif(frames, { interFrameMaxError: 32, dither: 0 });
     expect(sniffImage(gif)).toBe('gif');
+  });
+
+  it('maps a frame too large for the GIF format to tooManyPixels', async () => {
+    // GIF sides are 16 bit: a 1 x 70000 frame is cheap to build but cannot be encoded
+    const frames: Frames = {
+      data: Buffer.alloc(70_000 * 4, 255),
+      width: 1,
+      pageHeight: 70_000,
+      pages: 1,
+      delay: [0],
+      loop: 0,
+    };
+    await expect(encodeGif(frames)).rejects.toThrow(new ImagingError(messages.tooManyPixels));
   });
 });
