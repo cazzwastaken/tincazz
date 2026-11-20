@@ -1,7 +1,9 @@
-import { StickerFormatType } from 'discord.js';
+import { AttachmentBuilder, PermissionFlagsBits, StickerFormatType } from 'discord.js';
 import { describe, expect, it, vi } from 'vitest';
 import {
   avatarUrl,
+  canAttachFiles,
+  commandPrefix,
   type Fetcher,
   ImageJobs,
   interactionMentionNames,
@@ -10,7 +12,10 @@ import {
   messages,
   produceImage,
   replyData,
+  replyWithImage,
+  slashUsage,
 } from '../src/features/imaging/index.js';
+import { errorReply } from '../src/features/ui/index.js';
 import { makePng } from './support/images.js';
 
 type Stub = Record<string, unknown>;
@@ -220,5 +225,98 @@ describe('produceImage', () => {
   it('rethrows unexpected errors', async () => {
     const jobs = { run: () => Promise.reject(new TypeError('boom')) } as unknown as ImageJobs;
     await expect(produceImage({ url }, op, 'u1', { jobs })).rejects.toThrow(TypeError);
+  });
+});
+
+describe('replyWithImage', () => {
+  type Interaction = Parameters<typeof replyWithImage>[0];
+  const stub = () => {
+    const calls = {
+      deleteReply: vi.fn(async () => undefined),
+      editReply: vi.fn(async () => undefined),
+      followUp: vi.fn(async () => undefined),
+    };
+    return { calls, interaction: cast<Interaction>(calls) };
+  };
+
+  it('edits the deferred reply with the file', async () => {
+    const { calls, interaction } = stub();
+    const file = new AttachmentBuilder(Buffer.from('x'), { name: 'a.gif' });
+    await replyWithImage(interaction, async () => ({ file }));
+    expect(calls.editReply).toHaveBeenCalledWith({ files: [file] });
+    expect(calls.deleteReply).not.toHaveBeenCalled();
+    expect(calls.followUp).not.toHaveBeenCalled();
+  });
+
+  it('drops the deferred reply and follows up ephemerally with the error', async () => {
+    const { calls, interaction } = stub();
+    await replyWithImage(interaction, async () => ({ error: 'nope' }));
+    expect(calls.deleteReply).toHaveBeenCalled();
+    expect(calls.followUp).toHaveBeenCalledWith(errorReply('nope'));
+    expect(calls.editReply).not.toHaveBeenCalled();
+  });
+
+  it('falls back to the shared usage when there is no message', async () => {
+    const { calls, interaction } = stub();
+    await replyWithImage(interaction, async () => ({ error: null }));
+    expect(calls.followUp).toHaveBeenCalledWith(errorReply(slashUsage));
+  });
+
+  it('survives a failing deleteReply', async () => {
+    const { calls, interaction } = stub();
+    calls.deleteReply.mockRejectedValue(new Error('gone'));
+    await replyWithImage(interaction, async () => ({ error: 'nope' }));
+    expect(calls.followUp).toHaveBeenCalled();
+  });
+
+  it('deletes the deferred reply and rethrows an unexpected error', async () => {
+    const { calls, interaction } = stub();
+    await expect(
+      replyWithImage(interaction, async () => {
+        throw new TypeError('boom');
+      }),
+    ).rejects.toThrow('boom');
+    expect(calls.deleteReply).toHaveBeenCalled();
+    expect(calls.followUp).not.toHaveBeenCalled();
+    expect(calls.editReply).not.toHaveBeenCalled();
+  });
+});
+
+describe('canAttachFiles', () => {
+  type M = Parameters<typeof canAttachFiles>[0];
+  const message = (over: { me?: unknown; sendable?: boolean; can?: boolean; guild?: boolean }) =>
+    cast<M>({
+      guild:
+        over.guild === false
+          ? null
+          : { members: { me: over.me ?? null, fetchMe: async () => ({ id: 'fetched' }) } },
+      channel: {
+        isSendable: () => over.sendable ?? true,
+        permissionsFor: () => ({
+          has: (bit: bigint) => bit === PermissionFlagsBits.AttachFiles && (over.can ?? true),
+        }),
+      },
+    });
+
+  it('is true with the permission, fetching the member when uncached', async () => {
+    expect(await canAttachFiles(message({ me: { id: '9' } }))).toBe(true);
+    expect(await canAttachFiles(message({}))).toBe(true);
+  });
+
+  it('is false without the permission, a guild or a sendable channel', async () => {
+    expect(await canAttachFiles(message({ me: { id: '9' }, can: false }))).toBe(false);
+    expect(await canAttachFiles(message({ me: { id: '9' }, sendable: false }))).toBe(false);
+    expect(await canAttachFiles(message({ guild: false }))).toBe(false);
+  });
+});
+
+describe('commandPrefix', () => {
+  type C = Parameters<typeof commandPrefix>[0];
+  const client = (defaultPrefix: unknown) => cast<C>({ options: { defaultPrefix } });
+
+  it('uses a string, the first of an array, or falls back to ?', () => {
+    expect(commandPrefix(client('!'))).toBe('!');
+    expect(commandPrefix(client(['$', '!']))).toBe('$');
+    expect(commandPrefix(client(undefined))).toBe('?');
   });
 });

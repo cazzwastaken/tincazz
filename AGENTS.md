@@ -63,6 +63,11 @@ src/
                   result cards and the shared `spin()` flow used by commands and buttons (every
                   spin is a wager, default 1)
     help/         the help card, built from the economy and wager config so it cannot drift
+    imaging/      `/bubble` and `/meme` logic: the URL allowlist (`urls.ts`), the capped downloader
+                  with redirect checks, source picking (attachment, link, reply, avatar, sticker),
+                  decode, bubble and caption rendering with sharp, GIF encoding with a size ladder,
+                  the job queue (timeout, concurrency, per-user lock), prefix argument parsing,
+                  caption sanitising and the Discord adapters
     logs/         log channels: event types and cards, fire-and-forget `sendLog`, economy
                   events (admin adjustments, jackpots and member events)
     members/      departed-member tracking: hidden from boards and ranks, daily reconcile
@@ -75,18 +80,13 @@ src/
                   and dice commands and buttons), their cards and role assignment
     stats/        read-only profile, recent plays and leaderboard queries, `lb:*` custom IDs and
                   cards
-    imaging/      `/bubble` and `/meme` logic: the URL allowlist (`urls.ts`), the capped downloader
-                  with redirect checks, source picking (attachment, link, reply, avatar, sticker),
-                  decode, bubble and caption rendering with sharp, GIF encoding with a size ladder,
-                  the job queue (timeout, concurrency, per-user lock), prefix argument parsing,
-                  caption sanitising and the Discord adapters
     ui/           shared Components V2 card helpers
   interaction-handlers/  one file per component handler (gamba, coinflip and dice buttons,
                   leaderboard paging and category select)
   listeners/      one file per Discord/Sapphire event listener (member join, leave and
                   screening, channel and role delete cleanup, chat rewards, ready, and a
                   generic ephemeral reply when a command or handler throws)
-assets/fonts/    the OFL fonts used for image captions, each with its licence file
+assets/fonts/     the OFL fonts used for image captions, each with its licence file
 drizzle/          generated SQL migrations, committed and shipped in the image
 test/             Vitest tests
 .github/          CI, image publishing, Dependabot, issue forms, PR template and CODEOWNERS

@@ -60,7 +60,11 @@ function slash(userId: string, options: Record<string, unknown> = {}) {
 function prefixMessage(
   content: string,
   userId: string,
-  { attachment = false, canAttach = true }: { attachment?: boolean; canAttach?: boolean } = {},
+  {
+    attachment = false,
+    canAttach = true,
+    replyTo,
+  }: { attachment?: boolean; canAttach?: boolean; replyTo?: unknown } = {},
 ) {
   const attachments = new Collection<string, unknown>();
   if (attachment) {
@@ -87,7 +91,8 @@ function prefixMessage(
       roles: new Collection<string, unknown>(),
       channels: new Collection<string, unknown>(),
     },
-    reference: null,
+    reference: replyTo ? { messageId: 'r1' } : null,
+    fetchReference: async () => replyTo,
     guild: {
       id: '2',
       members: { me: { id: '9' }, fetchMe: async () => ({ id: '9' }) },
@@ -208,6 +213,26 @@ describe('?meme', () => {
     expect(options.files).toHaveLength(1);
     expect(options.files[0]?.name).toBe('meme.gif');
     expect(message.channel.sendTyping).toHaveBeenCalled();
+  });
+
+  it('uses the image of a replied-to message as the source', async () => {
+    const fetchMock = stubFetch();
+    const replied = {
+      attachments: new Collection<string, unknown>([
+        [
+          '1',
+          { url: 'https://cdn.discordapp.com/attachments/1/2/r.gif', contentType: 'image/gif' },
+        ],
+      ]),
+      embeds: [],
+      stickers: new Collection<string, unknown>(),
+      content: '',
+    };
+    const message = prefixMessage('?meme from a reply', 'm11', { replyTo: replied });
+    await runPrefix(message);
+
+    expect(String((fetchMock.mock.calls[0] as unknown[])[0])).toContain('cdn.discordapp.com');
+    expect(message.reply.mock.calls[0]?.[0]).toHaveProperty('files');
   });
 
   it('uses a leading link as the source', async () => {

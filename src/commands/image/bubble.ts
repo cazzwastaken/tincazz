@@ -1,13 +1,10 @@
 import { type Args, Command, CommandOptionsRunTypeEnum } from '@sapphire/framework';
-import {
-  type ChatInputCommandInteraction,
-  InteractionContextType,
-  type Message,
-  PermissionFlagsBits,
-} from 'discord.js';
+import { type ChatInputCommandInteraction, InteractionContextType, type Message } from 'discord.js';
 import {
   type BubbleStyle,
   bubbleUsage,
+  canAttachFiles,
+  commandPrefix,
   commandRemainder,
   interactionInputs,
   limits,
@@ -15,11 +12,9 @@ import {
   messages,
   parseBubbleArgs,
   produceImage,
+  replyWithImage,
   type TailSide,
 } from '../../features/imaging/index.js';
-import { errorReply } from '../../features/ui/index.js';
-
-const slashUsage = 'Give me an image: attach one, paste a link, or pick a user.';
 
 export class BubbleCommand extends Command {
   public constructor(context: Command.LoaderContext) {
@@ -64,9 +59,8 @@ export class BubbleCommand extends Command {
 
   public override async chatInputRun(interaction: ChatInputCommandInteraction) {
     await interaction.deferReply();
-    let result: Awaited<ReturnType<typeof produceImage>>;
-    try {
-      result = await produceImage(
+    return replyWithImage(interaction, () =>
+      produceImage(
         interactionInputs(interaction),
         {
           kind: 'bubble',
@@ -74,31 +68,13 @@ export class BubbleCommand extends Command {
           tail: (interaction.options.getString('tail') ?? 'left') as TailSide,
         },
         interaction.user.id,
-      );
-    } catch (error) {
-      // The generic error listener follows up ephemerally, but the first follow-up would replace
-      // the public "thinking..." message and stay public, so drop it first.
-      await interaction.deleteReply().catch(() => undefined);
-      throw error;
-    }
-    if ('file' in result) {
-      return interaction.editReply({ files: [result.file] });
-    }
-    // The deferred reply is public; drop it and answer privately instead.
-    await interaction.deleteReply().catch(() => undefined);
-    return interaction.followUp(errorReply(result.error ?? slashUsage));
+      ),
+    );
   }
 
   public override async messageRun(message: Message, args: Args) {
-    const prefix = this.prefix();
-    const me = message.guild?.members.me ?? (await message.guild?.members.fetchMe());
-    if (
-      !me ||
-      !message.channel.isSendable() ||
-      !message.guild ||
-      !('permissionsFor' in message.channel) ||
-      !message.channel.permissionsFor(me)?.has(PermissionFlagsBits.AttachFiles)
-    ) {
+    const prefix = commandPrefix(this.container.client);
+    if (!(await canAttachFiles(message))) {
       return message.reply(messages.noAttachFiles);
     }
 
@@ -120,11 +96,5 @@ export class BubbleCommand extends Command {
       return message.reply({ files: [result.file] });
     }
     return message.reply(result.error ?? bubbleUsage(prefix));
-  }
-
-  /** The configured command prefix (`COMMAND_PREFIX`), as set on the client. */
-  private prefix(): string {
-    const configured = this.container.client.options.defaultPrefix;
-    return (Array.isArray(configured) ? configured[0] : configured) ?? '?';
   }
 }

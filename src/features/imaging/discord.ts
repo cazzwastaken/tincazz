@@ -4,11 +4,14 @@ import {
   type APIInteractionGuildMember,
   AttachmentBuilder,
   type ChatInputCommandInteraction,
+  type Client,
   type GuildMember,
   type Message,
+  PermissionFlagsBits,
   StickerFormatType,
   type User,
 } from 'discord.js';
+import { errorReply } from '../ui/index.js';
 import { ImagingError } from './errors.js';
 import { downloadImage, type Fetcher } from './fetch.js';
 import { type ImageJobs, imageJobs } from './jobs.js';
@@ -185,4 +188,50 @@ export async function produceImage(
     if (error instanceof ImagingError) return { error: error.message };
     throw error;
   }
+}
+
+/** What a slash command answers when no image source was given. */
+export const slashUsage = 'Give me an image: attach one, paste a link, or pick a user.';
+
+/** Whether the bot may attach files in the channel of a prefix message (fetches itself if uncached). */
+export async function canAttachFiles(message: Message): Promise<boolean> {
+  const me = message.guild?.members.me ?? (await message.guild?.members.fetchMe());
+  return Boolean(
+    me &&
+      message.guild &&
+      message.channel.isSendable() &&
+      'permissionsFor' in message.channel &&
+      message.channel.permissionsFor(me)?.has(PermissionFlagsBits.AttachFiles),
+  );
+}
+
+/** The configured command prefix (`COMMAND_PREFIX`), as set on the client. */
+export function commandPrefix(client: Client): string {
+  const configured = client.options.defaultPrefix;
+  return (Array.isArray(configured) ? configured[0] : configured) ?? '?';
+}
+
+/**
+ * Finishes a slash image command whose reply is already deferred (publicly): edits in the file, or
+ * drops the public deferred reply and answers the error ephemerally. When `run` throws something
+ * unexpected the deferred reply is dropped too (the first follow-up would otherwise replace the
+ * public "thinking..." message and stay public) and the error is rethrown.
+ */
+export async function replyWithImage(
+  interaction: ChatInputCommandInteraction,
+  run: () => Promise<{ file: AttachmentBuilder } | { error: string | null }>,
+): Promise<void> {
+  let result: Awaited<ReturnType<typeof run>>;
+  try {
+    result = await run();
+  } catch (error) {
+    await interaction.deleteReply().catch(() => undefined);
+    throw error;
+  }
+  if ('file' in result) {
+    await interaction.editReply({ files: [result.file] });
+    return;
+  }
+  await interaction.deleteReply().catch(() => undefined);
+  await interaction.followUp(errorReply(result.error ?? slashUsage));
 }

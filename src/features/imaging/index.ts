@@ -15,12 +15,16 @@ export { decodeFrames, sourceTooLarge } from './decode.js';
 export {
   attachmentData,
   avatarUrl,
+  canAttachFiles,
+  commandPrefix,
   interactionInputs,
   interactionMentionNames,
   messageInputs,
   messageMentionNames,
   produceImage,
   replyData,
+  replyWithImage,
+  slashUsage,
 } from './discord.js';
 export { encodeGif, type GifTuning } from './encode.js';
 export { ImagingError, messages } from './errors.js';
