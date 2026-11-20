@@ -12,6 +12,16 @@ export { applyBubble, type BubbleGeometry, bubbleGeometry, bubbleSvg } from './b
 export { applyCaption, captionLayout, renderCaptionText } from './caption.js';
 export { limits } from './config.js';
 export { decodeFrames, sourceTooLarge } from './decode.js';
+export {
+  attachmentData,
+  avatarUrl,
+  interactionInputs,
+  interactionMentionNames,
+  messageInputs,
+  messageMentionNames,
+  produceImage,
+  replyData,
+} from './discord.js';
 export { encodeGif, type GifTuning } from './encode.js';
 export { ImagingError, messages } from './errors.js';
 export { downloadImage, type Fetcher, type ImageFormat, sniffImage } from './fetch.js';
