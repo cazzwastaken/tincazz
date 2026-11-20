@@ -99,4 +99,28 @@ describe('extractUrls', () => {
     ]);
     expect(extractUrls('nothing here')).toEqual([]);
   });
+
+  it('drops trailing sentence punctuation', () => {
+    for (const end of ['.', ',', ';', ':', '!', '?', '...', '?!']) {
+      expect(extractUrls(`look https://media.tenor.com/a.gif${end} nice`)).toEqual([
+        'https://media.tenor.com/a.gif',
+      ]);
+    }
+  });
+
+  it('drops an unbalanced closing bracket but keeps a balanced one', () => {
+    expect(extractUrls('(see https://media.tenor.com/a.gif)')).toEqual([
+      'https://media.tenor.com/a.gif',
+    ]);
+    expect(extractUrls('[https://media.tenor.com/a.gif].')).toEqual([
+      'https://media.tenor.com/a.gif',
+    ]);
+    expect(extractUrls('(https://media.tenor.com/a.gif).')).toEqual([
+      'https://media.tenor.com/a.gif',
+    ]);
+    expect(extractUrls('https://en.wikipedia.org/wiki/Foo_(bar)')).toEqual([
+      'https://en.wikipedia.org/wiki/Foo_(bar)',
+    ]);
+    expect(extractUrls('https://a.b/x[1]?q=a.b')).toEqual(['https://a.b/x[1]?q=a.b']);
+  });
 });

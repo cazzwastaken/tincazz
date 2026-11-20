@@ -67,6 +67,26 @@ export function checkUrl(raw: string): UrlCheck {
   return { ok: true, url, kind: 'media' };
 }
 
+const closers: Record<string, string> = { ')': '(', ']': '[', '>': '<' };
+
+const count = (text: string, char: string) => text.split(char).length - 1;
+
+/** Drops sentence punctuation and closing brackets the url did not open from its end. */
+function trimUrl(url: string): string {
+  let end = url.length;
+  for (;;) {
+    const last = url[end - 1] ?? '';
+    const head = url.slice(0, end);
+    const opener = closers[last];
+    if ('.,;:!?'.includes(last) || (opener && count(head, opener) < count(head, last))) {
+      end--;
+    } else {
+      return head;
+    }
+  }
+}
+
+/** URLs in free text, in order, without trailing punctuation or an unbalanced closing bracket. */
 export function extractUrls(text: string): string[] {
-  return text.match(/https?:\/\/[^\s<>]+/gi) ?? [];
+  return (text.match(/https?:\/\/[^\s<>]+/gi) ?? []).map(trimUrl);
 }
