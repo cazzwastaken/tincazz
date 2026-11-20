@@ -11,7 +11,7 @@ export {
 export { applyBubble, type BubbleGeometry, bubbleGeometry, bubbleSvg } from './bubble.js';
 export { applyCaption, captionLayout, renderCaptionText } from './caption.js';
 export { limits } from './config.js';
-export { decodeFrames, sourceTooLarge } from './decode.js';
+export { decodeChunkPages, decodeFrames, decodeGeometry, sourceTooLarge } from './decode.js';
 export {
   attachmentData,
   avatarUrl,

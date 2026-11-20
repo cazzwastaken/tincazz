@@ -3,8 +3,8 @@ import { limits } from './config.js';
 import { ImagingError, messages } from './errors.js';
 import { type Frames, sampleGroups } from './frames.js';
 
-/** Source pages decoded per sharp call: bounds memory on long animations. */
-const chunkPages = 25;
+/** Most source pages decoded per sharp call: bounds memory on long animations. */
+const maxChunkPages = 25;
 /** Browsers and Discord play a missing delay, or one of 10 ms or less, at this speed. */
 const defaultDelayMs = 100;
 const playedDelay = (ms: number | undefined) =>
@@ -13,9 +13,10 @@ const playedDelay = (ms: number | undefined) =>
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
 /**
- * Decode an image or animation into a strip at the working width (enlarged to `limits.minWidth`,
- * shrunk to `maxWidth`). An aborted `signal` stops the decode between chunks and throws its reason. Animations over the frame cap are sampled evenly: each kept frame stands
- * for a run of consecutive pages and gets their summed delay, so the total time is kept.
+ * Decode an image or animation into a strip at the working size (see {@link decodeGeometry}). An
+ * aborted `signal` stops the decode between chunks and throws its reason. Animations over the
+ * frame cap are sampled evenly: each kept frame stands for a run of consecutive pages and gets
+ * their summed delay, so the total time is kept.
  */
 export async function decodeFrames(
   input: Buffer,
@@ -49,6 +50,26 @@ export function sourceTooLarge(source: { width: number; pageHeight: number; page
   );
 }
 
+/**
+ * Working size for a source: its width clamped to `limits.minWidth..maxWidth`, aspect kept. When
+ * that page would be taller than `limits.maxPageHeight` the width shrinks (below `minWidth` if it
+ * must) to keep it under; a result narrower than `limits.minPageWidth` is too many pixels.
+ */
+export function decodeGeometry(srcWidth: number, srcPageHeight: number, maxWidth: number) {
+  let width = clamp(srcWidth, limits.minWidth, maxWidth);
+  if ((srcPageHeight * width) / srcWidth > limits.maxPageHeight) {
+    width = Math.floor((srcWidth * limits.maxPageHeight) / srcPageHeight);
+  }
+  if (width < limits.minPageWidth) throw new ImagingError(messages.tooManyPixels);
+  const pageHeight = Math.max(1, Math.round((srcPageHeight * width) / srcWidth));
+  return { width, pageHeight };
+}
+
+/** Pages per decode call so one chunk at the working size stays within `limits.maxStripPixels`. */
+export function decodeChunkPages(width: number, pageHeight: number): number {
+  return clamp(Math.floor(limits.maxStripPixels / (width * pageHeight)), 1, maxChunkPages);
+}
+
 async function decode(input: Buffer, maxWidth: number, signal?: AbortSignal): Promise<Frames> {
   signal?.throwIfAborted();
   const head = await sharp(input).metadata();
@@ -57,8 +78,8 @@ async function decode(input: Buffer, maxWidth: number, signal?: AbortSignal): Pr
   if (!srcWidth || !srcPageHeight) throw new ImagingError(messages.notImage);
   if (sourceTooLarge(source)) throw new ImagingError(messages.tooManyPixels);
 
-  const width = clamp(srcWidth, limits.minWidth, maxWidth);
-  const pageHeight = Math.max(1, Math.round((srcPageHeight * width) / srcWidth));
+  const { width, pageHeight } = decodeGeometry(srcWidth, srcPageHeight, maxWidth);
+  const chunkPages = decodeChunkPages(width, pageHeight);
   const cap = Math.min(limits.maxFrames, Math.floor(limits.maxStripPixels / (width * pageHeight)));
   if (cap < 1) throw new ImagingError(messages.tooManyPixels);
 

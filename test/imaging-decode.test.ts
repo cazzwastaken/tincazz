@@ -1,8 +1,12 @@
 import { randomBytes } from 'node:crypto';
+import fc from 'fast-check';
 import sharp from 'sharp';
 import { describe, expect, it } from 'vitest';
 import {
+  decodeChunkPages,
   decodeFrames,
+  decodeGeometry,
+  encodeGif,
   ImagingError,
   limits,
   messages,
@@ -117,6 +121,79 @@ describe('decodeFrames', () => {
     expect(topB).toBeLessThan(55);
     expect(bottomR).toBeLessThan(55);
     expect(bottomB).toBeGreaterThan(200);
+  });
+});
+
+describe('decode geometry', () => {
+  it('shrinks a tall narrow source so the page height stays under the cap', () => {
+    // clamped up to 256 wide, a 64x4096 page would be 16384 tall
+    expect(decodeGeometry(64, 4096, 512)).toEqual({ width: 32, pageHeight: 2048 });
+    expect(decodeGeometry(300, 200, 512)).toEqual({ width: 300, pageHeight: 200 });
+    expect(decodeGeometry(32, 32, 512)).toEqual({ width: 256, pageHeight: 256 });
+  });
+
+  it('rejects a source that would be narrower than 16 px at the page height cap', () => {
+    for (const [w, h] of [
+      [1, 300],
+      [16, 4096],
+    ] as const) {
+      expect(() => decodeGeometry(w, h, 512)).toThrow(new ImagingError(messages.tooManyPixels));
+    }
+  });
+
+  it('sizes decode chunks to the strip budget, at least one page', () => {
+    expect(decodeChunkPages(32, 2048)).toBe(25);
+    expect(decodeChunkPages(512, 2048) * 512 * 2048).toBeLessThanOrEqual(limits.maxStripPixels);
+    expect(decodeChunkPages(4096, 4096 * 2)).toBe(1);
+  });
+
+  it('keeps every geometry and chunk inside the limits', () => {
+    fc.assert(
+      fc.property(
+        fc.integer({ min: 1, max: limits.maxSourceSide }),
+        fc.integer({ min: 1, max: limits.maxSourceSide }),
+        fc.constantFrom(256, 384, 512),
+        (w, h, maxWidth) => {
+          let geometry: { width: number; pageHeight: number };
+          try {
+            geometry = decodeGeometry(w, h, maxWidth);
+          } catch (error) {
+            expect(error).toEqual(new ImagingError(messages.tooManyPixels));
+            return;
+          }
+          const { width, pageHeight } = geometry;
+          expect(width).toBeGreaterThanOrEqual(16);
+          expect(width).toBeLessThanOrEqual(maxWidth);
+          expect(pageHeight).toBeGreaterThanOrEqual(1);
+          expect(pageHeight).toBeLessThanOrEqual(limits.maxPageHeight);
+          const chunk = decodeChunkPages(width, pageHeight);
+          expect(chunk).toBeGreaterThanOrEqual(1);
+          expect(chunk * width * pageHeight).toBeLessThanOrEqual(limits.maxStripPixels);
+        },
+      ),
+    );
+  });
+
+  it('decodes a tall narrow animation with a bounded page height and encodes it', async () => {
+    const gif = await makeGif({ width: 64, height: 4096, frames: 25, delay: 40, loop: 0 });
+    const frames = await decodeFrames(gif, { maxWidth: 512 });
+    expect(frames).toMatchObject({ width: 32, pageHeight: 2048, pages: 25 });
+    expect(pixelAt(frames, 24, 16, 1024)).toEqual(frameColor(24));
+    expect(decodeChunkPages(frames.width, frames.pageHeight) * 32 * 2048).toBeLessThanOrEqual(
+      limits.maxStripPixels,
+    );
+    await expect(encodeGif(frames)).resolves.toBeInstanceOf(Buffer);
+  }, 30_000);
+
+  it('rejects a 1x300 png and a 16x4096 gif as too many pixels, not an encoder error', async () => {
+    const png = await makePng({ width: 1, height: 300 });
+    await expect(decodeFrames(png, { maxWidth: 512 })).rejects.toThrow(
+      new ImagingError(messages.tooManyPixels),
+    );
+    const gif = await makeGif({ width: 16, height: 4096, frames: 2, delay: 40, loop: 0 });
+    await expect(decodeFrames(gif, { maxWidth: 512 })).rejects.toThrow(
+      new ImagingError(messages.tooManyPixels),
+    );
   });
 });
 

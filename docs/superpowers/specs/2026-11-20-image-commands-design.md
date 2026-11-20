@@ -111,6 +111,7 @@ command -> discord.ts (gather inputs) -> source.ts (pick) -> jobs.ts (lock, queu
 | Decoded pixels   | one frame ≤ 4096×4096 (probe), strip ≤ 512×1024×100 | Stops decompression bombs                       |
 | Frames           | 100, evenly sampled above                           | Keeps duration (delays summed), bounds CPU      |
 | Working width    | at most 512 px, at least 256                        | Small images upscaled so text stays readable    |
+| Page height      | at most 2048 px                                     | A tall source narrows (down to 16 px) to fit    |
 | Output size      | 10 MiB                                              | Discord's default upload limit for bots         |
 | Caption length   | 200 characters, 5 lines                             |                                                 |
 | Job timeout      | 20 s                                                | sharp `timeout` plus fetch abort                |

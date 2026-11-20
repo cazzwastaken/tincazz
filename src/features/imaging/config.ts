@@ -10,6 +10,10 @@ export const limits = {
   maxSourcePixels: 250_000_000,
   maxFrames: 100,
   maxStripPixels: 512 * 1024 * 100,
+  /** tallest working frame: a tall narrow source shrinks below `minWidth` to stay under it */
+  maxPageHeight: 2048,
+  /** narrowest working frame; a source that would end up narrower is rejected */
+  minPageWidth: 16,
   maxWidth: 512,
   minWidth: 256,
   outputBytes: 10 * 1024 ** 2,
