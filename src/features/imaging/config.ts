@@ -1,0 +1,20 @@
+/** Hard limits for the image commands. Every guard in the pipeline reads from here. */
+export const limits = {
+  downloadBytes: 25 * 1024 ** 2,
+  pageBytes: 2 * 1024 ** 2,
+  downloadTimeoutMs: 10_000,
+  maxRedirects: 3,
+  maxSourceSide: 4096,
+  maxSourcePages: 1000,
+  maxFrames: 100,
+  maxStripPixels: 512 * 1024 * 100,
+  maxWidth: 512,
+  minWidth: 256,
+  outputBytes: 10 * 1024 ** 2,
+  captionChars: 200,
+  captionLines: 5,
+  jobTimeoutMs: 20_000,
+  concurrency: 2,
+  queueSize: 10,
+  cooldownMs: 10_000,
+} as const;
