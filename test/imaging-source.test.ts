@@ -53,6 +53,12 @@ describe('pickSource precedence', () => {
       message: messages.notImage,
     });
   });
+  it('a bad attachment url does not fall back to url', () => {
+    expect(pickSource({ attachment: att('https://evil.example/a.png'), url: png })).toEqual({
+      ok: false,
+      message: messages.notAllowed,
+    });
+  });
   it('accepts an attachment without a content type', () => {
     expect(href(pickSource({ attachment: att(png, null) }))).toBe(png);
   });
@@ -120,6 +126,36 @@ describe('pickSource reply', () => {
   });
   it('finds an allowed url in content', () => {
     expect(href(pick({ content: `look https://evil.example/x and ${png} ok` }))).toBe(png);
+  });
+  it('a lottie sticker does not stop a content url from being used', () => {
+    expect(href(pick({ stickers: [{ url: other, format: 'lottie' }], content: png }))).toBe(png);
+  });
+  it('lottie outranks video in the final error', () => {
+    expect(
+      pick({
+        attachments: [att(other, 'video/mp4')],
+        stickers: [{ url: png, format: 'lottie' }],
+      }),
+    ).toEqual({ ok: false, message: messages.lottie });
+  });
+  it('chain order: attachment, embed, sticker, content', () => {
+    const a = 'https://cdn.discordapp.com/attachments/1/2/a.png';
+    const e = 'https://cdn.discordapp.com/attachments/1/2/e.png';
+    const s = 'https://cdn.discordapp.com/attachments/1/2/s.png';
+    const c = 'https://cdn.discordapp.com/attachments/1/2/c.png';
+    const full = {
+      attachments: [att(a)],
+      embeds: [embed({ imageUrl: e })],
+      stickers: [{ url: s, format: 'png' as const }],
+      content: c,
+    };
+    expect(href(pick(full))).toBe(a);
+    expect(href(pick({ ...full, attachments: [] }))).toBe(e);
+    expect(href(pick({ ...full, attachments: [], embeds: [] }))).toBe(s);
+    expect(href(pick({ ...full, attachments: [], embeds: [], stickers: [] }))).toBe(c);
+  });
+  it('a video-only reply attachment still lets a content url win', () => {
+    expect(href(pick({ attachments: [att(other, 'video/mp4')], content: png }))).toBe(png);
   });
   it('only a video attachment says video', () => {
     expect(pick({ attachments: [att(png, 'video/mp4')] })).toEqual({

@@ -99,8 +99,6 @@ function pickReply(reply: ReplyData): SourcePick {
   if (sticker) {
     const check = allowed(sticker.url);
     if (check) return { ok: true, check };
-  } else if (reply.stickers.length > 0) {
-    return fail(messages.lottie);
   }
 
   for (const raw of extractUrls(reply.content)) {
@@ -108,6 +106,7 @@ function pickReply(reply: ReplyData): SourcePick {
     if (check) return { ok: true, check };
   }
 
+  if (reply.stickers.some((s) => s.format === 'lottie')) return fail(messages.lottie);
   return fail(sawVideo ? messages.video : messages.notImage);
 }
 
