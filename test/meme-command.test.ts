@@ -155,7 +155,7 @@ describe('/meme', () => {
 
   it('replies ephemerally to an empty caption without deferring', async () => {
     const fetchMock = stubFetch();
-    const interaction = slash('m2', { text: '​', url: tenor });
+    const interaction = slash('m2', { text: '\u{200B}', url: tenor });
     await runSlashReply(interaction);
 
     expect(interaction.reply).toHaveBeenCalledWith(errorReply(messages.emptyCaption));

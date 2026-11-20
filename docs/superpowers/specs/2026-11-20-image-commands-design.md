@@ -163,12 +163,13 @@ paints it opaque white. Exact proportions are tuned against sample renders appro
 
 ### Text sanitising (`text.ts`)
 
-1. User mentions `<@id>` / `<@!id>` become `@display name` (from the interaction's resolved data or
+1. Every line break (`\r\n`, `\r`, U+0085, U+2028, U+2029) becomes `\n`. Control characters
+   (except `\n` and tab) and invisible format characters are removed, except ZWNJ, ZWJ and the tag
+   characters of subdivision flags. This runs first, so invisibles cannot hide a mention.
+2. User mentions `<@id>` / `<@!id>` become `@display name` (from the interaction's resolved data or
    the message's mentions; unknown IDs become `@unknown-user`), roles become `@role name`, channels
-   become `#channel-name`
-2. Custom emoji `<:name:id>` / `<a:name:id>` become `:name:`
-3. Control and zero-width characters are removed, except `\n`; runs of spaces collapse; at most 5
-   lines; trim
+   become `#channel-name`; custom emoji `<:name:id>` / `<a:name:id>` become `:name:`
+3. Runs of spaces collapse; at most 5 lines; trim
 4. Empty after sanitising: error "give the meme some text"
 5. Escape `&`, `<`, `>` for Pango markup **last**, so user text can never inject markup
 

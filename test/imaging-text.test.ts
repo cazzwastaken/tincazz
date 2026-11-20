@@ -33,9 +33,45 @@ describe('sanitizeCaption', () => {
   });
 
   it('strips invisible format characters but keeps ZWJ sequences', () => {
-    expect(sanitizeCaption('a​b', noMentionNames)).toBe('ab');
-    expect(sanitizeCaption('👨‍👩‍👧', noMentionNames)).toBe('👨‍👩‍👧');
-    expect(sanitizeCaption('😂', noMentionNames)).toBe('😂');
+    expect(sanitizeCaption('a\u{200B}b', noMentionNames)).toBe('ab');
+    const family = '\u{1F468}\u{200D}\u{1F469}\u{200D}\u{1F467}';
+    expect(sanitizeCaption(family, noMentionNames)).toBe(family);
+    expect(sanitizeCaption('\u{1F602}', noMentionNames)).toBe('\u{1F602}');
+  });
+
+  it('keeps ZWNJ and the tag characters of subdivision flags', () => {
+    const england = '\u{1F3F4}\u{E0067}\u{E0062}\u{E0065}\u{E006E}\u{E0067}\u{E007F}';
+    expect(sanitizeCaption(england, noMentionNames)).toBe(england);
+    const persian = '\u{0645}\u{06CC}\u{200C}\u{062E}\u{0648}\u{0627}\u{0647}\u{0645}';
+    expect(sanitizeCaption(persian, noMentionNames)).toBe(persian);
+  });
+
+  it('strips bidi controls, soft hyphens, word joiners and byte order marks', () => {
+    expect(sanitizeCaption('a\u{202E}b', noMentionNames)).toBe('ab');
+    for (const c of [
+      '\u{00AD}',
+      '\u{200E}',
+      '\u{200F}',
+      '\u{202A}',
+      '\u{2060}',
+      '\u{2066}',
+      '\u{2069}',
+      '\u{FEFF}',
+    ]) {
+      expect(sanitizeCaption(`a${c}b`, noMentionNames)).toBe('ab');
+    }
+  });
+
+  it('strips invisibles before reading mentions, so the result is stable', () => {
+    const once = sanitizeCaption('<\u{200B}@1>', names);
+    expect(once).toBe('@bob');
+    expect(sanitizeCaption(once, names)).toBe(once);
+    expect(sanitizeCaption('<:\u{200B}kek:9>', noMentionNames)).toBe(':kek:');
+  });
+
+  it('strips invisibles from looked up names', () => {
+    const sneaky = { ...names, users: new Map([['1', 'b\u{202E}ob']]) };
+    expect(sanitizeCaption('<@1>', sneaky)).toBe('@bob');
   });
 
   it('normalises whitespace and lines', () => {
@@ -54,7 +90,7 @@ describe('sanitizeCaption', () => {
   });
 
   it('throws when nothing is left', () => {
-    expect(() => sanitizeCaption('​​', noMentionNames)).toThrow(ImagingError);
+    expect(() => sanitizeCaption('\u{200B}\u{200B}', noMentionNames)).toThrow(ImagingError);
     expect(() => sanitizeCaption('  \n ', noMentionNames)).toThrow(messages.emptyCaption);
   });
 });

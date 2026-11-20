@@ -20,22 +20,47 @@ export const mentionPatterns = {
   channel: /<#(\d+)>/g,
 } as const;
 
+/** Control characters other than newline and tab, and invisible format characters. */
+const invisible = /[^\P{Cc}\n\t]|\p{Cf}/gu;
+
 /**
- * Turns raw user text into a plain caption: mentions and custom emoji become readable text,
- * invisible characters go, whitespace is normalised and the line count is capped. Does not
- * escape markup, see {@link escapeMarkup}. Throws when nothing is left.
+ * Format characters that join emoji or letters and stay: ZWNJ (U+200C), ZWJ (U+200D) and the tag
+ * characters of subdivision flags (U+E0020 to U+E007F).
+ */
+function joins(char: string): boolean {
+  const code = char.codePointAt(0) ?? 0;
+  return code === 0x200c || code === 0x200d || (code >= 0xe0020 && code <= 0xe007f);
+}
+
+/** Every line break becomes `\n` and invisible characters go. */
+const clean = (text: string) =>
+  text
+    .replace(/\r\n|[\r\u{0085}\u{2028}\u{2029}]/gu, '\n')
+    .replace(invisible, (char) => (joins(char) ? char : ''));
+
+/**
+ * Turns raw user text into a plain caption: invisible characters go (first, so they cannot hide a
+ * mention from the patterns), mentions and custom emoji become readable text, every line break
+ * becomes `\n`, whitespace is normalised and the line count is capped. Does not escape markup,
+ * see {@link escapeMarkup}. Throws when nothing is left.
  */
 export function sanitizeCaption(raw: string, names: MentionNames): string {
-  const text = raw
-    .replace(mentionPatterns.user, (_m, id: string) => `@${names.users.get(id) ?? 'unknown-user'}`)
-    .replace(mentionPatterns.role, (_m, id: string) => `@${names.roles.get(id) ?? 'unknown-role'}`)
+  const name = (found: string | undefined, fallback: string) =>
+    found === undefined ? fallback : clean(found);
+  const text = clean(raw)
+    .replace(
+      mentionPatterns.user,
+      (_m, id: string) => `@${name(names.users.get(id), 'unknown-user')}`,
+    )
+    .replace(
+      mentionPatterns.role,
+      (_m, id: string) => `@${name(names.roles.get(id), 'unknown-role')}`,
+    )
     .replace(
       mentionPatterns.channel,
-      (_m, id: string) => `#${names.channels.get(id) ?? 'unknown-channel'}`,
+      (_m, id: string) => `#${name(names.channels.get(id), 'unknown-channel')}`,
     )
-    .replace(/<a?:(\w+):\d+>/g, ':$1:')
-    .replace(/\r\n|[\r\u{0085}\u{2028}\u{2029}]/gu, '\n')
-    .replace(/[^\P{Cc}\n\t]|[^\P{Cf}‍]/gu, '');
+    .replace(/<a?:(\w+):\d+>/g, ':$1:');
 
   const lines = text
     .split('\n')
