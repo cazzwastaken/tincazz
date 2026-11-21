@@ -5,3 +5,4 @@ export * from './config.js';
 export * from './decide.js';
 export * from './guard.js';
 export * from './store.js';
+export * from './trigger.js';
