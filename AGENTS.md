@@ -42,7 +42,7 @@ src/
     admin/        `/settings` (log channels, join auto-roles and game channels; Manage Server)
     economy/      slash commands for coins (/balance, also `?bal` / `?balance`, /daily, /collect,
                   /bailout, /eco)
-    general/      `?ping` / `/ping`, `?help` / `/help`
+    general/      `?ping` / `/ping`, `?help [topic]` / `/help [topic]`
     image/        `?bubble` / `/bubble` (speech bubble on an image, GIF or whole message; also the
                   "Bubble message" context menu), `?caption` / `/caption` (white caption bar above
                   one); thin, all logic is in `features/imaging/`
@@ -63,7 +63,8 @@ src/
     gamba/        spin logic, odds and payouts (tuned to a ~1% house edge), the pot, bet parsing,
                   result cards and the shared `spin()` flow used by commands and buttons (every
                   spin is a wager, default 1)
-    help/         the help card, built from the economy and wager config so it cannot drift
+    help/         the paged help card (home plus topic pages, `hp:*` custom IDs, topic menu and Home
+                  button), built from the feature configs so it cannot drift
     imaging/      `/bubble` and `/caption` logic: the URL allowlist (`urls.ts`), the capped downloader
                   with redirect checks, source picking (attachment, link, reply, avatar, sticker),
                   decode, bubble and caption rendering with sharp, GIF encoding with a size ladder,
@@ -87,7 +88,7 @@ src/
                   cards
     ui/           shared Components V2 card helpers
   interaction-handlers/  one file per component handler (gamba, coinflip and dice buttons,
-                  leaderboard paging and category select)
+                  leaderboard paging and category select, the help topic menu)
   listeners/      one file per Discord/Sapphire event listener (member join, leave and
                   screening, channel and role delete cleanup, chat rewards, ready, a generic
                   ephemeral reply when a command, context menu or handler throws, and a reply
