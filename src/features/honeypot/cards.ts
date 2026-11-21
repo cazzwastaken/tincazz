@@ -21,6 +21,8 @@ export const honeypotTaken = (id: string, use: 'a log channel' | 'a game channel
   `<#${id}> is the honeypot channel, so it can't be ${use}.`;
 export const honeypotAlreadySet = (id: string) => `<#${id}> is already the honeypot.`;
 export const honeypotReposted = (id: string) => `Re-posted the honeypot card in <#${id}>.`;
+export const honeypotCardCheckFailed = (id: string) =>
+  `I couldn't check or re-post the honeypot card in <#${id}>. Make sure I can view, send and manage messages there.`;
 export const honeypotSetReply = (id: string) =>
   `Set the honeypot to <#${id}>. Anyone without Manage Messages who posts there is softbanned.`;
 export const honeypotClearedReply = 'Cleared the honeypot. The kick total is kept.';

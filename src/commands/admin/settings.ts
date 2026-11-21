@@ -14,6 +14,7 @@ import {
   ensureCard,
   honeypot,
   honeypotAlreadySet,
+  honeypotCardCheckFailed,
   honeypotChannelProblem,
   honeypotClearedReply,
   honeypotConflict,
@@ -389,10 +390,17 @@ export class SettingsCommand extends Command {
     if (current.channelId === channel.id) {
       // Through ensureCard so the re-post is serialized with the other card refreshes.
       const result = await ensureCard(guildId);
+      if (result === 'reposted') {
+        return interaction.reply(
+          cardReply(card(accents.brand, honeypotReposted(channel.id)), { ephemeral: true }),
+        );
+      }
       return interaction.reply(
-        result === 'reposted'
-          ? cardReply(card(accents.brand, honeypotReposted(channel.id)), { ephemeral: true })
-          : errorReply(honeypotAlreadySet(channel.id)),
+        errorReply(
+          result === 'failed'
+            ? honeypotCardCheckFailed(channel.id)
+            : honeypotAlreadySet(channel.id),
+        ),
       );
     }
 

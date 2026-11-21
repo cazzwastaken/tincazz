@@ -401,6 +401,18 @@ describe('/settings honeypot', () => {
     expect(channel.send).not.toHaveBeenCalled();
   });
 
+  it('reports a failed card check when set to the same channel', async () => {
+    setHoneypot(container.db, '2', '70', 'card-70', 1);
+    const channel = honeypotChannel('70');
+    channel.messages.edit.mockRejectedValue({ code: 50013 });
+    const result = await run('honeypot', 'set', { channel }, { guild: honeypotGuild() });
+    expect(result.text).toContain(
+      "I couldn't check or re-post the honeypot card in <#70>. Make sure I can view, send and manage messages there.",
+    );
+    expect(result.text).not.toContain('is already the honeypot');
+    expect(channel.send).not.toHaveBeenCalled();
+  });
+
   it('re-posts a missing card when set to the same channel', async () => {
     setHoneypot(container.db, '2', '70', 'card-old', 1);
     const channel = honeypotChannel('70');
