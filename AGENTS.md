@@ -43,7 +43,7 @@ src/
     economy/      slash commands for coins (/balance, also `?bal` / `?balance`, /daily, /collect,
                   /bailout, /eco)
     general/      `?ping` / `/ping`, `?help` / `/help`
-    image/        `?bubble` / `/bubble` (speech bubble on an image or GIF), `?meme` / `/meme`
+    image/        `?bubble` / `/bubble` (speech bubble on an image or GIF), `?caption` / `/caption`
                   (white caption bar above one); thin, all logic is in `features/imaging/`
     misc/         games: `?gamba` / `/gamba`, `?coinflip` / `/coinflip` (aliases `?cf`, `?flip`),
                   `?dice` / `/dice` (alias `?roll`)
@@ -63,7 +63,7 @@ src/
                   result cards and the shared `spin()` flow used by commands and buttons (every
                   spin is a wager, default 1)
     help/         the help card, built from the economy and wager config so it cannot drift
-    imaging/      `/bubble` and `/meme` logic: the URL allowlist (`urls.ts`), the capped downloader
+    imaging/      `/bubble` and `/caption` logic: the URL allowlist (`urls.ts`), the capped downloader
                   with redirect checks, source picking (attachment, link, reply, avatar, sticker),
                   decode, bubble and caption rendering with sharp, GIF encoding with a size ladder,
                   the job queue (timeout, concurrency, per-user lock), prefix argument parsing,

@@ -15,7 +15,7 @@ import {
 import { makeGif, makePng } from './support/images.js';
 
 const bubble: ImageOperation = { kind: 'bubble', style: 'white', tail: 'left' };
-const meme: ImageOperation = { kind: 'meme', text: 'hello there' };
+const caption: ImageOperation = { kind: 'caption', text: 'hello there' };
 
 /** Deterministic noisy GIF: a seeded generator fills every frame with fresh random blocks of a few colours. */
 async function noisyGif(width: number, height: number, frames: number): Promise<Buffer> {
@@ -93,10 +93,10 @@ describe('renderImage', () => {
     expect(error.message).toBe(messages.outputTooBig);
   });
 
-  it('makes a meme taller than a bubble for the same input', async () => {
+  it('makes a caption taller than a bubble for the same input', async () => {
     const input = await makePng({ width: 300, height: 200 });
     const a = await renderImage(input, bubble);
-    const b = await renderImage(input, meme);
+    const b = await renderImage(input, caption);
     const heightOf = async (gif: Buffer) => (await sharp(gif).metadata()).height ?? 0;
     expect(await heightOf(b.gif)).toBeGreaterThan(await heightOf(a.gif));
   });

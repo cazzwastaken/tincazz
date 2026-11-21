@@ -28,7 +28,7 @@ export function helpCard(prefix: string): ContainerBuilder {
     [
       '## Fun',
       `\`/bubble\` & \`${prefix}bubble\`: put a speech bubble on an image or GIF, e.g. reply to one with \`${prefix}bubble white\``,
-      `\`/meme\` & \`${prefix}meme\`: add a caption bar, e.g. \`${prefix}meme when the build passes\``,
+      `\`/caption\` & \`${prefix}caption\`: add a caption bar, e.g. \`${prefix}caption when the build passes\``,
     ].join('\n'),
     [
       '## Coins',

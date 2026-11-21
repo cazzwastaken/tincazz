@@ -160,7 +160,7 @@ export function interactionMentionNames(
 }
 
 /**
- * The shared flow of /bubble and /meme: pick the source, then download and render it as one
+ * The shared flow of /bubble and /caption: pick the source, then download and render it as one
  * queued job. `{ error: null }` means nothing was given (show usage); other `ImagingError`s carry
  * a user-safe message; anything unexpected is rethrown.
  */
@@ -186,7 +186,7 @@ export async function produceImage(
     );
     return {
       file: new AttachmentBuilder(rendered.gif, {
-        name: op.kind === 'bubble' ? 'bubble.gif' : 'meme.gif',
+        name: op.kind === 'bubble' ? 'bubble.gif' : 'caption.gif',
       }),
     };
   } catch (error) {

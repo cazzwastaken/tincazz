@@ -252,14 +252,14 @@ describe('produceImage', () => {
     expect(fetcher).toHaveBeenCalled();
   });
 
-  it('names a meme meme.gif', async () => {
+  it('names a caption caption.gif', async () => {
     const png = await makePng({ width: 40, height: 30 });
     const fetcher = vi.fn<Fetcher>(async () => new Response(Buffer.from(png)));
-    const result = await produceImage({ url }, { kind: 'meme', text: 'hi' }, 'u1', {
+    const result = await produceImage({ url }, { kind: 'caption', text: 'hi' }, 'u1', {
       fetch: fetcher,
       jobs: new ImageJobs(),
     });
-    expect('file' in result && result.file.name).toBe('meme.gif');
+    expect('file' in result && result.file.name).toBe('caption.gif');
   });
 
   it('returns the message for a disallowed url without fetching', async () => {

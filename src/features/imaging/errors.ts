@@ -15,7 +15,7 @@ export const messages = {
   outputTooBig: 'The result is too big even after shrinking.',
   captionTooLong: 'That caption is too long for this image.',
   captionTooLongChars: `Keep the caption under ${limits.captionChars} characters.`,
-  emptyCaption: 'Give the meme some text.',
+  emptyCaption: 'Give the caption some text.',
   lottie: "I can't use that kind of sticker.",
   busyUser: 'You already have an image in progress.',
   busy: "I'm busy with other images, try again in a moment.",

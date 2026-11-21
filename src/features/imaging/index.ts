@@ -2,10 +2,10 @@ export {
   type BubbleArgs,
   type BubbleStyle,
   bubbleUsage,
+  captionUsage,
   commandRemainder,
-  memeUsage,
   parseBubbleArgs,
-  parseMemeArgs,
+  parseCaptionArgs,
   type TailSide,
 } from './args.js';
 export { applyBubble, type BubbleGeometry, bubbleGeometry, bubbleSvg } from './bubble.js';

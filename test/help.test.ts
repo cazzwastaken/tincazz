@@ -78,7 +78,7 @@ describe('helpCard', () => {
   it('has a Fun section with the image commands', () => {
     const card = text();
     expect(card).toContain('## Fun');
-    for (const entry of ['/bubble', '?bubble', '/meme', '?meme']) {
+    for (const entry of ['/bubble', '?bubble', '/caption', '?caption']) {
       expect(card).toContain(entry);
     }
   });

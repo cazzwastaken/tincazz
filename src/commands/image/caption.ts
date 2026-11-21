@@ -2,27 +2,27 @@ import { type Args, Command, CommandOptionsRunTypeEnum } from '@sapphire/framewo
 import { type ChatInputCommandInteraction, InteractionContextType, type Message } from 'discord.js';
 import {
   canAttachFiles,
+  captionUsage,
   commandPrefix,
   commandRemainder,
   ImagingError,
   interactionInputs,
   interactionMentionNames,
   limits,
-  memeUsage,
   messageInputs,
   messageMentionNames,
   messages,
-  parseMemeArgs,
+  parseCaptionArgs,
   produceImage,
   replyWithImage,
   sanitizeCaption,
 } from '../../features/imaging/index.js';
 import { errorReply } from '../../features/ui/index.js';
 
-export class MemeCommand extends Command {
+export class CaptionCommand extends Command {
   public constructor(context: Command.LoaderContext) {
     super(context, {
-      name: 'meme',
+      name: 'caption',
       description: 'Add a white caption bar above an image or GIF',
       runIn: CommandOptionsRunTypeEnum.GuildAny,
       cooldownDelay: limits.cooldownMs,
@@ -66,7 +66,7 @@ export class MemeCommand extends Command {
 
     await interaction.deferReply();
     return replyWithImage(interaction, () =>
-      produceImage(interactionInputs(interaction), { kind: 'meme', text }, interaction.user.id),
+      produceImage(interactionInputs(interaction), { kind: 'caption', text }, interaction.user.id),
     );
   }
 
@@ -77,9 +77,9 @@ export class MemeCommand extends Command {
     }
 
     const rest = commandRemainder(message.content, prefix, args.commandContext.commandName);
-    const parsed = parseMemeArgs(rest);
+    const parsed = parseCaptionArgs(rest);
     if (parsed.text.length === 0) {
-      return message.reply(memeUsage(prefix));
+      return message.reply(captionUsage(prefix));
     }
 
     let text: string;
@@ -98,10 +98,10 @@ export class MemeCommand extends Command {
       message,
       parsed.url === undefined ? {} : { url: parsed.url },
     );
-    const result = await produceImage(inputs, { kind: 'meme', text }, message.author.id);
+    const result = await produceImage(inputs, { kind: 'caption', text }, message.author.id);
     if ('file' in result) {
       return message.reply({ files: [result.file] });
     }
-    return message.reply(result.error ?? memeUsage(prefix));
+    return message.reply(result.error ?? captionUsage(prefix));
   }
 }

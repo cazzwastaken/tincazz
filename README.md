@@ -30,7 +30,7 @@ Currently implemented:
 - `/bubble` & `?bubble [white|transparent] [left|right] [link | @user]`: put a speech bubble on an
   image or GIF. Attach one, paste a Discord, Tenor or Giphy link, pick a user (their avatar) or
   reply to a message with an image. The result is a GIF
-- `/meme text:<text>` & `?meme <text>`: add a white caption bar above an image or GIF, from the
+- `/caption text:<text>` & `?caption <text>`: add a white caption bar above an image or GIF, from the
   same sources. Sources are only fetched from Discord, Tenor and Giphy links
 - `/balance`, `/daily`, `/collect`, `/bailout`: your coins and the ways to earn more:
   - `/daily`: 400 coins plus 75 per streak day (up to 925 from day 7), and 10% cashback on the
