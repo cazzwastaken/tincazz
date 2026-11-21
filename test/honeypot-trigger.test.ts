@@ -387,6 +387,39 @@ describe('handleHoneypotMessage', () => {
     await expect(handleHoneypotMessage(makeMessage(), broken)).resolves.toBe('failed');
     expect(container.logger.warn).toHaveBeenCalled();
   });
+
+  it('finishes the guard when counting the kick throws after the ban', async () => {
+    const db = container.db;
+    // Reads work (the channel check), writes fail: incrementKicks throws after a good ban.
+    const writesFail = {
+      ...deps,
+      db: new Proxy(db, {
+        get(target, property, receiver) {
+          if (property === 'insert') {
+            return () => {
+              throw new Error('disk full');
+            };
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }),
+    };
+    const first = makeMessage();
+    await expect(handleHoneypotMessage(first, writesFail)).resolves.toBe('failed');
+    expect(first.guild.bans.create).toHaveBeenCalled();
+    expect(honeypot(db, '2').kicks).toBe(0);
+    expect(container.logger.warn).toHaveBeenCalled();
+
+    clock += honeypotConfig.cooldownMs - 1;
+    const again = makeMessage();
+    expect(await handleHoneypotMessage(again, deps)).toBe('busy');
+    expect(again.delete).toHaveBeenCalled();
+    expect(again.guild.bans.create).not.toHaveBeenCalled();
+
+    // Finished, not stuck in flight: the cooldown ends and the account is handled again.
+    clock += 1;
+    expect(await handleHoneypotMessage(makeMessage(), deps)).toBe('softbanned');
+  });
 });
 
 describe('honeypot listener', () => {
