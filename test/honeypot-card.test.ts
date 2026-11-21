@@ -118,6 +118,46 @@ describe('honeypot card sync', () => {
     expect(container.logger.warn).toHaveBeenCalled();
   });
 
+  it('resolves failed without an unhandled rejection when the DB read throws', async () => {
+    const unhandled = vi.fn();
+    process.on('unhandledRejection', unhandled);
+    try {
+      container.db = new Proxy({} as typeof container.db, {
+        get() {
+          throw new Error('database is closed');
+        },
+      });
+      await expect(ensureCard('2')).resolves.toBe('failed');
+      expect(container.logger.warn).toHaveBeenCalled();
+      // Give a stray rejection a few turns to surface.
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(unhandled).not.toHaveBeenCalled();
+    } finally {
+      process.off('unhandledRejection', unhandled);
+    }
+  });
+
+  it('never surfaces a rejection from a scheduled refresh', async () => {
+    vi.useFakeTimers();
+    const unhandled = vi.fn();
+    process.on('unhandledRejection', unhandled);
+    try {
+      container.db = new Proxy({} as typeof container.db, {
+        get() {
+          throw new Error('database is closed');
+        },
+      });
+      scheduleCardRefresh('2');
+      await vi.advanceTimersByTimeAsync(honeypotConfig.cardDebounceMs);
+      vi.useRealTimers();
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(unhandled).not.toHaveBeenCalled();
+      expect(container.logger.warn).toHaveBeenCalled();
+    } finally {
+      process.off('unhandledRejection', unhandled);
+    }
+  });
+
   it('returns unset without a honeypot', async () => {
     expect(await ensureCard('3')).toBe('unset');
     expect(channel.messages.edit).not.toHaveBeenCalled();

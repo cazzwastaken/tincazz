@@ -36,11 +36,11 @@ async function sendableChannel(channelId: string) {
 }
 
 async function run(guildId: string): Promise<EnsureResult> {
-  const { channelId, messageId, kicks } = honeypot(container.db, guildId);
-  if (channelId === undefined) {
-    return 'unset';
-  }
   try {
+    const { channelId, messageId, kicks } = honeypot(container.db, guildId);
+    if (channelId === undefined) {
+      return 'unset';
+    }
     const channel = await sendableChannel(channelId);
     if (!channel) {
       container.logger.warn(
@@ -85,11 +85,13 @@ export function ensureCard(guildId: string): Promise<EnsureResult> {
   const prev = chains.get(guildId) ?? Promise.resolve<EnsureResult>('unset');
   const next = prev.catch(() => 'failed' as const).then(() => run(guildId));
   chains.set(guildId, next);
-  void next.finally(() => {
+  const cleanup = () => {
     if (chains.get(guildId) === next) {
       chains.delete(guildId);
     }
-  });
+  };
+  // Both branches handled, so this derived promise can never reject unhandled.
+  next.then(cleanup, cleanup);
   return next;
 }
 
@@ -103,7 +105,9 @@ export function scheduleCardRefresh(guildId: string): void {
     guildId,
     setTimeout(() => {
       timers.delete(guildId);
-      void ensureCard(guildId);
+      ensureCard(guildId).catch((error: unknown) => {
+        container.logger.warn(`Honeypot card: refresh failed in guild ${guildId}`, error);
+      });
     }, honeypotConfig.cardDebounceMs),
   );
 }
