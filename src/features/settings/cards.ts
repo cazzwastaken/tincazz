@@ -40,7 +40,7 @@ export function settingsCard(view: SettingsView): ContainerBuilder {
       `**Economy log:** ${log('economy')}`,
       `**Mod log:** ${log('mod')}`,
       `**Game channels:** ${view.gameChannels.length === 0 ? 'all channels' : view.gameChannels.map((id) => `<#${id}>`).join(', ')}`,
-      `**Honeypot:** ${pot ? `<#${pot}> · ${kicks} kicks${warn(potProblem)}` : 'not set'}`,
+      `**Honeypot:** ${pot ? `<#${pot}> · ${kicks.toLocaleString('en-US')} ${kicks === 1 ? 'kick' : 'kicks'}${warn(potProblem)}` : 'not set'}`,
     ].join('\n'),
   );
 }

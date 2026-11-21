@@ -593,4 +593,16 @@ describe('/settings honeypot', () => {
     const gone = await run(undefined, 'show', {}, { guild: honeypotGuild() });
     expect(gone.text).toContain('⚠️ channel no longer exists');
   });
+
+  it.each([
+    [1, '**Honeypot:** <#70> · 1 kick'],
+    [1234, '**Honeypot:** <#70> · 1,234 kicks'],
+  ])('formats a kick count of %i in show', async (kicks, line) => {
+    setHoneypot(container.db, '2', '70', 'card-70', 1);
+    for (let i = 0; i < kicks; i++) incrementKicks(container.db, '2', 2);
+    const cache = new Map<string, unknown>([['70', fakeChannel('70')]]);
+    const shown = await run(undefined, 'show', {}, { guild: honeypotGuild(undefined, cache) });
+    expect(shown.text).toContain(line);
+    expect(shown.text).not.toContain('1 kicks');
+  });
 });
