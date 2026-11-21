@@ -86,6 +86,8 @@ src/
     help/         the paged help card (home, games, images, coins, gamba, coinflip and dice), the
                   topic menu and aliases, built from the economy and wager config so it cannot
                   drift; `hp:*` custom IDs
+    honeypot/     per-guild honeypot channel: the softban trigger with its in-memory guard, the
+                  warning card sync (debounced, re-posted when deleted), the store and copy
     imaging/      `/bubble` and `/caption` logic: the URL allowlist (`urls.ts`), the capped
                   downloader with redirect checks, source picking (attachment, link, reply, message
                   link, avatar, sticker), message-link parsing, decode, bubble and caption
@@ -93,8 +95,6 @@ src/
                   encoding with a size ladder, the job queue (timeout, concurrency, per-user lock),
                   prefix argument parsing, text sanitising, the `cap:*` caption modal custom IDs
                   and the Discord adapters
-    honeypot/     per-guild honeypot channel: the softban trigger with its in-memory guard, the
-                  warning card sync (debounced, re-posted when deleted), the store and copy
     logs/         log channels: event types and cards, fire-and-forget `sendLog`, economy events
                   (admin adjustments, jackpots and member events)
     members/      departed-member tracking: hidden from boards and ranks, daily reconcile against
@@ -155,8 +155,8 @@ ID (see `features/gamba/custom-ids.ts`), so handlers must ignore IDs they cannot
 - **Manage Roles** is required for gamba jackpot roles (`?gamba`, `/gamba` and the Spin
   again/Double buttons) and for `/settings autorole`; the bot's highest role must sit above every
   role it assigns.
-- **Ban Members** is required for the honeypot (`/settings honeypot`), together with Manage
-  Messages in the honeypot channel. It softbans with `deleteMessageSeconds: 3600` and cannot ban
+- **Ban Members** is required for the honeypot (`/settings honeypot`), together with View
+  Channel, Send Messages and Manage Messages in the honeypot channel. It softbans with `deleteMessageSeconds: 3600` and cannot ban
   members whose highest role is at or above the bot's.
 - **`Partials.Message`** (`src/client.ts`) lets `messageDelete` and `messageDeleteBulk` include an
   uncached honeypot card so it can be re-posted. Do not remove it.

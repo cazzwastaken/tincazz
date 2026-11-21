@@ -36,7 +36,7 @@ Type `/help` (or `?help`) in Discord for a paged guide with the live numbers.
 **Server tools**
 
 - `/settings`: log channels, join roles and which channels the games may be played in
-- Honeypot channel: `/settings honeypot set` softbans any account that posts there (wiping its last hour of messages server-wide), for compromised accounts spamming every channel
+- Honeypot channel: `/settings honeypot set` softbans whoever posts there (wiping their last hour of messages server-wide), for compromised accounts spamming every channel. Staff (Manage Messages), the server owner and bots are exempt
 - Most commands also work with the `?` prefix, such as `?gamba 100` or `?caption hello`
 
 ## Add it to your server
