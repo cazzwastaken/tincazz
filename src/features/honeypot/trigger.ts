@@ -1,5 +1,5 @@
 import { container } from '@sapphire/framework';
-import { PermissionFlagsBits } from 'discord.js';
+import { type APIEmbed, PermissionFlagsBits } from 'discord.js';
 import type { DbOrTx } from '../../db/index.js';
 import type { ModEvent } from '../logs/index.js';
 import { banProblem } from './bannable.js';
@@ -38,11 +38,12 @@ export interface HoneypotMessage {
     id: string;
     bot: boolean;
     createdTimestamp: number;
-    send(options: { content: string }): Promise<unknown>;
+    send(options: { embeds: APIEmbed[] }): Promise<unknown>;
   };
   member: HoneypotMember | null;
   guild: HoneypotGuild | null;
   delete(): Promise<unknown>;
+  react(emoji: string): Promise<unknown>;
 }
 
 export interface TriggerDeps {
@@ -71,14 +72,14 @@ function deleteMessage(message: HoneypotMessage): Promise<boolean> {
 }
 
 /** Sends the DM, giving up after `timeoutMs`; true only when the send resolved first. */
-async function sendDm(message: HoneypotMessage, content: string, timeoutMs: number) {
+async function sendDm(message: HoneypotMessage, embed: APIEmbed, timeoutMs: number) {
   let timer: NodeJS.Timeout | undefined;
   const timeout = new Promise<boolean>((resolve) => {
     timer = setTimeout(() => resolve(false), timeoutMs);
   });
   try {
     const sent = (async () => {
-      await message.author.send({ content });
+      await message.author.send({ embeds: [embed] });
       return true;
     })().catch(() => false);
     return await Promise.race([sent, timeout]);
@@ -89,7 +90,7 @@ async function sendDm(message: HoneypotMessage, content: string, timeoutMs: numb
 
 /**
  * Softbans whoever posts in the guild's honeypot channel: DM, ban with a one hour message wipe,
- * unban at once, count the kick and log it. Exempt people only get a DM. Never throws.
+ * unban at once, count the kick and log it. Exempt people get a DM and reaction. Never throws.
  */
 export async function handleHoneypotMessage(
   message: HoneypotMessage,
@@ -124,7 +125,13 @@ export async function handleHoneypotMessage(
     }
     const dmTimeoutMs = deps.dmTimeoutMs ?? honeypotConfig.dmTimeoutMs;
     if (decision === 'notify') {
-      await sendDm(message, honeypotExemptDm(guild.name), dmTimeoutMs);
+      await Promise.all([
+        sendDm(message, honeypotExemptDm(guild.name), dmTimeoutMs),
+        // Discord decides whether the bot can add this reaction in the channel.
+        Promise.resolve()
+          .then(() => message.react(honeypotConfig.emoji))
+          .catch(() => undefined),
+      ]);
       return 'ignored';
     }
 
