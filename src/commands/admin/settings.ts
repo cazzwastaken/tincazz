@@ -8,6 +8,24 @@ import {
   type Role,
 } from 'discord.js';
 import type { AutoRoleTarget } from '../../db/schema.js';
+import {
+  clearHoneypot,
+  deleteCard,
+  ensureCard,
+  honeypot,
+  honeypotAlreadySet,
+  honeypotChannelProblem,
+  honeypotClearedReply,
+  honeypotConflict,
+  honeypotNotSet,
+  honeypotPostFailed,
+  honeypotReposted,
+  honeypotSetReply,
+  honeypotTaken,
+  honeypotWarningCard,
+  isHoneypotChannel,
+  setHoneypot,
+} from '../../features/honeypot/index.js';
 import type { ModEvent } from '../../features/logs/events.js';
 import { type LogKind, logKinds, logMod, modLogCard, sendLog } from '../../features/logs/index.js';
 import {
@@ -133,6 +151,20 @@ export class SettingsCommand extends Command {
             .addSubcommand((sub) =>
               sub.setName('reset').setDescription('Allow the games in every channel again'),
             ),
+        )
+        .addSubcommandGroup((group) =>
+          group
+            .setName('honeypot')
+            .setDescription('The channel that softbans spam bots')
+            .addSubcommand((sub) =>
+              sub
+                .setName('set')
+                .setDescription('Make a channel the honeypot (posts the warning card there)')
+                .addChannelOption(gameChannelOption),
+            )
+            .addSubcommand((sub) =>
+              sub.setName('clear').setDescription('Stop using a honeypot channel'),
+            ),
         ),
     );
   }
@@ -151,6 +183,8 @@ export class SettingsCommand extends Command {
     if (group === 'games' && sub === 'allow') return this.gamesAllow(interaction);
     if (group === 'games' && sub === 'remove') return this.gamesRemove(interaction);
     if (group === 'games' && sub === 'reset') return this.gamesReset(interaction);
+    if (group === 'honeypot' && sub === 'set') return this.honeypotSet(interaction);
+    if (group === 'honeypot' && sub === 'clear') return this.honeypotClear(interaction);
     if (!group && sub === 'show') return this.show(interaction);
     return interaction.reply(errorReply('Unknown subcommand.'));
   }
@@ -163,6 +197,9 @@ export class SettingsCommand extends Command {
     const guildId = interaction.guildId as string;
     const me = interaction.guild?.members.me as GuildMember;
 
+    if (isHoneypotChannel(this.container.db, guildId, channel.id)) {
+      return interaction.reply(errorReply(honeypotTaken(channel.id, 'a log channel')));
+    }
     if (logChannelId(this.container.db, guildId, kind) === channel.id) {
       return interaction.reply(errorReply(logChannelAlreadySet(kind, channel.id)));
     }
@@ -286,6 +323,9 @@ export class SettingsCommand extends Command {
   private async gamesAllow(interaction: ChatInputCommandInteraction) {
     const channel = interaction.options.getChannel('channel', true);
     const guildId = interaction.guildId as string;
+    if (isHoneypotChannel(this.container.db, guildId, channel.id)) {
+      return interaction.reply(errorReply(honeypotTaken(channel.id, 'a game channel')));
+    }
     const result = addGameChannel(this.container.db, guildId, channel.id, Date.now());
     if (result === 'exists') {
       return interaction.reply(errorReply(`<#${channel.id}> is already a game channel.`));
@@ -332,6 +372,86 @@ export class SettingsCommand extends Command {
     );
   }
 
+  private async honeypotSet(interaction: ChatInputCommandInteraction) {
+    const channel = interaction.options.getChannel('channel', true) as unknown as Parameters<
+      typeof honeypotChannelProblem
+    >[0] & { send(options: unknown): Promise<{ id: string }> };
+    const guildId = interaction.guildId as string;
+    const me = interaction.guild?.members.me as GuildMember;
+    const db = this.container.db;
+
+    const conflict = honeypotConflict(db, guildId, channel.id);
+    if (conflict) return interaction.reply(errorReply(conflict));
+    const problem = honeypotChannelProblem(channel, me);
+    if (problem) return interaction.reply(errorReply(problem));
+
+    const current = honeypot(db, guildId);
+    if (current.channelId === channel.id) {
+      // Through ensureCard so the re-post is serialized with the other card refreshes.
+      const result = await ensureCard(guildId);
+      return interaction.reply(
+        result === 'reposted'
+          ? cardReply(card(accents.brand, honeypotReposted(channel.id)), { ephemeral: true })
+          : errorReply(honeypotAlreadySet(channel.id)),
+      );
+    }
+
+    let sent: { id: string };
+    try {
+      sent = await channel.send(cardReply(honeypotWarningCard(current.kicks)));
+    } catch (error) {
+      this.container.logger.warn(`Could not post the honeypot card in ${channel.id}`, error);
+      return interaction.reply(errorReply(honeypotPostFailed(channel.id)));
+    }
+
+    const now = Date.now();
+    const previous = setHoneypot(db, guildId, channel.id, sent.id, now);
+    await interaction.reply(
+      cardReply(card(accents.brand, honeypotSetReply(channel.id)), { ephemeral: true }),
+    );
+    // After the write, so the message delete listener sees a card that is no longer stored.
+    if (previous.channelId && previous.messageId) {
+      void deleteCard(previous.channelId, previous.messageId);
+    }
+    void logMod(
+      guildId,
+      {
+        type: 'honeypot_set',
+        actorId: interaction.user.id,
+        fromChannelId: previous.channelId,
+        toChannelId: channel.id,
+      },
+      now,
+    );
+  }
+
+  private async honeypotClear(interaction: ChatInputCommandInteraction) {
+    const guildId = interaction.guildId as string;
+    const db = this.container.db;
+    if (!honeypot(db, guildId).channelId) {
+      return interaction.reply(errorReply(honeypotNotSet));
+    }
+    const now = Date.now();
+    const previous = clearHoneypot(db, guildId, now);
+    await interaction.reply(
+      cardReply(card(accents.brand, honeypotClearedReply), { ephemeral: true }),
+    );
+    if (previous.channelId && previous.messageId) {
+      void deleteCard(previous.channelId, previous.messageId);
+    }
+    if (previous.channelId) {
+      void logMod(
+        guildId,
+        {
+          type: 'honeypot_cleared',
+          actorId: interaction.user.id,
+          fromChannelId: previous.channelId,
+        },
+        now,
+      );
+    }
+  }
+
   private async show(interaction: ChatInputCommandInteraction) {
     const guild = interaction.guild;
     const guildId = interaction.guildId as string;
@@ -358,9 +478,18 @@ export class SettingsCommand extends Command {
             : 'role no longer exists',
         };
       });
+    const pot = honeypot(this.container.db, guildId);
+    let potProblem: string | undefined;
+    if (pot.channelId) {
+      const channel = guild?.channels.cache.get(pot.channelId);
+      potProblem = channel
+        ? honeypotChannelProblem(channel as never, guild?.members.me as GuildMember)
+        : 'channel no longer exists';
+    }
     return interaction.reply(
       cardReply(
         settingsCard({
+          honeypot: { channelId: pot.channelId, kicks: pot.kicks, problem: potProblem },
           autoRoles: { member: roleView('member'), bot: roleView('bot') },
           logs,
           gameChannels: gameChannels(this.container.db, guildId),
