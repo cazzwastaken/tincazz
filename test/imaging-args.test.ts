@@ -91,7 +91,7 @@ describe('commandRemainder', () => {
 describe('usage', () => {
   it('mentions the prefix', () => {
     expect(bubbleUsage('?')).toBe(
-      'Usage: `?bubble [white|transparent] [left|right] [link | @user]`, with an image attached or as a reply to one. Or use `/bubble`.',
+      'Usage: `?bubble [white|transparent] [left|right] [link | @user]`, with an image attached or as a reply to an image or a message (a message with text becomes a screenshot). Or use `/bubble`, or right-click a message > Apps > Bubble message.',
     );
     expect(captionUsage('?')).toBe(
       'Usage: `?caption <text>`, with an image attached or as a reply to one. Or use `/caption`.',

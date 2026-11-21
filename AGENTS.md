@@ -43,8 +43,9 @@ src/
     economy/      slash commands for coins (/balance, also `?bal` / `?balance`, /daily, /collect,
                   /bailout, /eco)
     general/      `?ping` / `/ping`, `?help` / `/help`
-    image/        `?bubble` / `/bubble` (speech bubble on an image or GIF), `?caption` / `/caption`
-                  (white caption bar above one); thin, all logic is in `features/imaging/`
+    image/        `?bubble` / `/bubble` (speech bubble on an image, GIF or whole message; also the
+                  "Bubble message" context menu), `?caption` / `/caption` (white caption bar above
+                  one); thin, all logic is in `features/imaging/`
     misc/         games: `?gamba` / `/gamba`, `?coinflip` / `/coinflip` (aliases `?cf`, `?flip`),
                   `?dice` / `/dice` (alias `?roll`)
     stats/        slash commands for profiles and boards (/stats, /leaderboard)
@@ -67,7 +68,11 @@ src/
                   with redirect checks, source picking (attachment, link, reply, avatar, sticker),
                   decode, bubble and caption rendering with sharp, GIF encoding with a size ladder,
                   the job queue (timeout, concurrency, per-user lock), prefix argument parsing,
-                  caption sanitising and the Discord adapters
+                  caption sanitising and the Discord adapters. Bubbling a whole message:
+                  `messageSource` (image only -> the image, text -> a screenshot), message links
+                  (`links.ts`), message text cleanup, the Discord-style screenshot renderer
+                  (`message.ts`, Noto Sans, room above for the bubble) and the permission-checked
+                  lookup of linked messages
     logs/         log channels: event types and cards, fire-and-forget `sendLog`, economy
                   events (admin adjustments, jackpots and member events)
     members/      departed-member tracking: hidden from boards and ranks, daily reconcile
@@ -85,9 +90,9 @@ src/
                   leaderboard paging and category select)
   listeners/      one file per Discord/Sapphire event listener (member join, leave and
                   screening, channel and role delete cleanup, chat rewards, ready, a generic
-                  ephemeral reply when a command or handler throws, and a reply explaining why
-                  a precondition denied a command, such as a cooldown)
-assets/fonts/     the OFL fonts used for image captions, each with its licence file
+                  ephemeral reply when a command, context menu or handler throws, and a reply
+                  explaining why a precondition denied a command, such as a cooldown)
+assets/fonts/     the OFL fonts used for captions and message screenshots, each with its licence file
 drizzle/          generated SQL migrations, committed and shipped in the image
 test/             Vitest tests
 .github/          CI, image publishing, Dependabot, issue forms, PR template and CODEOWNERS
@@ -117,6 +122,14 @@ ID (see `features/gamba/custom-ids.ts`), so handlers must ignore IDs they cannot
   A command that must ping someone has to opt in explicitly for that message.
 - **Slash commands register to `GUILD_ID` when it is set**, otherwise globally (global updates can
   take up to an hour). Each command implements `registerApplicationCommands` and `chatInputRun`.
+- **`/bubble` registers two application commands**: the slash command and the "Bubble message"
+  message context menu (`registerContextMenuCommand` in the same class, run by `contextMenuRun`).
+  Both count toward the application command limits, and the context menu has its own name in the
+  Discord command list.
+- **Linked messages are permission checked**: `/bubble message:` only renders a message in the
+  same guild, in a channel where both the invoker and the bot have View Channel and Read Message
+  History (threads via their parent; private threads also need membership). Every refusal answers
+  the same "I can't find that message", so it never reveals whether a message exists.
 - **Gamba jackpots assign a role** (`?gamba`, `/gamba` and the Spin again/Double buttons), so the
   bot needs the **Manage Roles** permission and its highest role must sit above the jackpot role.
 - **Server Members is a privileged intent** (`GuildMembers`): enable it in the Developer Portal

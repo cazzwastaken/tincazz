@@ -1,26 +1,44 @@
 import { type Args, Command, CommandOptionsRunTypeEnum } from '@sapphire/framework';
-import { type ChatInputCommandInteraction, InteractionContextType, type Message } from 'discord.js';
+import {
+  ApplicationCommandType,
+  type ChatInputCommandInteraction,
+  InteractionContextType,
+  type Message,
+} from 'discord.js';
 import {
   type BubbleStyle,
   bubbleUsage,
   canAttachFiles,
   commandPrefix,
   commandRemainder,
+  hasDirectSource,
+  type ImageOperation,
   interactionInputs,
   limits,
+  linkedMessage,
   messageInputs,
+  messageSnapshot,
   messages,
   parseBubbleArgs,
   produceImage,
+  produceMessageImage,
+  repliedMessage,
   replyWithImage,
   type TailSide,
 } from '../../features/imaging/index.js';
 
+/** The name of the message context menu command (right-click a message > Apps). */
+const bubbleMessageMenu = 'Bubble message';
+
+/**
+ * Sources, highest first: attachment, link, user, then a message (the replied-to message of
+ * `?bubble`, or the `message` option of `/bubble`). A message with text becomes a screenshot.
+ */
 export class BubbleCommand extends Command {
   public constructor(context: Command.LoaderContext) {
     super(context, {
       name: 'bubble',
-      description: 'Put a speech bubble on an image or GIF',
+      description: 'Put a speech bubble on an image, GIF or message',
       runIn: CommandOptionsRunTypeEnum.GuildAny,
       cooldownDelay: limits.cooldownMs,
     });
@@ -41,6 +59,11 @@ export class BubbleCommand extends Command {
         .addUserOption((option) => option.setName('user').setDescription("Use this user's avatar"))
         .addStringOption((option) =>
           option
+            .setName('message')
+            .setDescription('A message link or ID: text messages become a screenshot'),
+        )
+        .addStringOption((option) =>
+          option
             .setName('style')
             .setDescription('The bubble style (default: transparent)')
             .addChoices(
@@ -55,21 +78,48 @@ export class BubbleCommand extends Command {
             .addChoices({ name: 'Left', value: 'left' }, { name: 'Right', value: 'right' }),
         ),
     );
+    registry.registerContextMenuCommand((builder) =>
+      builder
+        .setName(bubbleMessageMenu)
+        .setType(ApplicationCommandType.Message)
+        .setContexts(InteractionContextType.Guild),
+    );
   }
 
   public override async chatInputRun(interaction: ChatInputCommandInteraction) {
     await interaction.deferReply();
-    return replyWithImage(interaction, () =>
-      produceImage(
-        interactionInputs(interaction),
-        {
-          kind: 'bubble',
-          style: (interaction.options.getString('style') ?? 'transparent') as BubbleStyle,
-          tail: (interaction.options.getString('tail') ?? 'left') as TailSide,
-        },
+    return replyWithImage(interaction, async () => {
+      const op: ImageOperation = {
+        kind: 'bubble',
+        style: (interaction.options.getString('style') ?? 'transparent') as BubbleStyle,
+        tail: (interaction.options.getString('tail') ?? 'left') as TailSide,
+      };
+      const inputs = interactionInputs(interaction);
+      const link = interaction.options.getString('message');
+      if (hasDirectSource(inputs) || link === null) {
+        return produceImage(inputs, op, interaction.user.id);
+      }
+      const target = await linkedMessage(interaction, link);
+      if (!target) return { error: messages.messageNotFound };
+      return produceMessageImage(await messageSnapshot(target), op, interaction.user.id);
+    });
+  }
+
+  public override async contextMenuRun(interaction: Command.ContextMenuCommandInteraction) {
+    if (!interaction.isMessageContextMenuCommand()) return;
+    await interaction.deferReply();
+    return replyWithImage(interaction, async () => {
+      // The target is a message the user is looking at; it is always in this guild.
+      const target = interaction.targetMessage;
+      if (!interaction.guildId || target.guildId !== interaction.guildId) {
+        return { error: messages.messageNotFound };
+      }
+      return produceMessageImage(
+        await messageSnapshot(target),
+        { kind: 'bubble', style: 'transparent', tail: 'left' },
         interaction.user.id,
-      ),
-    );
+      );
+    });
   }
 
   public override async messageRun(message: Message, args: Args) {
@@ -87,11 +137,12 @@ export class BubbleCommand extends Command {
     if ('sendTyping' in message.channel) {
       await message.channel.sendTyping().catch(() => undefined);
     }
-    const result = await produceImage(
-      await messageInputs(message, parsed),
-      { kind: 'bubble', style: parsed.style, tail: parsed.tail },
-      message.author.id,
-    );
+    const op: ImageOperation = { kind: 'bubble', style: parsed.style, tail: parsed.tail };
+    const inputs = await messageInputs(message, parsed, { reply: false });
+    const target = hasDirectSource(inputs) ? null : await repliedMessage(message);
+    const result = target
+      ? await produceMessageImage(await messageSnapshot(target), op, message.author.id)
+      : await produceImage(inputs, op, message.author.id);
     if ('file' in result) {
       return message.reply({ files: [result.file] });
     }

@@ -1,4 +1,4 @@
-import { container } from '@sapphire/framework';
+import { container, Events } from '@sapphire/framework';
 import { type Interaction, MessageFlags } from 'discord.js';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { createClient } from '../src/client.js';
@@ -69,5 +69,15 @@ describe('replyWithGenericError', () => {
 
     await expect(run(i)).resolves.toBeUndefined();
     expect(warn).toHaveBeenCalled();
+  });
+});
+
+describe('ContextMenuCommandErrorReply', () => {
+  it('follows up on a deferred context menu command that threw', async () => {
+    const client = createClient(testEnv);
+    await client.stores.load();
+    const i = stub({ deferred: true });
+    client.emit(Events.ContextMenuCommandError, new Error('boom'), { interaction: i } as never);
+    await vi.waitFor(() => expect(i.followUp).toHaveBeenCalledWith(ephemeral));
   });
 });

@@ -29,7 +29,10 @@ Currently implemented:
   arguments in any order (`?dice =12 50`)
 - `/bubble` & `?bubble [white|transparent] [left|right] [link | @user]`: put a speech bubble on an
   image or GIF. Attach one, paste a Discord, Tenor or Giphy link, pick a user (their avatar) or
-  reply to a message with an image. The result is a GIF
+  reply to a message. A message with text is drawn as a Discord screenshot (with its first image
+  under the text) and bubbled; an image-only message bubbles the image. `/bubble message:` takes a
+  message link or ID, and right-click a message > Apps > **Bubble message** does the same. The
+  result is a GIF
 - `/caption text:<text>` & `?caption <text>`: add a white caption bar above an image or GIF, from the
   same sources. Sources are only fetched from Discord, Tenor and Giphy links
 - `/balance`, `/daily`, `/collect`, `/bailout`: your coins and the ways to earn more:

@@ -72,7 +72,7 @@ export function commandRemainder(content: string, prefix: string, commandName: s
 }
 
 export function bubbleUsage(prefix: string): string {
-  return `Usage: \`${prefix}bubble [white|transparent] [left|right] [link | @user]\`, with an image attached or as a reply to one. Or use \`/bubble\`.`;
+  return `Usage: \`${prefix}bubble [white|transparent] [left|right] [link | @user]\`, with an image attached or as a reply to an image or a message (a message with text becomes a screenshot). Or use \`/bubble\`, or right-click a message > Apps > Bubble message.`;
 }
 
 export function captionUsage(prefix: string): string {

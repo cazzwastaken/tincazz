@@ -3,10 +3,14 @@ import {
   type APIInteractionDataResolvedGuildMember,
   type APIInteractionGuildMember,
   AttachmentBuilder,
+  ChannelType,
   type ChatInputCommandInteraction,
   type Client,
+  type CommandInteraction,
+  type GuildBasedChannel,
   type GuildMember,
   type Message,
+  MessageReferenceType,
   PermissionFlagsBits,
   StickerFormatType,
   type User,
@@ -15,9 +19,12 @@ import { errorReply } from '../ui/index.js';
 import { ImagingError } from './errors.js';
 import { downloadImage, type Fetcher } from './fetch.js';
 import { type ImageJobs, imageJobs } from './jobs.js';
+import { parseMessageLink } from './links.js';
+import { type MessageSnapshot, renderScreenshot } from './message.js';
 import { type ImageOperation, renderImage } from './render.js';
 import {
   type AttachmentData,
+  messageSource,
   pickSource,
   type ReplyData,
   type SourceInputs,
@@ -71,10 +78,14 @@ export function avatarUrl(
   return user.displayAvatarURL(avatarOptions);
 }
 
-/** Gathers the inputs of a prefix command. A user that cannot be found yields no avatar. */
+/**
+ * Gathers the inputs of a prefix command. A user that cannot be found yields no avatar. With
+ * `reply: false` the replied-to message is left out (`?bubble` handles it as a whole message).
+ */
 export async function messageInputs(
   message: Message,
   args: { url?: string; userId?: string },
+  options: { reply?: boolean } = {},
 ): Promise<SourceInputs> {
   const inputs: SourceInputs = {};
   // The first image (or untyped) attachment; with none, the first one, so it gets its own error.
@@ -94,7 +105,7 @@ export async function messageInputs(
     }
   }
 
-  if (message.reference?.messageId) {
+  if (options.reply !== false && message.reference?.messageId) {
     const referenced = await message.fetchReference().catch(() => null);
     if (referenced) inputs.reply = replyData(referenced);
   }
@@ -159,25 +170,26 @@ export function interactionMentionNames(
   return { users, roles, channels };
 }
 
+type Produced = { file: AttachmentBuilder } | { error: string | null };
+type ProduceDeps = { fetch?: Fetcher; jobs?: ImageJobs };
+
 /**
- * The shared flow of /bubble and /caption: pick the source, then download and render it as one
- * queued job. `{ error: null }` means nothing was given (show usage); other `ImagingError`s carry
- * a user-safe message; anything unexpected is rethrown.
+ * Builds the input image and renders it as one queued job, so the timeout, the concurrency limit
+ * and the per-user lock cover the downloads too. `ImagingError`s become their user-safe message;
+ * anything unexpected is rethrown.
  */
-export async function produceImage(
-  inputs: SourceInputs,
+async function renderJob(
+  prepare: (fetcher: Fetcher, signal: AbortSignal) => Promise<Buffer>,
   op: ImageOperation,
   userId: string,
-  deps: { fetch?: Fetcher; jobs?: ImageJobs } = {},
-): Promise<{ file: AttachmentBuilder } | { error: string | null }> {
-  const pick = pickSource(inputs);
-  if (!pick.ok) return { error: pick.message };
+  deps: ProduceDeps,
+): Promise<Produced> {
   const fetcher = deps.fetch ?? globalThis.fetch;
   const jobs = deps.jobs ?? imageJobs;
   try {
     const started = Date.now();
     const { rendered, inputBytes } = await jobs.run(userId, async (signal) => {
-      const buffer = await downloadImage(pick.check, { fetch: fetcher, signal });
+      const buffer = await prepare(fetcher, signal);
       const result = await renderImage(buffer, op, { signal });
       return { rendered: result, inputBytes: buffer.length };
     });
@@ -193,6 +205,150 @@ export async function produceImage(
     if (error instanceof ImagingError) return { error: error.message };
     throw error;
   }
+}
+
+/**
+ * The shared flow of /bubble and /caption: pick the source, then download and render it as one
+ * queued job. `{ error: null }` means nothing was given (show usage); other errors carry a
+ * user-safe message.
+ */
+export async function produceImage(
+  inputs: SourceInputs,
+  op: ImageOperation,
+  userId: string,
+  deps: ProduceDeps = {},
+): Promise<Produced> {
+  const pick = pickSource(inputs);
+  if (!pick.ok) return { error: pick.message };
+  return renderJob(
+    (fetch, signal) => downloadImage(pick.check, { fetch, signal }),
+    op,
+    userId,
+    deps,
+  );
+}
+
+/**
+ * Renders a whole message (see `messageSource`): its image alone, or a screenshot of it. The
+ * avatar and image downloads and the drawing all run inside the one queued job.
+ */
+export async function produceMessageImage(
+  snapshot: MessageSnapshot,
+  op: ImageOperation,
+  userId: string,
+  deps: ProduceDeps = {},
+): Promise<Produced> {
+  const source = messageSource(snapshot.message);
+  if (source.kind === 'error') return { error: source.message };
+  if (source.kind === 'image') {
+    return renderJob(
+      (fetch, signal) => downloadImage(source.check, { fetch, signal }),
+      op,
+      userId,
+      deps,
+    );
+  }
+  return renderJob(
+    (fetch, signal) => renderScreenshot(snapshot, source, { fetch, signal }),
+    op,
+    userId,
+    deps,
+  );
+}
+
+const messageAvatarOptions = { size: 128, extension: 'png', forceStatic: true } as const;
+
+/**
+ * A message as plain data for the screenshot: the member's display name, colour and avatar when
+ * they are still in the guild (fetched if uncached), else the user's.
+ */
+export async function messageSnapshot(message: Message): Promise<MessageSnapshot> {
+  const member =
+    message.member ??
+    (message.webhookId
+      ? null
+      : await message.guild?.members.fetch(message.author.id).catch(() => null)) ??
+    null;
+  return {
+    author: {
+      name: member?.displayName ?? message.author.displayName,
+      color: member?.displayHexColor ?? null,
+      avatarUrl: (member ?? message.author).displayAvatarURL(messageAvatarOptions),
+    },
+    createdTimestamp: message.createdTimestamp,
+    message: replyData(message),
+    names: messageMentionNames(message),
+  };
+}
+
+/**
+ * The message a prefix command replies to, only when it is a plain reply in the same channel (a
+ * forward can point into another channel or guild).
+ */
+export async function repliedMessage(message: Message): Promise<Message | null> {
+  const reference = message.reference;
+  if (!reference?.messageId) return null;
+  if (reference.type !== undefined && reference.type !== MessageReferenceType.Default) return null;
+  if (reference.channelId !== message.channelId) return null;
+  if (reference.guildId !== undefined && reference.guildId !== message.guildId) return null;
+  const referenced = await message.fetchReference().catch(() => null);
+  return referenced?.guildId === message.guildId ? referenced : null;
+}
+
+const readPermissions = PermissionFlagsBits.ViewChannel | PermissionFlagsBits.ReadMessageHistory;
+
+/**
+ * Whether `member` may read the history of `channel`. A thread takes its parent's permissions; a
+ * private thread also needs membership (or Manage Threads).
+ */
+export async function canReadHistory(
+  channel: GuildBasedChannel,
+  member: GuildMember,
+): Promise<boolean> {
+  const permissions = channel.permissionsFor(member);
+  if (!permissions?.has(readPermissions)) return false;
+  if (
+    channel.type === ChannelType.PrivateThread &&
+    !permissions.has(PermissionFlagsBits.ManageThreads)
+  ) {
+    return Boolean(await channel.members.fetch({ member: member.id }).catch(() => null));
+  }
+  return true;
+}
+
+/**
+ * Resolves `/bubble message:` to a message, or `null` for anything the invoker may not see: a bad
+ * link, another guild, a channel outside this guild, a channel the invoker or the bot cannot read
+ * the history of, or a missing message. The caller answers every `null` the same way, so the
+ * reply never tells whether a message exists.
+ */
+export async function linkedMessage(
+  interaction: ChatInputCommandInteraction,
+  raw: string,
+): Promise<Message | null> {
+  const link = parseMessageLink(raw);
+  const guild = interaction.guild;
+  if (!link || !guild || interaction.guildId !== guild.id) return null;
+  if (link.guildId !== null && link.guildId !== guild.id) return null;
+
+  const channelId = link.channelId ?? interaction.channelId;
+  const channel =
+    guild.channels.cache.get(channelId) ??
+    (await guild.channels.fetch(channelId).catch(() => null));
+  if (!channel || channel.guildId !== guild.id || !channel.isTextBased()) return null;
+
+  const [member, me] = await Promise.all([
+    guild.members.fetch(interaction.user.id).catch(() => null),
+    guild.members.me ?? guild.members.fetchMe().catch(() => null),
+  ]);
+  if (!member || !me) return null;
+  if (!(await canReadHistory(channel, member)) || !(await canReadHistory(channel, me))) {
+    return null;
+  }
+
+  const message = await channel.messages.fetch(link.messageId).catch(() => null);
+  if (!message || message.guildId !== guild.id || message.channelId !== channel.id) return null;
+  return message;
 }
 
 /** What a slash command answers when no image source was given. */
@@ -223,8 +379,8 @@ export function commandPrefix(client: Client): string {
  * public "thinking..." message and stay public) and the error is rethrown.
  */
 export async function replyWithImage(
-  interaction: ChatInputCommandInteraction,
-  run: () => Promise<{ file: AttachmentBuilder } | { error: string | null }>,
+  interaction: CommandInteraction,
+  run: () => Promise<Produced>,
 ): Promise<void> {
   let result: Awaited<ReturnType<typeof run>>;
   try {

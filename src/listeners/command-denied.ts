@@ -1,5 +1,6 @@
 import {
   type ChatInputCommandDeniedPayload,
+  type ContextMenuCommandDeniedPayload,
   container,
   Events,
   Listener,
@@ -18,6 +19,26 @@ function logReplyFailure(what: string, error: unknown): void {
   container.logger.warn(`Could not send the denial reply for ${what}: ${reason}`);
 }
 
+/** Replies to a denied application command, as a follow-up when it was already answered. */
+async function replyDenied(
+  error: UserError,
+  interaction:
+    | ChatInputCommandDeniedPayload['interaction']
+    | ContextMenuCommandDeniedPayload['interaction'],
+): Promise<void> {
+  if (isSilent(error)) return;
+  try {
+    const reply = errorReply(error.message);
+    if (interaction.replied || interaction.deferred) {
+      await interaction.followUp(reply);
+    } else {
+      await interaction.reply(reply);
+    }
+  } catch (failure) {
+    logReplyFailure(`interaction ${interaction.id}`, failure);
+  }
+}
+
 /** Tells the user why a slash command was not run (cooldown, wrong channel type, ...). */
 export class ChatInputCommandDeniedListener extends Listener {
   public constructor(context: Listener.LoaderContext) {
@@ -25,17 +46,21 @@ export class ChatInputCommandDeniedListener extends Listener {
   }
 
   public override async run(error: UserError, { interaction }: ChatInputCommandDeniedPayload) {
-    if (isSilent(error)) return;
-    try {
-      const reply = errorReply(error.message);
-      if (interaction.replied || interaction.deferred) {
-        await interaction.followUp(reply);
-      } else {
-        await interaction.reply(reply);
-      }
-    } catch (failure) {
-      logReplyFailure(`interaction ${interaction.id}`, failure);
-    }
+    await replyDenied(error, interaction);
+  }
+}
+
+/** Tells the user why a context menu command was not run. */
+export class ContextMenuCommandDeniedListener extends Listener {
+  public constructor(context: Listener.LoaderContext) {
+    super(context, {
+      name: 'ContextMenuCommandDeniedReply',
+      event: Events.ContextMenuCommandDenied,
+    });
+  }
+
+  public override async run(error: UserError, { interaction }: ContextMenuCommandDeniedPayload) {
+    await replyDenied(error, interaction);
   }
 }
 
