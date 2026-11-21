@@ -12,6 +12,7 @@ import {
   messageSource,
   nameColor,
   parseMessageLink,
+  pickSource,
   removeUrl,
   runsText,
 } from '../src/features/imaging/index.js';
@@ -202,6 +203,7 @@ describe('messageSource and removeUrl properties', () => {
   const attachment = fc.record({
     url: fc.constantFrom('https://cdn.discordapp.com/a.png', 'https://evil.com/a.png', 'x'),
     contentType: fc.constantFrom(null, 'image/png', 'video/mp4', 'text/plain'),
+    spoiler: fc.boolean(),
   });
   it('never throws, and a screenshot always has text', () => {
     fc.assert(
@@ -210,6 +212,23 @@ describe('messageSource and removeUrl properties', () => {
         if (source.kind === 'screenshot') {
           expect(cleanMessageText(source.text, names).length).toBeGreaterThan(0);
         }
+      }),
+    );
+  });
+
+  it('never uses a spoiler attachment as a bare image', () => {
+    fc.assert(
+      fc.property(texts, fc.array(attachment, { maxLength: 3 }), (content, attachments) => {
+        const reply = { content, attachments, embeds: [], stickers: [] };
+        // the attachment the picker takes: the first allowed image (or untyped) one
+        const first = attachments.find(
+          (a) =>
+            a.url === 'https://cdn.discordapp.com/a.png' &&
+            (a.contentType === null || a.contentType.startsWith('image/')),
+        );
+        if (!first?.spoiler) return;
+        expect(messageSource(reply).kind).not.toBe('image');
+        expect(pickSource({ reply }).ok).toBe(false);
       }),
     );
   });

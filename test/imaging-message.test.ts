@@ -252,6 +252,33 @@ describe('composeScreenshot', () => {
     );
   });
 
+  it('blurs a spoiler image past recognition', async () => {
+    // black with a white square in the middle: blurred, nothing stays pure white
+    const dot = await sharp({
+      create: { width: 200, height: 100, channels: 3, background: '#000000' },
+    })
+      .composite([
+        {
+          input: await sharp({
+            create: { width: 40, height: 40, channels: 3, background: '#ffffff' },
+          })
+            .png()
+            .toBuffer(),
+          left: 80,
+          top: 30,
+        },
+      ])
+      .png()
+      .toBuffer();
+    const sharpPng = await composeScreenshot(parts({ image: dot }));
+    const blurPng = await composeScreenshot(parts({ image: dot, imageSpoiler: true }));
+    const meta = await sharp(blurPng).metadata();
+    const y = (meta.height ?? 0) - 16 - 50;
+    const x = screenshot.contentLeft + 100;
+    expect(await pixel(sharpPng, x, y)).toBe('#ffffff');
+    expect(await pixel(blurPng, x, y)).not.toBe('#ffffff');
+  });
+
   it('uses the first frame of an animated image', async () => {
     const image = await makeGif({
       width: 60,

@@ -16,6 +16,7 @@ export const messages = {
   captionTooLong: 'That caption is too long for this image.',
   captionTooLongChars: `Keep the caption under ${limits.captionChars} characters.`,
   emptyCaption: 'Give the caption some text.',
+  spoiler: 'That image is marked as a spoiler.',
   lottie: "I can't use that kind of sticker.",
   busyUser: 'You already have an image in progress.',
   busy: "I'm busy with other images, try again in a moment.",

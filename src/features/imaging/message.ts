@@ -49,6 +49,8 @@ export const screenshot = {
   imageGap: 6,
   imageMaxHeight: 350,
   imageRadius: 8,
+  /** blur sigma of a spoiler image */
+  spoilerBlur: 40,
   nameChars: 32,
 } as const;
 
@@ -254,6 +256,7 @@ export async function avatarCircle(input: Buffer | null): Promise<Buffer> {
  */
 export async function attachmentPreview(
   input: Buffer,
+  options: { spoiler?: boolean } = {},
 ): Promise<{ data: Buffer; width: number; height: number }> {
   try {
     const head = await sharp(input).metadata();
@@ -274,6 +277,8 @@ export async function attachmentPreview(
       .timeout({ seconds: limits.jobTimeoutMs / 1000 })
       .resize(size.width, size.height, { fit: 'fill' })
       .ensureAlpha()
+      // A spoiler is blurred past recognition, like Discord's.
+      .blur(options.spoiler ? screenshot.spoilerBlur : false)
       .composite([
         {
           input: roundedMask(size.width, size.height, screenshot.imageRadius),
@@ -298,6 +303,8 @@ export interface ScreenshotParts {
   names: MentionNames;
   avatar: Buffer | null;
   image: Buffer | null;
+  /** draw the image heavily blurred */
+  imageSpoiler?: boolean;
 }
 
 /**
@@ -317,7 +324,9 @@ export async function composeScreenshot(
   const [text, avatar, image] = await Promise.all([
     renderText(markup),
     avatarCircle(parts.avatar),
-    parts.image ? attachmentPreview(parts.image) : Promise.resolve(null),
+    parts.image
+      ? attachmentPreview(parts.image, { spoiler: parts.imageSpoiler })
+      : Promise.resolve(null),
   ]);
   const layout = layoutScreenshot(text, image, options);
 
@@ -359,7 +368,7 @@ export async function composeScreenshot(
  */
 export async function renderScreenshot(
   snapshot: MessageSnapshot,
-  source: { text: string; image: Allowed | null },
+  source: { text: string; image: Allowed | null; imageSpoiler?: boolean },
   options: { fetch: Fetcher; signal?: AbortSignal },
 ): Promise<Buffer> {
   const avatarCheck = snapshot.author.avatarUrl ? checkUrl(snapshot.author.avatarUrl) : null;
@@ -382,6 +391,7 @@ export async function renderScreenshot(
       names: snapshot.names,
       avatar,
       image,
+      imageSpoiler: source.imageSpoiler,
     },
     { headroom: true },
   );

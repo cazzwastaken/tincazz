@@ -86,9 +86,9 @@ function trimUrl(url: string): string {
   }
 }
 
-/** URLs in free text, in order, without trailing punctuation or an unbalanced closing bracket. */
+/** URLs in free text, in order (a `|` ends one, so `||link||` is found), without trailing punctuation or an unbalanced closing bracket. */
 export function extractUrls(text: string): string[] {
-  return (text.match(/https?:\/\/[^\s<>]+/gi) ?? []).map(trimUrl);
+  return (text.match(/https?:\/\/[^\s<>|]+/gi) ?? []).map(trimUrl);
 }
 
 function sameUrl(a: string, b: string): boolean {
@@ -105,7 +105,7 @@ function sameUrl(a: string, b: string): boolean {
  */
 export function removeUrl(text: string, target: string): string {
   return text.replace(
-    /(<?)(https?:\/\/[^\s<>]+)(>?)/gi,
+    /(<?)(https?:\/\/[^\s<>|]+)(>?)/gi,
     (match, open: string, raw: string, close: string) => {
       if (open && close) return sameUrl(raw, target) ? '' : match;
       const url = trimUrl(raw);

@@ -34,8 +34,12 @@ import { type MentionNames, mentionPatterns } from './text.js';
 
 const avatarOptions = { size: 512, extension: 'png', forceStatic: false } as const;
 
-export function attachmentData(a: { url: string; contentType: string | null }): AttachmentData {
-  return { url: a.url, contentType: a.contentType };
+export function attachmentData(a: {
+  url: string;
+  contentType: string | null;
+  spoiler?: boolean;
+}): AttachmentData {
+  return { url: a.url, contentType: a.contentType, spoiler: a.spoiler === true };
 }
 
 const stickerFormats: Partial<Record<StickerFormatType, StickerData['format']>> = {

@@ -1,6 +1,7 @@
 import { AttachmentBuilder, Collection, PermissionFlagsBits, StickerFormatType } from 'discord.js';
 import { describe, expect, it, vi } from 'vitest';
 import {
+  attachmentData,
   avatarUrl,
   canAttachFiles,
   commandPrefix,
@@ -174,12 +175,18 @@ describe('messageInputs', () => {
     const text = {
       url: 'https://cdn.discordapp.com/attachments/1/2/notes.txt',
       contentType: 'text/plain',
+      spoiler: false,
     };
     const image = {
       url: 'https://cdn.discordapp.com/attachments/1/2/cat.png',
       contentType: 'image/png',
+      spoiler: false,
     };
-    const unknown = { url: 'https://cdn.discordapp.com/attachments/1/2/x', contentType: null };
+    const unknown = {
+      url: 'https://cdn.discordapp.com/attachments/1/2/x',
+      contentType: null,
+      spoiler: false,
+    };
     const inputs = (entries: [string, object][]) =>
       messageInputs(base({ attachments: new Collection(entries) }), {});
     expect(
@@ -201,6 +208,14 @@ describe('messageInputs', () => {
     ).toEqual(unknown);
     // with no image, the first attachment still gives its own error (video, not an image)
     expect((await inputs([['1', text]])).attachment).toEqual(text);
+  });
+});
+
+describe('attachmentData', () => {
+  it('carries the spoiler flag', () => {
+    const url = 'https://cdn.discordapp.com/attachments/1/2/SPOILER_a.png';
+    expect(attachmentData({ url, contentType: 'image/png', spoiler: true }).spoiler).toBe(true);
+    expect(attachmentData({ url, contentType: 'image/png' }).spoiler).toBe(false);
   });
 });
 

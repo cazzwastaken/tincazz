@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+  extractUrls,
   hasDirectSource,
   type MessageSource,
   messageSource,
   messages,
+  pickSource,
   type ReplyData,
   removeUrl,
 } from '../src/features/imaging/index.js';
@@ -95,6 +97,55 @@ describe('messageSource', () => {
   });
 });
 
+describe('spoiler images', () => {
+  const spoilerAttachment = { url: png, contentType: 'image/png', spoiler: true };
+
+  it('refuses a spoiler image on its own', () => {
+    expect(summary(messageSource(message({ attachments: [spoilerAttachment] })))).toBe(
+      `error ${messages.spoiler}`,
+    );
+  });
+
+  it('refuses a link or embed inside a spoiler', () => {
+    expect(summary(messageSource(message({ content: `||${png}||` })))).toBe(
+      `error ${messages.spoiler}`,
+    );
+    expect(
+      summary(
+        messageSource(
+          message({
+            content: `||${tenorPage}||`,
+            embeds: [embed({ url: tenorPage, provider: 'Tenor', hasVideo: true })],
+          }),
+        ),
+      ),
+    ).toBe(`error ${messages.spoiler}`);
+  });
+
+  it('screenshots text with a spoiler image and flags the image', () => {
+    const source = messageSource(message({ content: 'look', attachments: [spoilerAttachment] }));
+    expect(source).toMatchObject({ kind: 'screenshot', imageSpoiler: true });
+  });
+
+  it('does not flag an ordinary image', () => {
+    const source = messageSource(
+      message({ content: 'look', attachments: [{ url: png, contentType: 'image/png' }] }),
+    );
+    expect(source).toMatchObject({ kind: 'screenshot', imageSpoiler: false });
+  });
+
+  it('refuses a replied-to spoiler image as a plain source', () => {
+    expect(pickSource({ reply: message({ attachments: [spoilerAttachment] }) })).toEqual({
+      ok: false,
+      message: messages.spoiler,
+    });
+  });
+
+  it('still uses the invoker own spoiler attachment', () => {
+    expect(pickSource({ attachment: spoilerAttachment })).toMatchObject({ ok: true });
+  });
+});
+
 describe('removeUrl', () => {
   it('removes the link and keeps the punctuation after it', () => {
     expect(removeUrl(`a ${png}, b`, png)).toBe('a , b');
@@ -122,5 +173,11 @@ describe('hasDirectSource', () => {
     expect(hasDirectSource({ avatarUrl: png })).toBe(true);
     expect(hasDirectSource({})).toBe(false);
     expect(hasDirectSource({ reply: emptyMessage })).toBe(false);
+  });
+});
+
+describe('links inside spoilers', () => {
+  it('finds a link wrapped in || without the markers', () => {
+    expect(extractUrls(`||${png}||`)).toEqual([png]);
   });
 });
