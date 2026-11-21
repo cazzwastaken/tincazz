@@ -159,7 +159,7 @@ function gambaPage(prefix: string): Page {
         `It starts at ${coins(pot.seed)}. Bets over ${coins(pot.contributionAbove)} add ${pot.contributionPercent}% to it, and coinflip and dice feed it too.`,
         `Bets under ${coins(pot.fullShareBet)} win a proportional share of it; the rest stays for the next player.`,
       ].join('\n'),
-      '-# Under each result: **Spin again** repeats your bet, **Double** doubles it.',
+      `-# \`/gamba\` results have **Spin again**, which repeats your bet, and **Double**, which doubles it when you can afford twice the bet and it stays within ${coins(wager.maxBet)}. The \`?gamba\` reply has no buttons.`,
     ],
   };
 }

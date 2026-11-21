@@ -148,6 +148,9 @@ describe('help pages', () => {
     expect(text).toContain(`${pot.maxWinPerBet.cppTriple}x your bet`);
     expect(text).toContain('Spin again');
     expect(text).toContain('Double');
+    expect(text).toContain('`/gamba` results');
+    expect(text).toContain('`?gamba` reply has no buttons');
+    expect(text).toContain(`${n(wager.maxBet)}`);
   });
 
   it('builds the coinflip and dice rules from the config', () => {
