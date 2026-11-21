@@ -38,6 +38,10 @@ describe('createClient', () => {
     expect(client.options.partials).toContain(Partials.GuildMember);
   });
 
+  it('receives deletes of uncached messages', () => {
+    expect(createClient(testEnv).options.partials).toContain(Partials.Message);
+  });
+
   it('does not ping anyone by default', () => {
     const client = createClient(testEnv);
 

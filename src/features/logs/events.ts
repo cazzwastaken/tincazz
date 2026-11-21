@@ -47,8 +47,26 @@ export type ModEvent =
   | { type: 'log_channel_cleared'; actorId: string; kind: LogKind; fromChannelId: string }
   | {
       type: 'setting_auto_cleared';
-      setting: 'autorole' | 'log_channel';
+      setting: 'autorole' | 'log_channel' | 'honeypot';
       id: string;
       detail: string;
     }
-  | { type: 'autorole_failed'; userId: string; failures: { roleId: string; reason: string }[] };
+  | { type: 'autorole_failed'; userId: string; failures: { roleId: string; reason: string }[] }
+  | {
+      type: 'honeypot_kick';
+      userId: string;
+      channelId: string;
+      createdAt: number;
+      joinedAt?: number;
+      dmSent: boolean;
+      unbanFailed: boolean;
+    }
+  | {
+      type: 'honeypot_failed';
+      userId: string;
+      channelId: string;
+      reason: string;
+      messageDeleted: boolean;
+    }
+  | { type: 'honeypot_set'; actorId: string; fromChannelId?: string; toChannelId: string }
+  | { type: 'honeypot_cleared'; actorId: string; fromChannelId: string };

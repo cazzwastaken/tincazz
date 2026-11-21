@@ -4,7 +4,16 @@ import { join } from 'node:path';
 import { container } from '@sapphire/framework';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { closeDatabase, openDatabase } from '../src/db/index.js';
-import { flips, ledger, playerStats, pots, rolls, spins, wallets } from '../src/db/schema.js';
+import {
+  flips,
+  guildSettings,
+  ledger,
+  playerStats,
+  pots,
+  rolls,
+  spins,
+  wallets,
+} from '../src/db/schema.js';
 
 describe('database', () => {
   let dir: string;
@@ -171,7 +180,7 @@ describe('database', () => {
       { guildId: 'g', amount: 7, lastWinnerId: null, lastWonAt: null },
     ]);
     expect(second.$client.prepare('select count(*) from __drizzle_migrations').pluck().get()).toBe(
-      7,
+      8,
     );
     closeDatabase(second);
   });
@@ -253,5 +262,15 @@ describe('database', () => {
     expect(indexes).toEqual(
       expect.arrayContaining(['rolls_user_idx', 'flips_challenger_idx', 'flips_opponent_idx']),
     );
+  });
+
+  it('applies the honeypot migration: honeypot columns with zero kicks', () => {
+    const db = openDatabase(':memory:');
+    db.insert(guildSettings).values({ guildId: '2', updatedAt: 1 }).run();
+    expect(db.select().from(guildSettings).get()).toMatchObject({
+      honeypotChannelId: null,
+      honeypotMessageId: null,
+      honeypotKicks: 0,
+    });
   });
 });

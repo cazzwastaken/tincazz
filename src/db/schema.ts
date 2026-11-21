@@ -176,6 +176,9 @@ export const guildSettings = sqliteTable('guild_settings', {
   guildId: text('guild_id').primaryKey(),
   economyLogChannelId: text('economy_log_channel_id'),
   modLogChannelId: text('mod_log_channel_id'),
+  honeypotChannelId: text('honeypot_channel_id'),
+  honeypotMessageId: text('honeypot_message_id'),
+  honeypotKicks: integer('honeypot_kicks').notNull().default(0),
   updatedAt: integer('updated_at').notNull(),
 });
 

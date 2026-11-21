@@ -60,7 +60,8 @@ src/
   config/env.ts   zod schema for environment variables
   db/             SQLite schema (Drizzle) and `openDatabase`, exposed as `container.db`
   commands/       one file per command, grouped in folders by category
-    admin/        `/settings` (log channels, join auto-roles and game channels; Manage Server)
+    admin/        `/settings` (log channels, join auto-roles, game channels and the honeypot channel;
+                  Manage Server)
     economy/      `/balance` (also `?bal` / `?balance`), `/daily`, `/collect`, `/bailout`, `/eco`
     general/      `?ping` / `/ping`, `?help` / `/help` (paged card, `topic` option / argument)
     image/        `?bubble` / `/bubble` (also the "Bubble message" message context menu) and
@@ -85,6 +86,8 @@ src/
     help/         the paged help card (home, games, images, coins, gamba, coinflip and dice), the
                   topic menu and aliases, built from the economy and wager config so it cannot
                   drift; `hp:*` custom IDs
+    honeypot/     per-guild honeypot channel: the softban trigger with its in-memory guard, the
+                  warning card sync (debounced, re-posted when deleted), the store and copy
     imaging/      `/bubble` and `/caption` logic: the URL allowlist (`urls.ts`), the capped
                   downloader with redirect checks, source picking (attachment, link, reply, message
                   link, avatar, sticker), message-link parsing, decode, bubble and caption
@@ -107,7 +110,9 @@ src/
   interaction-handlers/  one file per component or modal handler (gamba, coinflip, dice and help
                   buttons and menu, leaderboard paging and category select, the caption modal)
   listeners/      one file per Discord/Sapphire event listener (member join, leave and screening,
-                  channel and role delete cleanup, chat rewards, ready, a generic ephemeral reply
+                  channel and role delete cleanup, chat rewards, the honeypot trigger and card re-post
+                  after a single or bulk delete (`honeypot.ts`, `honeypot-card-delete.ts`,
+                  `honeypot-card-bulk-delete.ts`), ready, a generic ephemeral reply
                   when a command or handler throws, and a reply explaining why a precondition
                   denied a command, such as a cooldown)
 assets/fonts/     the OFL fonts used for image captions, each with its licence file
@@ -150,6 +155,11 @@ ID (see `features/gamba/custom-ids.ts`), so handlers must ignore IDs they cannot
 - **Manage Roles** is required for gamba jackpot roles (`?gamba`, `/gamba` and the Spin
   again/Double buttons) and for `/settings autorole`; the bot's highest role must sit above every
   role it assigns.
+- **Ban Members** is required for the honeypot (`/settings honeypot`), together with View
+  Channel, Send Messages and Manage Messages in the honeypot channel. It softbans with `deleteMessageSeconds: 3600` and cannot ban
+  members whose highest role is at or above the bot's.
+- **`Partials.Message`** (`src/client.ts`) lets `messageDelete` and `messageDeleteBulk` include an
+  uncached honeypot card so it can be re-posted. Do not remove it.
 - Known limitation: a member who joined before a restart and passes Rules Screening after it may
   not get auto-roles, because the guild-member partial's old `pending` is unknown
   (`src/listeners/member-screening.ts`).

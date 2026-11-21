@@ -38,8 +38,9 @@ export function createClient(env: Env) {
       // Privileged: enable in the Developer Portal (Bot -> Server Members Intent). Needed for joins, leaves and member fetches.
       GatewayIntentBits.GuildMembers,
     ],
-    // So guildMemberRemove fires for members that were not cached (for example after a restart).
-    partials: [Partials.GuildMember],
+    // So guildMemberRemove fires for members that were not cached (for example after a restart),
+    // and messageDelete fires for a honeypot card that is not cached (for example after a restart).
+    partials: [Partials.GuildMember, Partials.Message],
   });
 
   // Load commands/ and listeners/ relative to this file, so it works from both src/ (tsx) and dist/.

@@ -14,6 +14,7 @@ export interface SettingsView {
   logs: Record<LogKind, { channelId?: string; problem?: string }>;
   /** Channels the games are limited to; empty means every channel. */
   gameChannels: string[];
+  honeypot: { channelId?: string; kicks: number; problem?: string };
 }
 
 const warn = (problem?: string) => (problem ? ` ⚠️ ${problem}` : '');
@@ -29,6 +30,7 @@ export function settingsCard(view: SettingsView): ContainerBuilder {
     const { channelId, problem } = view.logs[kind];
     return channelId ? `<#${channelId}>${warn(problem)}` : 'not set';
   };
+  const { channelId: pot, kicks, problem: potProblem } = view.honeypot;
   return card(
     accents.brand,
     [
@@ -38,6 +40,7 @@ export function settingsCard(view: SettingsView): ContainerBuilder {
       `**Economy log:** ${log('economy')}`,
       `**Mod log:** ${log('mod')}`,
       `**Game channels:** ${view.gameChannels.length === 0 ? 'all channels' : view.gameChannels.map((id) => `<#${id}>`).join(', ')}`,
+      `**Honeypot:** ${pot ? `<#${pot}> · ${kicks.toLocaleString('en-US')} ${kicks === 1 ? 'kick' : 'kicks'}${warn(potProblem)}` : 'not set'}`,
     ].join('\n'),
   );
 }

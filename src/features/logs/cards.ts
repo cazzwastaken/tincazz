@@ -1,6 +1,6 @@
 import type { ContainerBuilder } from 'discord.js';
 import { members } from '../members/config.js';
-import { accents, card, coins } from '../ui/index.js';
+import { accents, card, coins, discordTime } from '../ui/index.js';
 import type { EconomyEvent, ModEvent } from './events.js';
 
 function build(accent: number, title: string, lines: string[], now: number): ContainerBuilder {
@@ -8,6 +8,12 @@ function build(accent: number, title: string, lines: string[], now: number): Con
 }
 
 const mention = (id: string) => `<@${id}>`;
+
+const clearedSettingLabels = {
+  autorole: (id: string) => `Auto-role <@&${id}>`,
+  log_channel: (id: string) => `Log channel <#${id}>`,
+  honeypot: (id: string) => `Honeypot channel <#${id}>`,
+} as const;
 
 export function economyLogCard(event: EconomyEvent, now: number): ContainerBuilder {
   switch (event.type) {
@@ -104,10 +110,7 @@ export function modLogCard(event: ModEvent, now: number): ContainerBuilder {
       return build(
         accents.loss,
         'Setting cleared automatically',
-        [
-          `${event.setting === 'autorole' ? `Auto-role <@&${event.id}>` : `Log channel <#${event.id}>`} was removed`,
-          event.detail,
-        ],
+        [`${clearedSettingLabels[event.setting](event.id)} was removed`, event.detail],
         now,
       );
     case 'autorole_failed':
@@ -118,6 +121,45 @@ export function modLogCard(event: ModEvent, now: number): ContainerBuilder {
           `Could not give roles to ${mention(event.userId)}`,
           ...event.failures.map((f) => `<@&${f.roleId}>: ${f.reason}`),
         ],
+        now,
+      );
+    case 'honeypot_kick':
+      return build(
+        accents.loss,
+        'Honeypot kick',
+        [
+          `${mention(event.userId)} was kicked for triggering the honeypot in <#${event.channelId}>`,
+          `User ID: ${event.userId} · Created: ${discordTime(event.createdAt)}${event.joinedAt === undefined ? '' : ` · Joined: ${discordTime(event.joinedAt)}`}`,
+          ...(event.dmSent ? [] : ['DM not delivered']),
+          ...(event.unbanFailed ? ['⚠️ still banned, unban failed'] : []),
+        ],
+        now,
+      );
+    case 'honeypot_failed':
+      return build(
+        accents.error,
+        'Honeypot failed',
+        [
+          `Could not softban ${mention(event.userId)} after they posted in <#${event.channelId}>: ${event.reason}`,
+          event.messageDeleted ? 'Their message was deleted' : 'Their message could not be deleted',
+        ],
+        now,
+      );
+    case 'honeypot_set':
+      return build(
+        accents.brand,
+        'Honeypot set',
+        [
+          `${mention(event.actorId)} set the honeypot to <#${event.toChannelId}>`,
+          ...(event.fromChannelId ? [`Previously <#${event.fromChannelId}>`] : []),
+        ],
+        now,
+      );
+    case 'honeypot_cleared':
+      return build(
+        accents.brand,
+        'Honeypot cleared',
+        [`${mention(event.actorId)} cleared the honeypot (was <#${event.fromChannelId}>)`],
         now,
       );
   }

@@ -84,6 +84,50 @@ it('renders a card for every event type', () => {
       ['role deleted'],
     ],
     [
+      {
+        type: 'honeypot_kick',
+        userId: '1',
+        channelId: '70',
+        createdAt: 1_000_000,
+        joinedAt: 2_000_000,
+        dmSent: false,
+        unbanFailed: true,
+      },
+      [
+        '<@1> was kicked for triggering the honeypot in <#70>',
+        'User ID: 1 · Created: <t:1000:R> · Joined: <t:2000:R>',
+        'DM not delivered',
+        '⚠️ still banned, unban failed',
+      ],
+    ],
+    [
+      {
+        type: 'honeypot_failed',
+        userId: '1',
+        channelId: '70',
+        reason: 'their highest role is at or above mine',
+        messageDeleted: true,
+      },
+      ['<@1>', '<#70>', 'their highest role is at or above mine', 'Their message was deleted'],
+    ],
+    [
+      { type: 'honeypot_set', actorId: '9', fromChannelId: '69', toChannelId: '70' },
+      ['<@9> set the honeypot to <#70>', 'Previously <#69>'],
+    ],
+    [
+      { type: 'honeypot_cleared', actorId: '9', fromChannelId: '70' },
+      ['<@9> cleared the honeypot (was <#70>)'],
+    ],
+    [
+      {
+        type: 'setting_auto_cleared',
+        setting: 'honeypot',
+        id: '70',
+        detail: 'honeypot channel was deleted',
+      },
+      ['Honeypot channel <#70> was removed', 'honeypot channel was deleted'],
+    ],
+    [
       { type: 'autorole_failed', userId: '1', failures: [{ roleId: '77', reason: 'hierarchy' }] },
       ['<@1>', '<@&77>', 'hierarchy'],
     ],
@@ -150,4 +194,39 @@ it('never lets user text ping', async () => {
   });
   expect(send).toHaveBeenCalledTimes(1);
   expect(send.mock.calls[0]?.[0]).not.toHaveProperty('allowedMentions');
+});
+
+it('keeps a clean honeypot kick card short', () => {
+  const out = json(
+    modLogCard(
+      {
+        type: 'honeypot_kick',
+        userId: '1',
+        channelId: '70',
+        createdAt: 1_000_000,
+        dmSent: true,
+        unbanFailed: false,
+      },
+      1000,
+    ),
+  );
+  for (const absent of ['Joined', 'DM not delivered', 'still banned']) {
+    expect(out).not.toContain(absent);
+  }
+});
+
+it('says when a honeypot message could not be deleted', () => {
+  const out = json(
+    modLogCard(
+      {
+        type: 'honeypot_failed',
+        userId: '1',
+        channelId: '70',
+        reason: 'missing permissions',
+        messageDeleted: false,
+      },
+      1000,
+    ),
+  );
+  expect(out).toContain('Their message could not be deleted');
 });

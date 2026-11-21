@@ -36,6 +36,7 @@ Type `/help` (or `?help`) in Discord for a paged guide with the live numbers.
 **Server tools**
 
 - `/settings`: log channels, join roles and which channels the games may be played in
+- Honeypot channel: `/settings honeypot set` softbans whoever posts there (wiping their last hour of messages server-wide), for compromised accounts spamming every channel. Staff (Manage Messages), the server owner and bots are exempt
 - Most commands also work with the `?` prefix, such as `?gamba 100` or `?caption hello`
 
 ## Add it to your server
@@ -43,7 +44,7 @@ Type `/help` (or `?help`) in Discord for a paged guide with the live numbers.
 1. Create an application in the [Discord Developer Portal](https://discord.com/developers/applications).
 2. On the **Bot** tab, copy the token and enable the **Message Content** and **Server Members**
    privileged intents. The bot cannot log in without Server Members.
-3. Invite it with the `bot` and `applications.commands` scopes and the **Manage Roles** permission.
+3. Invite it with the `bot` and `applications.commands` scopes and the **Manage Roles**, **Ban Members** and **Manage Messages** permissions.
    Keep its highest role above the jackpot and auto-roles.
 4. As someone with Manage Server, run `/settings show`, then `/settings logs set` and
    `/settings autorole add` to taste.
