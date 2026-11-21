@@ -406,10 +406,8 @@ export class SettingsCommand extends Command {
 
     const now = Date.now();
     const previous = setHoneypot(db, guildId, channel.id, sent.id, now);
-    await interaction.reply(
-      cardReply(card(accents.brand, honeypotSetReply(channel.id)), { ephemeral: true }),
-    );
     // After the write, so the message delete listener sees a card that is no longer stored.
+    // Before the reply, so a failed reply (an expired interaction) cannot orphan the old card.
     if (previous.channelId && previous.messageId) {
       void deleteCard(previous.channelId, previous.messageId);
     }
@@ -423,6 +421,9 @@ export class SettingsCommand extends Command {
       },
       now,
     );
+    await interaction.reply(
+      cardReply(card(accents.brand, honeypotSetReply(channel.id)), { ephemeral: true }),
+    );
   }
 
   private async honeypotClear(interaction: ChatInputCommandInteraction) {
@@ -433,9 +434,6 @@ export class SettingsCommand extends Command {
     }
     const now = Date.now();
     const previous = clearHoneypot(db, guildId, now);
-    await interaction.reply(
-      cardReply(card(accents.brand, honeypotClearedReply), { ephemeral: true }),
-    );
     if (previous.channelId && previous.messageId) {
       void deleteCard(previous.channelId, previous.messageId);
     }
@@ -450,6 +448,9 @@ export class SettingsCommand extends Command {
         now,
       );
     }
+    await interaction.reply(
+      cardReply(card(accents.brand, honeypotClearedReply), { ephemeral: true }),
+    );
   }
 
   private async show(interaction: ChatInputCommandInteraction) {

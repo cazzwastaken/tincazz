@@ -512,6 +512,53 @@ describe('/settings honeypot', () => {
     expect(result.text).toContain(settingsNeedsManageServer);
   });
 
+  async function runWithFailingReply(sub: string, options: Record<string, unknown>) {
+    const interaction = makeChatInput(client, {
+      commandName: 'settings',
+      userId: '9',
+      subcommand: sub,
+      subcommandGroup: 'honeypot',
+      options,
+      guild: honeypotGuild(),
+    });
+    interaction.reply.mockRejectedValue(new Error('Unknown interaction'));
+    client.emit(Events.InteractionCreate, interaction as never);
+    await wait(100);
+  }
+
+  it('still deletes the old card and logs the move when the reply fails', async () => {
+    const log = modLog();
+    const old = honeypotChannel('69');
+    setHoneypot(container.db, '2', '69', 'card-69', 1);
+    await runWithFailingReply('set', { channel: honeypotChannel('70') });
+    expect(honeypot(container.db, '2').channelId).toBe('70');
+    expect(old.messages.delete).toHaveBeenCalledWith('card-69');
+    expect(JSON.stringify(log.send.mock.calls)).toContain('Previously <#69>');
+  });
+
+  it('still deletes the card and logs the clear when the reply fails', async () => {
+    const log = modLog();
+    const channel = honeypotChannel('70');
+    setHoneypot(container.db, '2', '70', 'card-70', 1);
+    await runWithFailingReply('clear', {});
+    expect(channel.messages.delete).toHaveBeenCalledWith('card-70');
+    expect(JSON.stringify(log.send.mock.calls)).toContain('<@9> cleared the honeypot (was <#70>)');
+  });
+
+  it('deletes the card on clear only after the honeypot is cleared', async () => {
+    const channel = honeypotChannel('70');
+    setHoneypot(container.db, '2', '70', 'card-70', 1);
+    let channelAtDelete: string | undefined = 'unset-marker';
+    channel.messages.delete.mockImplementation(async () => {
+      channelAtDelete = honeypot(container.db, '2').channelId;
+      return undefined;
+    });
+    await run('honeypot', 'clear', {}, { guild: honeypotGuild() });
+    await wait(50);
+    expect(channel.messages.delete).toHaveBeenCalled();
+    expect(channelAtDelete).toBeUndefined();
+  });
+
   it('shows the honeypot with its kicks and problems', async () => {
     const unset = await run(undefined, 'show', {}, { guild: honeypotGuild() });
     expect(unset.text).toContain('**Honeypot:** not set');
