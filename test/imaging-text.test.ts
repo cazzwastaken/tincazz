@@ -14,6 +14,11 @@ const names = {
 };
 
 describe('sanitizeCaption', () => {
+  it('blocks out spoilers, mentions inside them included', () => {
+    expect(sanitizeCaption('a ||top secret|| b', names)).toBe('a ███ ██████ b');
+    expect(sanitizeCaption('||<@1>||', names)).toBe('████');
+  });
+
   it('replaces mentions with names', () => {
     expect(sanitizeCaption('hi <@1>', names)).toBe('hi @bob');
     expect(sanitizeCaption('hi <@!1>', names)).toBe('hi @bob');

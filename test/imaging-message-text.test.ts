@@ -21,7 +21,7 @@ describe('stripMarkdown', () => {
     ['**bold** and __under__', 'bold and under'],
     ['*it* and _it_', 'it and it'],
     ['***both***', 'both'],
-    ['~~gone~~ ||secret||', 'gone secret'],
+    ['~~gone~~ ||secret||', 'gone ||secret||'],
     ['`code` here', 'code here'],
     ['```js\nconst a = 1;\n```', 'const a = 1;\n'],
     ['> quoted\n# Big\n-# small', 'quoted\nBig\nsmall'],
@@ -30,6 +30,34 @@ describe('stripMarkdown', () => {
     ['2 * 3 * 4', '2 * 3 * 4'],
   ])('%j -> %j', (input, expected) => {
     expect(stripMarkdown(input)).toBe(expected);
+  });
+});
+
+describe('cleanMessageText spoilers', () => {
+  it('marks a spoiler span as a spoiler run', () => {
+    expect(cleanMessageText('a ||secret|| b', noMentionNames)).toEqual([
+      { text: 'a ' },
+      { text: 'secret', spoiler: true },
+      { text: ' b' },
+    ]);
+  });
+
+  it('hides a mention and styled text inside a spoiler, across lines', () => {
+    const runs = cleanMessageText('||**bold** <@10>\nmore||', names);
+    expect(runs.every((run) => run.spoiler && !run.mention)).toBe(true);
+    expect(runsText(runs)).toBe('bold @cazz\nmore');
+  });
+
+  it('keeps a lone || literal and cannot be forged with the private markers', () => {
+    expect(text('a || b')).toBe('a || b');
+    expect(cleanMessageText('\u{E002}secret\u{E003}', noMentionNames)).toEqual([
+      { text: 'secret' },
+    ]);
+  });
+
+  it('never loses the spoiler flag on a cut spoiler', () => {
+    const runs = cleanMessageText(`||${'x'.repeat(limits.messageChars + 50)}||`, noMentionNames);
+    expect(runs.every((run) => run.spoiler)).toBe(true);
   });
 });
 

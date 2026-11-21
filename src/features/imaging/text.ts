@@ -20,6 +20,9 @@ export const mentionPatterns = {
   channel: /<#(\d+)>/g,
 } as const;
 
+/** A spoiler span, `||text||`; it may cross lines like Discord's. */
+const spoilerPattern = /\|\|([\s\S]+?)\|\|/g;
+
 /** Control characters other than newline and tab, and invisible format characters. */
 const invisible = /[^\P{Cc}\n\t]|\p{Cf}/gu;
 
@@ -70,7 +73,11 @@ function resolveMentions(
  * see {@link escapeMarkup}. Throws when nothing is left.
  */
 export function sanitizeCaption(raw: string, names: MentionNames): string {
-  const lines = resolveMentions(clean(raw), names)
+  // Spoilers are blocked out before mentions resolve, so a spoilered mention stays hidden too.
+  const hidden = clean(raw).replace(spoilerPattern, (_m, inner: string) =>
+    inner.replace(/\S/gu, '█'),
+  );
+  const lines = resolveMentions(hidden, names)
     .split('\n')
     .map((line) => line.replace(/[ \t]+/g, ' ').trim())
     .filter((line) => line.length > 0)
@@ -85,25 +92,30 @@ export function sanitizeCaption(raw: string, names: MentionNames): string {
 export interface TextRun {
   text: string;
   mention?: true;
+  /** hidden behind a solid box, like a Discord spoiler; wins over `mention` when drawn */
+  spoiler?: true;
 }
 
 // Private use characters bracket mentions while the text is capped. Any in the input are dropped
 // first, so only ours remain.
 const mentionStart = '\u{E000}';
 const mentionEnd = '\u{E001}';
-const sentinels = /[\u{E000}\u{E001}]/gu;
+const spoilerStart = '\u{E002}';
+const spoilerEnd = '\u{E003}';
+const sentinels = /[\u{E000}-\u{E003}]/gu;
 
 /**
  * Discord markdown markers that only style text: they go and the text stays. Code fences (with
- * their language tag), backticks, bold, underline, strikethrough, spoilers, paired `*` / `_`
- * italics, masked links (the label stays), and quote, heading and subtext line prefixes.
+ * their language tag), backticks, bold, underline, strikethrough, paired `*` / `_`
+ * italics, masked links (the label stays), and quote, heading and subtext line prefixes. Spoiler markers
+ * stay: {@link cleanMessageText} turns them into runs first.
  */
 export function stripMarkdown(text: string): string {
   return text
     .replace(/```(?:[\w+#.-]*\n)?/g, '')
     .replace(/`/g, '')
     .replace(/\[([^\]\n]+)\]\(<?https?:\/\/[^\s)]+>?\)/g, '$1')
-    .replace(/\*\*|__|~~|\|\|/g, '')
+    .replace(/\*\*|__|~~/g, '')
     .replace(/\*(\S(?:[^*\n]*\S)?)\*/g, '$1')
     .replace(/(^|\W)_(\S(?:[^_\n]*\S)?)_(?=\W|$)/g, '$1$2')
     .replace(/^(?:>>> |> |#{1,3} |-# )/gm, '');
@@ -117,8 +129,11 @@ export function stripMarkdown(text: string): string {
  * ellipsis. Never throws; an empty array means there is no text. Does not escape markup.
  */
 export function cleanMessageText(raw: string, names: MentionNames): TextRun[] {
+  const spoilered = clean(raw)
+    .replace(sentinels, '')
+    .replace(spoilerPattern, (_m, inner: string) => `${spoilerStart}${inner}${spoilerEnd}`);
   const marked = resolveMentions(
-    stripMarkdown(clean(raw).replace(sentinels, '')),
+    stripMarkdown(spoilered),
     names,
     (mention) => `${mentionStart}${mention.replace(sentinels, '')}${mentionEnd}`,
   ).replace(/@(everyone|here)\b/g, `${mentionStart}@$1${mentionEnd}`);
@@ -136,20 +151,32 @@ export function cleanMessageText(raw: string, names: MentionNames): TextRun[] {
   }
   if (cut) text += '…';
 
+  // Walk the text, switching mention and spoiler on and off at the sentinels. An unclosed mention
+  // or spoiler (the cap cut it off) simply runs to the end.
   const runs: TextRun[] = [];
-  for (const [index, part] of text.split(mentionStart).entries()) {
-    const close = part.indexOf(mentionEnd);
-    // Text before the first mention, or a mention cut off by the cap without its end.
-    const [mention, rest] =
-      index === 0
-        ? ['', part]
-        : close === -1
-          ? [part, '']
-          : [part.slice(0, close), part.slice(close + 1)];
-    if (mention.length > 0) runs.push({ text: mention.replace(sentinels, ''), mention: true });
-    const plain = rest.replace(sentinels, '');
-    if (plain.length > 0) runs.push({ text: plain });
+  let mention = false;
+  let spoiler = false;
+  let buffer = '';
+  const flush = () => {
+    if (buffer.length === 0) return;
+    const run: TextRun = { text: buffer };
+    if (spoiler) run.spoiler = true;
+    else if (mention) run.mention = true;
+    runs.push(run);
+    buffer = '';
+  };
+  for (const char of text) {
+    if (char === mentionStart || char === mentionEnd) {
+      flush();
+      mention = char === mentionStart;
+    } else if (char === spoilerStart || char === spoilerEnd) {
+      flush();
+      spoiler = char === spoilerStart;
+    } else {
+      buffer += char;
+    }
   }
+  flush();
   return runs;
 }
 

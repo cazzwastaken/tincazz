@@ -184,6 +184,18 @@ describe('messageMarkup', () => {
     expect(markup).toContain('@x&lt;y&gt;');
   });
 
+  it('draws a spoiler as a solid box and escapes its text', () => {
+    const markup = messageMarkup({
+      name: 'a',
+      color: '#ffffff',
+      timestamp: 't',
+      runs: [{ text: '<secret>', spoiler: true }],
+    });
+    expect(markup).toContain(
+      `<span foreground="${discordColors.spoiler}" background="${discordColors.spoiler}">&lt;secret&gt;</span>`,
+    );
+  });
+
   it('has only the header when there is no text', () => {
     const markup = messageMarkup({ name: 'a', color: '#ffffff', timestamp: 't', runs: [] });
     expect(markup).not.toContain('\n');

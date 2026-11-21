@@ -33,6 +33,8 @@ export const discordColors = {
   mention: '#c9cdfb',
   mentionBackground: '#5865f2',
   avatarFallback: '#4e5058',
+  /** a spoiler's solid box, drawn as both background and text colour so nothing shows */
+  spoiler: '#1e1f22',
 } as const;
 
 /** The cozy message layout, in pixels. */
@@ -178,9 +180,11 @@ export function messageMarkup(parts: {
   if (parts.runs.length === 0) return header;
   const body = parts.runs
     .map((run) =>
-      run.mention
-        ? `<span foreground="${discordColors.mention}" background="${discordColors.mentionBackground}" bgalpha="30%">${escapeMarkup(run.text)}</span>`
-        : escapeMarkup(run.text),
+      run.spoiler
+        ? `<span foreground="${discordColors.spoiler}" background="${discordColors.spoiler}">${escapeMarkup(run.text)}</span>`
+        : run.mention
+          ? `<span foreground="${discordColors.mention}" background="${discordColors.mentionBackground}" bgalpha="30%">${escapeMarkup(run.text)}</span>`
+          : escapeMarkup(run.text),
     )
     .join('');
   return `${header}\n<span foreground="${discordColors.text}">${body}</span>${strut}`;
