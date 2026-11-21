@@ -14,6 +14,7 @@ import {
   hasDirectSource,
   type ImageOperation,
   interactionInputs,
+  invokerMember,
   limits,
   linkedMessage,
   messageInputs,
@@ -101,7 +102,8 @@ export class BubbleCommand extends Command {
       }
       const target = await linkedMessage(interaction, link);
       if (!target) return { error: messages.messageNotFound };
-      return produceMessageImage(await messageSnapshot(target), op, interaction.user.id);
+      const viewer = await invokerMember(interaction.guild, interaction.user.id);
+      return produceMessageImage(await messageSnapshot(target, viewer), op, interaction.user.id);
     });
   }
 
@@ -114,8 +116,9 @@ export class BubbleCommand extends Command {
       if (!interaction.guildId || target.guildId !== interaction.guildId) {
         return { error: messages.messageNotFound };
       }
+      const viewer = await invokerMember(interaction.guild, interaction.user.id);
       return produceMessageImage(
-        await messageSnapshot(target),
+        await messageSnapshot(target, viewer),
         { kind: 'bubble', style: 'transparent', tail: 'left' },
         interaction.user.id,
       );
@@ -141,7 +144,11 @@ export class BubbleCommand extends Command {
     const inputs = await messageInputs(message, parsed, { reply: false });
     const target = hasDirectSource(inputs) ? null : await repliedMessage(message);
     const result = target
-      ? await produceMessageImage(await messageSnapshot(target), op, message.author.id)
+      ? await produceMessageImage(
+          await messageSnapshot(target, message.member),
+          op,
+          message.author.id,
+        )
       : await produceImage(inputs, op, message.author.id);
     if ('file' in result) {
       return message.reply({ files: [result.file] });

@@ -220,38 +220,75 @@ describe('attachmentData', () => {
 });
 
 describe('mention names', () => {
+  const viewer = (visible: string[]) =>
+    cast<Parameters<typeof messageMentionNames>[1]>({ id: 'v', visible });
+  /** A channel in guild `g`; the stub `permissionsFor` reads `visible` off the viewer. */
+  const channel = (id: string, name: string, guildId = 'g') => ({
+    id,
+    name,
+    guildId,
+    permissionsFor: (member: { visible: string[] }) => ({
+      has: (bit: bigint) => bit === PermissionFlagsBits.ViewChannel && member.visible.includes(id),
+    }),
+  });
+  const mentioning = (channels: ReturnType<typeof channel>[]) =>
+    cast<Parameters<typeof messageMentionNames>[0]>({
+      guildId: 'g',
+      mentions: {
+        users: col([['1', { id: '1', globalName: 'Global', username: 'user' }]]),
+        members: col([['1', { id: '1', displayName: 'Nick' }]]),
+        roles: col([['2', { id: '2', name: 'Mods' }]]),
+        channels: col(channels.map((c) => [c.id, c])),
+      },
+    });
+
   it('prefers member display names for a message', () => {
-    const names = messageMentionNames(
-      cast({
-        mentions: {
-          users: col([['1', { id: '1', globalName: 'Global', username: 'user' }]]),
-          members: col([['1', { id: '1', displayName: 'Nick' }]]),
-          roles: col([['2', { id: '2', name: 'Mods' }]]),
-          channels: col([['3', { id: '3', name: 'general' }]]),
-        },
-      }),
-    );
+    const names = messageMentionNames(mentioning([channel('3', 'general')]), viewer(['3']));
     expect(names.users.get('1')).toBe('Nick');
     expect(names.roles.get('2')).toBe('Mods');
     expect(names.channels.get('3')).toBe('general');
   });
 
+  it('only names channels the invoker can see', () => {
+    const message = mentioning([channel('3', 'general'), channel('4', 'staff-only')]);
+    expect([...messageMentionNames(message, viewer(['3'])).channels]).toEqual([['3', 'general']]);
+    expect(messageMentionNames(message, viewer([])).channels.size).toBe(0);
+    expect(messageMentionNames(message, null).channels.size).toBe(0);
+  });
+
+  it('never names a channel of another guild', () => {
+    const message = mentioning([channel('3', 'elsewhere', 'other')]);
+    expect(messageMentionNames(message, viewer(['3'])).channels.size).toBe(0);
+  });
+
   it('looks up only the ids in the slash text', () => {
     const interaction = cast<Parameters<typeof interactionMentionNames>[0]>({
+      guildId: 'g',
+      user: { id: 'v' },
       guild: {
-        members: { cache: col([['1', { displayName: 'Nick' }]]) },
+        members: {
+          cache: col([
+            ['1', { displayName: 'Nick' }],
+            ['v', { id: 'v', visible: ['3'] }],
+          ]),
+        },
         roles: { cache: col([['2', { name: 'Mods' }]]) },
-        channels: { cache: col([['3', { name: 'general' }]]) },
+        channels: {
+          cache: col([
+            ['3', channel('3', 'general')],
+            ['6', channel('6', 'staff-only')],
+          ]),
+        },
       },
       client: { users: { cache: col([['4', { globalName: null, username: 'plain' }]]) } },
     });
-    const names = interactionMentionNames(interaction, '<@1> <@!4> <@&2> <#3> <@5>');
+    const names = interactionMentionNames(interaction, '<@1> <@!4> <@&2> <#3> <#6> <@5>');
     expect([...names.users]).toEqual([
       ['1', 'Nick'],
       ['4', 'plain'],
     ]);
     expect(names.roles.get('2')).toBe('Mods');
-    expect(names.channels.get('3')).toBe('general');
+    expect([...names.channels]).toEqual([['3', 'general']]);
   });
 });
 

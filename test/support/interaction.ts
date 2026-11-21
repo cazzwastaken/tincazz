@@ -52,7 +52,7 @@ export function makeChatInput(
       ownerId: '0',
       channels: { cache: new Map() },
       roles: { cache: new Map() },
-      members: { me: makeMe() },
+      members: { me: makeMe(), cache: new Map(), fetch: async () => null },
     },
   }: ChatInputOptions,
 ) {

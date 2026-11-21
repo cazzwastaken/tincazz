@@ -20,6 +20,7 @@ export {
   commandPrefix,
   interactionInputs,
   interactionMentionNames,
+  invokerMember,
   linkedMessage,
   messageInputs,
   messageMentionNames,

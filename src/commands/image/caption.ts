@@ -84,7 +84,7 @@ export class CaptionCommand extends Command {
 
     let text: string;
     try {
-      text = sanitizeCaption(parsed.text, messageMentionNames(message));
+      text = sanitizeCaption(parsed.text, messageMentionNames(message, message.member));
       if (text.length > limits.captionChars) throw new ImagingError(messages.captionTooLongChars);
     } catch (error) {
       if (error instanceof ImagingError) return message.reply(error.message);

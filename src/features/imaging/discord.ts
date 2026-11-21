@@ -7,6 +7,7 @@ import {
   type ChatInputCommandInteraction,
   type Client,
   type CommandInteraction,
+  type Guild,
   type GuildBasedChannel,
   type GuildMember,
   type Message,
@@ -127,8 +128,37 @@ export function interactionInputs(interaction: ChatInputCommandInteraction): Sou
   return inputs;
 }
 
-/** Display names of everything mentioned in a prefix message. */
-export function messageMentionNames(message: Message): MentionNames {
+/**
+ * Whether `viewer` (whoever runs the command, not the message author) may see `channel`: it must
+ * be in `guildId` and grant them View Channel. Without a viewer nothing is visible.
+ */
+function channelVisible(
+  channel: object,
+  guildId: string | null | undefined,
+  viewer: GuildMember | null | undefined,
+): boolean {
+  const guildChannel = channel as Partial<GuildBasedChannel>;
+  if (!viewer || !guildId || guildChannel.guildId !== guildId) return false;
+  return guildChannel.permissionsFor?.(viewer)?.has(PermissionFlagsBits.ViewChannel) === true;
+}
+
+/** The guild member behind a user (fetched if uncached), or `null` when they are not in it. */
+export async function invokerMember(
+  guild: Guild | null,
+  userId: string,
+): Promise<GuildMember | null> {
+  return (await guild?.members.fetch(userId).catch(() => null)) ?? null;
+}
+
+/**
+ * Display names of everything mentioned in a prefix message. Channels are only named when they
+ * are in this guild and `viewer`, who runs the command, can see them: a message may mention a
+ * channel its reader cannot see, and its name would leak. The others render as unknown.
+ */
+export function messageMentionNames(
+  message: Message,
+  viewer: GuildMember | null | undefined,
+): MentionNames {
   const users = new Map<string, string>();
   for (const user of message.mentions.users.values()) {
     users.set(user.id, user.globalName ?? user.username);
@@ -140,14 +170,17 @@ export function messageMentionNames(message: Message): MentionNames {
   for (const role of message.mentions.roles.values()) roles.set(role.id, role.name);
   const channels = new Map<string, string>();
   for (const channel of message.mentions.channels.values()) {
-    if ('name' in channel && channel.name) channels.set(channel.id, channel.name);
+    if ('name' in channel && channel.name && channelVisible(channel, message.guildId, viewer)) {
+      channels.set(channel.id, channel.name);
+    }
   }
   return { users, roles, channels };
 }
 
 /**
  * Discord does not resolve mentions typed into a string option, so the IDs found in `text` are
- * looked up in the caches. Only those IDs are looked up, nothing is copied wholesale.
+ * looked up in the caches. Only those IDs are looked up, nothing is copied wholesale. Channels
+ * are named only when the invoker can see them.
  */
 export function interactionMentionNames(
   interaction: ChatInputCommandInteraction,
@@ -156,6 +189,7 @@ export function interactionMentionNames(
   const users = new Map<string, string>();
   const roles = new Map<string, string>();
   const channels = new Map<string, string>();
+  const viewer = interaction.guild?.members.cache.get(interaction.user.id);
   for (const [, id] of text.matchAll(mentionPatterns.user)) {
     if (!id) continue;
     const member = interaction.guild?.members.cache.get(id);
@@ -169,7 +203,9 @@ export function interactionMentionNames(
   }
   for (const [, id] of text.matchAll(mentionPatterns.channel)) {
     const channel = id ? interaction.guild?.channels.cache.get(id) : undefined;
-    if (id && channel) channels.set(id, channel.name);
+    if (id && channel && channelVisible(channel, interaction.guildId, viewer)) {
+      channels.set(id, channel.name);
+    }
   }
   return { users, roles, channels };
 }
@@ -264,9 +300,13 @@ const messageAvatarOptions = { size: 128, extension: 'png', forceStatic: true } 
 
 /**
  * A message as plain data for the screenshot: the member's display name, colour and avatar when
- * they are still in the guild (fetched if uncached), else the user's.
+ * they are still in the guild (fetched if uncached), else the user's. `viewer` is who runs the
+ * command; channels they cannot see stay unnamed.
  */
-export async function messageSnapshot(message: Message): Promise<MessageSnapshot> {
+export async function messageSnapshot(
+  message: Message,
+  viewer: GuildMember | null,
+): Promise<MessageSnapshot> {
   const member =
     message.member ??
     (message.webhookId
@@ -281,7 +321,7 @@ export async function messageSnapshot(message: Message): Promise<MessageSnapshot
     },
     createdTimestamp: message.createdTimestamp,
     message: replyData(message),
-    names: messageMentionNames(message),
+    names: messageMentionNames(message, viewer),
   };
 }
 

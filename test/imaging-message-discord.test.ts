@@ -49,6 +49,7 @@ describe('messageSnapshot', () => {
       message({
         member: { displayName: 'Member', displayHexColor: '#e91e63', displayAvatarURL: options },
       }),
+      null,
     );
     expect(snapshot.author).toEqual({ name: 'Member', color: '#e91e63', avatarUrl: avatar });
     expect(options).toHaveBeenCalledWith({ size: 128, extension: 'png', forceStatic: true });
@@ -58,13 +59,13 @@ describe('messageSnapshot', () => {
   });
 
   it('falls back to the user when the member is gone', async () => {
-    const snapshot = await messageSnapshot(message());
+    const snapshot = await messageSnapshot(message(), null);
     expect(snapshot.author).toEqual({ name: 'user', color: null, avatarUrl: avatar });
   });
 
   it('does not look a webhook author up as a member', async () => {
     const fetch = vi.fn(async () => null);
-    await messageSnapshot(message({ webhookId: 'w', guild: { members: { fetch } } }));
+    await messageSnapshot(message({ webhookId: 'w', guild: { members: { fetch } } }), null);
     expect(fetch).not.toHaveBeenCalled();
   });
 });
