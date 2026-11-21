@@ -27,7 +27,7 @@ to test with. Do not test against the production bot.
 
 1. Fork the repository and clone your fork.
 2. Create a test application and bot as described in
-   [Create the bot](README.md#create-the-bot-once), and invite it to a private test server.
+   [Add it to your server](README.md#add-it-to-your-server), and invite it to a private test server.
 3. Install and run:
 
    ```sh
