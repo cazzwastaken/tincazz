@@ -11,3 +11,4 @@ coverage/
 # Local agent worktrees and scratch
 .claude/worktrees/
 .superpowers/
+docs/superpowers/
