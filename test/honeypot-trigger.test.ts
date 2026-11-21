@@ -1,5 +1,5 @@
 import { container } from '@sapphire/framework';
-import { Events, PermissionFlagsBits, PermissionsBitField } from 'discord.js';
+import { type APIEmbed, Events, PermissionFlagsBits, PermissionsBitField } from 'discord.js';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
 import { createClient } from '../src/client.js';
 import { openDatabase } from '../src/db/index.js';
@@ -70,10 +70,11 @@ function makeMessage(overrides: MessageOverrides = {}) {
     system: false,
     author: {
       ...(authorOverride ?? author),
-      send: vi.fn(async (_options: { content: string }): Promise<unknown> => ({})),
+      send: vi.fn(async (_options: { embeds: APIEmbed[] }): Promise<unknown> => ({})),
     },
     member: member === undefined ? plain : member,
     delete: vi.fn(async (): Promise<unknown> => ({})),
+    react: vi.fn(async (_emoji: string): Promise<unknown> => ({})),
     ...rest,
     // `guild` is typed non-null so tests can reach the mocks; the null case is cast.
     guild: guild === null ? (null as unknown as typeof theGuild) : theGuild,
@@ -116,7 +117,15 @@ describe('handleHoneypotMessage', () => {
   it('softbans with a one hour wipe, unbans, counts and logs', async () => {
     const m = makeMessage();
     expect(await handleHoneypotMessage(m, deps)).toBe('softbanned');
-    expect(m.author.send).toHaveBeenCalledWith({ content: expect.stringContaining('**Cazz**') });
+    expect(m.author.send).toHaveBeenCalledExactlyOnceWith({
+      embeds: [
+        expect.objectContaining({
+          title: 'Honeypot Triggered',
+          description: expect.stringContaining('**softbanned** from **Cazz**'),
+        }),
+      ],
+    });
+    expect(m.react).not.toHaveBeenCalled();
     expect(m.guild.bans.create).toHaveBeenCalledWith('5', {
       deleteMessageSeconds: 3600,
       reason: honeypotConfig.banReason,
@@ -179,6 +188,16 @@ describe('handleHoneypotMessage', () => {
     ['a webhook', { webhookId: 'w' }],
     ['a system message', { system: true }],
     ['the bot itself', { author: { ...author, id: 'bot' } }],
+  ])('ignores %s without sending a DM', async (_name, overrides) => {
+    const m = makeMessage(overrides);
+    expect(await handleHoneypotMessage(m, deps)).toBe('ignored');
+    expect(m.delete).not.toHaveBeenCalled();
+    expect(m.author.send).not.toHaveBeenCalled();
+    expect(m.react).not.toHaveBeenCalled();
+    expect(m.guild.bans.create).not.toHaveBeenCalled();
+  });
+
+  it.each<[string, MessageOverrides]>([
     [
       'staff',
       {
@@ -198,11 +217,32 @@ describe('handleHoneypotMessage', () => {
       },
     ],
     ['the owner', { guildOwner: '5' }],
-  ])('leaves %s alone', async (_name, overrides) => {
+  ])('notifies %s without kicking them', async (_name, overrides) => {
     const m = makeMessage(overrides);
     expect(await handleHoneypotMessage(m, deps)).toBe('ignored');
     expect(m.delete).not.toHaveBeenCalled();
-    expect(m.author.send).not.toHaveBeenCalled();
+    expect(m.author.send).toHaveBeenCalledExactlyOnceWith({
+      embeds: [
+        expect.objectContaining({
+          title: 'Honeypot Triggered',
+          description: expect.stringContaining(
+            "**weren't kicked** because of your server permissions",
+          ),
+        }),
+      ],
+    });
+    expect(m.react).toHaveBeenCalledExactlyOnceWith(honeypotConfig.emoji);
+    expect(m.guild.bans.create).not.toHaveBeenCalled();
+    expect(deps.log).not.toHaveBeenCalled();
+    expect(honeypot(container.db, '2').kicks).toBe(0);
+  });
+
+  it('still notifies an exempt member when Discord refuses the reaction', async () => {
+    const m = makeMessage({ guildOwner: '5' });
+    m.react.mockRejectedValue(new Error('Missing Permissions'));
+    expect(await handleHoneypotMessage(m, deps)).toBe('ignored');
+    expect(m.author.send).toHaveBeenCalledOnce();
+    expect(m.delete).not.toHaveBeenCalled();
     expect(m.guild.bans.create).not.toHaveBeenCalled();
   });
 

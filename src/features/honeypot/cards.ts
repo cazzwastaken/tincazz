@@ -1,4 +1,4 @@
-import type { ContainerBuilder } from 'discord.js';
+import { type APIEmbed, type ContainerBuilder, escapeMarkdown } from 'discord.js';
 import { accents, card } from '../ui/index.js';
 import { honeypotConfig, honeypotCopy } from './config.js';
 
@@ -13,8 +13,32 @@ export function honeypotWarningCard(kicks: number): ContainerBuilder {
   );
 }
 
-export function honeypotDm(guildName: string): string {
-  return `You were softbanned from **${guildName}** because your account sent a message in a channel that catches spam bots. Your account may be compromised: change your password and turn on two-factor authentication. You may rejoin the server afterwards.`;
+function honeypotDmEmbed(guildName: string, description: string): APIEmbed {
+  return {
+    title: 'Honeypot Triggered',
+    color: 0xffd400,
+    description,
+    thumbnail: {
+      url: 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f36f.png',
+    },
+    footer: {
+      text: `Automated message sent on behalf of ${guildName}. Replies are not monitored.`,
+    },
+  };
+}
+
+export function honeypotExemptDm(guildName: string): APIEmbed {
+  return honeypotDmEmbed(
+    guildName,
+    `You posted in the honeypot channel in **${escapeMarkdown(guildName)}**, but you **weren't kicked** because of your server permissions.`,
+  );
+}
+
+export function honeypotDm(guildName: string): APIEmbed {
+  return honeypotDmEmbed(
+    guildName,
+    `You were **softbanned** from **${escapeMarkdown(guildName)}** for sending a message in the honeypot channel.\n\nYour account may be compromised. [Recover your account](https://support.discord.com/hc/en-us/articles/218410947-My-Discord-Account-was-Hacked-or-Compromised), change your password, enable two-factor authentication, and scan your device for malware. You may rejoin the server afterwards.`,
+  );
 }
 
 export const honeypotTaken = (id: string, use: 'a log channel' | 'a game channel') =>

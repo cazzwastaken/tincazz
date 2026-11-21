@@ -35,9 +35,9 @@ describe('honeypot copy', () => {
     expect(out).toContain('🍯 Kicks: 1,234');
   });
   it('names the server in the DM', () => {
-    const text = honeypotDm('Cazz');
+    const { description } = honeypotDm('Cazz');
     for (const needle of ['**Cazz**', 'compromised', 'password', 'rejoin']) {
-      expect(text).toContain(needle);
+      expect(description).toContain(needle);
     }
   });
 });
