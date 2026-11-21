@@ -11,6 +11,7 @@ export {
 export { applyBubble, type BubbleGeometry, bubbleGeometry, bubbleSvg } from './bubble.js';
 export { applyCaption, captionLayout, renderCaptionText } from './caption.js';
 export { limits } from './config.js';
+export { captionModalTextId, decodeCaptionModalId, encodeCaptionModalId } from './custom-ids.js';
 export { decodeChunkPages, decodeFrames, decodeGeometry, sourceTooLarge } from './decode.js';
 export {
   attachmentData,
@@ -18,6 +19,7 @@ export {
   canAttachFiles,
   canReadHistory,
   commandPrefix,
+  type InteractionContext,
   interactionInputs,
   interactionMentionNames,
   invokerMember,

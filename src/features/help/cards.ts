@@ -55,7 +55,7 @@ function homeSummary(page: Exclude<HelpPage, 'home'>, prefix: string): string {
     case 'games':
       return `\`/gamba\`, \`/coinflip\`, \`/dice\` and their \`${prefix}\` forms`;
     case 'images':
-      return 'Put a speech bubble or a caption bar on any image or GIF';
+      return 'Put a speech bubble or a caption bar on any image, GIF or message';
     case 'coins':
       return `Earn ${coins(daily.base)}+ a day, check your balance and the leaderboard`;
     case 'gamba':
@@ -102,7 +102,8 @@ function images(prefix: string): Page {
       [
         '### 🏷️ Caption',
         `\`/caption\` or \`${prefix}caption <text>\` adds a white caption bar above an image or GIF.`,
-        `Same sources as the bubble, e.g. \`${prefix}caption when the build passes\`.`,
+        `Same sources as the bubble, e.g. \`${prefix}caption when the build passes\`, or **reply** to a message with it: text becomes a screenshot under the caption.`,
+        'Or right-click a message, then **Apps**, then **Caption message** (it asks for the text), or use `/caption message:<link>`.',
       ].join('\n'),
       '-# Links work from Discord, Tenor and Giphy. Results are re-encoded, so big GIFs may lose some frames.',
     ],

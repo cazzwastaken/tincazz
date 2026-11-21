@@ -12,6 +12,7 @@ import {
   type GuildMember,
   type Message,
   MessageReferenceType,
+  type ModalSubmitInteraction,
   PermissionFlagsBits,
   StickerFormatType,
   type User,
@@ -178,12 +179,24 @@ export function messageMentionNames(
 }
 
 /**
- * Discord does not resolve mentions typed into a string option, so the IDs found in `text` are
+ * What the mention and message lookups need from an interaction: a slash command and a modal
+ * submit both fit.
+ */
+export interface InteractionContext {
+  readonly guild: Guild | null;
+  readonly guildId: string | null;
+  readonly channelId: string | null;
+  readonly user: User;
+  readonly client: Client;
+}
+
+/**
+ * Discord does not resolve mentions typed into a string option (or a modal field), so the IDs found in `text` are
  * looked up in the caches. Only those IDs are looked up, nothing is copied wholesale. Channels
  * are named only when the invoker can see them.
  */
 export function interactionMentionNames(
-  interaction: ChatInputCommandInteraction,
+  interaction: InteractionContext,
   text: string,
 ): MentionNames {
   const users = new Map<string, string>();
@@ -363,13 +376,13 @@ export async function canReadHistory(
 }
 
 /**
- * Resolves `/bubble message:` to a message, or `null` for anything the invoker may not see: a bad
+ * Resolves `/bubble message:` (also `/caption message:` and the caption modal) to a message, or `null` for anything the invoker may not see: a bad
  * link, another guild, a channel outside this guild, a channel the invoker or the bot cannot read
  * the history of, or a missing message. The caller answers every `null` the same way, so the
  * reply never tells whether a message exists.
  */
 export async function linkedMessage(
-  interaction: ChatInputCommandInteraction,
+  interaction: InteractionContext,
   raw: string,
 ): Promise<Message | null> {
   const link = parseMessageLink(raw);
@@ -378,6 +391,7 @@ export async function linkedMessage(
   if (link.guildId !== null && link.guildId !== guild.id) return null;
 
   const channelId = link.channelId ?? interaction.channelId;
+  if (!channelId) return null;
   const channel =
     guild.channels.cache.get(channelId) ??
     (await guild.channels.fetch(channelId).catch(() => null));
@@ -425,7 +439,7 @@ export function commandPrefix(client: Client): string {
  * public "thinking..." message and stay public) and the error is rethrown.
  */
 export async function replyWithImage(
-  interaction: CommandInteraction,
+  interaction: CommandInteraction | ModalSubmitInteraction,
   run: () => Promise<Produced>,
 ): Promise<void> {
   let result: Awaited<ReturnType<typeof run>>;

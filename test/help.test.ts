@@ -118,6 +118,8 @@ describe('help pages', () => {
       '/caption',
       '?caption',
       'Bubble message',
+      'Caption message',
+      '/caption message:<link>',
       'avatar',
     ]) {
       expect(text).toContain(entry);
