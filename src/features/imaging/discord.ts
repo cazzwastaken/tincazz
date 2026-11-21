@@ -288,9 +288,11 @@ export async function produceMessageImage(
       deps,
     );
   }
+  // A bubble gets room above the screenshot and the bubble shaped for it; a caption needs neither.
+  const bubble = op.kind === 'bubble';
   return renderJob(
-    (fetch, signal) => renderScreenshot(snapshot, source, { fetch, signal }),
-    op,
+    (fetch, signal) => renderScreenshot(snapshot, source, { fetch, signal, headroom: bubble }),
+    bubble ? { ...op, shape: 'message' } : op,
     userId,
     deps,
   );

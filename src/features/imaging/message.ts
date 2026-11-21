@@ -1,4 +1,5 @@
 import sharp, { type OverlayOptions } from 'sharp';
+import { messageBubble } from './bubble.js';
 import { limits } from './config.js';
 import { sourceTooLarge } from './decode.js';
 import { ImagingError, messages } from './errors.js';
@@ -115,13 +116,11 @@ export interface ScreenshotLayout {
 }
 
 /**
- * Empty space to add above a message of `width` x `height` so a bubble cut into the result (see
- * `bubbleGeometry`) ends, tail tip included, above the message: the bubble then reads as the
- * author saying something instead of hiding their name and the first lines.
+ * Empty space above the message for a `message`-shaped bubble (see `bubbleGeometry`): the curve
+ * ends at the message and only the tail tip reaches into its top padding, so the bubble reads as
+ * the author saying something without covering their name.
  */
-export function bubbleHeadroom(width: number, height: number): number {
-  return Math.ceil(Math.min((2 * height) / 3, 0.4 * width));
-}
+export const bubbleHeadroom = Math.round(screenshot.width * messageBubble.depth);
 
 const shift = (box: Box, by: number): Box => ({ ...box, top: box.top + by });
 
@@ -152,7 +151,7 @@ export function layoutScreenshot(
     : null;
   const bottom = imageBox ? imageBox.top + imageBox.height : textBox.top + textBox.height;
   const height = Math.max(bottom, padding + avatarSize) + padding;
-  const top = options.headroom ? bubbleHeadroom(screenshot.width, height) : 0;
+  const top = options.headroom ? bubbleHeadroom : 0;
   return {
     width: screenshot.width,
     height: height + top,
@@ -363,13 +362,13 @@ export async function composeScreenshot(
 
 /**
  * Downloads the avatar (best effort: a failure draws the placeholder) and the image (a failure is
- * the command's error), then draws the screenshot with room for the bubble. Both go through the allowlisted downloader with
- * the job's signal.
+ * the command's error), then draws the screenshot (with room for a bubble when `headroom` is set).
+ * Both go through the allowlisted downloader with the job's signal.
  */
 export async function renderScreenshot(
   snapshot: MessageSnapshot,
   source: { text: string; image: Allowed | null; imageSpoiler?: boolean },
-  options: { fetch: Fetcher; signal?: AbortSignal },
+  options: { fetch: Fetcher; signal?: AbortSignal; headroom?: boolean },
 ): Promise<Buffer> {
   const avatarCheck = snapshot.author.avatarUrl ? checkUrl(snapshot.author.avatarUrl) : null;
   const [avatar, image] = await Promise.all([
@@ -393,6 +392,6 @@ export async function renderScreenshot(
       image,
       imageSpoiler: source.imageSpoiler,
     },
-    { headroom: true },
+    { headroom: options.headroom },
   );
 }

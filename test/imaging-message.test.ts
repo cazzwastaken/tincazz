@@ -129,7 +129,7 @@ describe('layoutScreenshot', () => {
   it('shifts everything down by the headroom', () => {
     const plain = layoutScreenshot({ width: 200, height: 44 }, null);
     const room = layoutScreenshot({ width: 200, height: 44 }, null, { headroom: true });
-    const top = bubbleHeadroom(plain.width, plain.height);
+    const top = bubbleHeadroom;
     expect(room.height).toBe(plain.height + top);
     expect(room.text.top).toBe(plain.text.top + top);
     expect(room.avatar.top).toBe(plain.avatar.top + top);
@@ -154,18 +154,24 @@ describe('layoutScreenshot', () => {
 });
 
 describe('bubbleHeadroom', () => {
-  it('keeps the whole bubble, tail tip included, above the message', () => {
+  it('ends the message bubble curve at the message and its tail in the top padding', () => {
+    const plain = layoutScreenshot({ width: 200, height: 44 }, null);
+    const g = bubbleGeometry(screenshot.width, plain.height + bubbleHeadroom, 'message');
+    expect(g.curveY).toBe(bubbleHeadroom);
+    expect(g.tipY).toBeGreaterThan(bubbleHeadroom);
+    // above the name line, which starts after the padding
+    expect(g.tipY).toBeLessThan(bubbleHeadroom + screenshot.padding);
+  });
+
+  it('keeps that fit at every width the size ladder scales the screenshot to', () => {
     fc.assert(
-      fc.property(
-        fc.integer({ min: 16, max: 4000 }),
-        fc.integer({ min: 1, max: 4000 }),
-        (width, height) => {
-          const room = bubbleHeadroom(width, height);
-          const g = bubbleGeometry(width, height + room);
-          expect(g.tipY).toBeLessThanOrEqual(room);
-          expect(g.curveY).toBeLessThanOrEqual(room);
-        },
-      ),
+      fc.property(fc.integer({ min: 64, max: screenshot.width }), (width) => {
+        const scale = width / screenshot.width;
+        const g = bubbleGeometry(width, width, 'message');
+        expect(Math.abs(g.curveY - bubbleHeadroom * scale)).toBeLessThanOrEqual(1);
+        // within rounding of the band plus the padding
+        expect(g.tipY).toBeLessThan((bubbleHeadroom + screenshot.padding) * scale + 1);
+      }),
     );
   });
 });
@@ -303,9 +309,7 @@ describe('composeScreenshot', () => {
   it('leaves room for the bubble with headroom', async () => {
     const plain = await sharp(await composeScreenshot(parts())).metadata();
     const room = await sharp(await composeScreenshot(parts(), { headroom: true })).metadata();
-    expect(room.height).toBe(
-      (plain.height ?? 0) + bubbleHeadroom(screenshot.width, plain.height ?? 0),
-    );
+    expect(room.height).toBe((plain.height ?? 0) + bubbleHeadroom);
   });
 
   it('refuses an attachment that is not an image', async () => {
@@ -317,7 +321,12 @@ describe('composeScreenshot', () => {
   it('bubbles into a real GIF, text only and with an image', async () => {
     for (const image of [null, await makePng({ width: 300, height: 200 })]) {
       const png = await composeScreenshot(parts({ image }), { headroom: true });
-      const result = await renderImage(png, { kind: 'bubble', style: 'transparent', tail: 'left' });
+      const result = await renderImage(png, {
+        kind: 'bubble',
+        style: 'transparent',
+        tail: 'left',
+        shape: 'message',
+      });
       expect(sniffImage(result.gif)).toBe('gif');
       expect(result.pages).toBe(1);
       expect(result.width).toBe(512);

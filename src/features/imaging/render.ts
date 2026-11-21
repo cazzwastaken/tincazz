@@ -1,5 +1,5 @@
 import type { BubbleStyle, TailSide } from './args.js';
-import { applyBubble } from './bubble.js';
+import { applyBubble, type BubbleShape } from './bubble.js';
 import { applyCaption } from './caption.js';
 import { limits } from './config.js';
 import { decodeFrames } from './decode.js';
@@ -8,7 +8,7 @@ import { ImagingError, messages } from './errors.js';
 import { type Frames, halveFrames } from './frames.js';
 
 export type ImageOperation =
-  | { kind: 'bubble'; style: BubbleStyle; tail: TailSide }
+  | { kind: 'bubble'; style: BubbleStyle; tail: TailSide; shape?: BubbleShape }
   | { kind: 'caption'; text: string };
 
 export interface RenderResult {
@@ -68,7 +68,7 @@ const ladder: readonly LadderStep[] = [
 
 function operate(frames: Frames, op: ImageOperation): Promise<Frames> {
   return op.kind === 'bubble'
-    ? applyBubble(frames, { style: op.style, tail: op.tail })
+    ? applyBubble(frames, { style: op.style, tail: op.tail, shape: op.shape })
     : applyCaption(frames, op.text);
 }
 
