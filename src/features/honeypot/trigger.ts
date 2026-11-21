@@ -3,7 +3,7 @@ import { PermissionFlagsBits } from 'discord.js';
 import type { DbOrTx } from '../../db/index.js';
 import type { ModEvent } from '../logs/index.js';
 import { banProblem } from './bannable.js';
-import { honeypotDm } from './cards.js';
+import { honeypotDm, honeypotExemptDm } from './cards.js';
 import { honeypotConfig } from './config.js';
 import { classifyAuthor } from './decide.js';
 import { finish, guardKey, tryBegin } from './guard.js';
@@ -71,14 +71,14 @@ function deleteMessage(message: HoneypotMessage): Promise<boolean> {
 }
 
 /** Sends the DM, giving up after `timeoutMs`; true only when the send resolved first. */
-async function sendDm(message: HoneypotMessage, guildName: string, timeoutMs: number) {
+async function sendDm(message: HoneypotMessage, content: string, timeoutMs: number) {
   let timer: NodeJS.Timeout | undefined;
   const timeout = new Promise<boolean>((resolve) => {
     timer = setTimeout(() => resolve(false), timeoutMs);
   });
   try {
     const sent = (async () => {
-      await message.author.send({ content: honeypotDm(guildName) });
+      await message.author.send({ content });
       return true;
     })().catch(() => false);
     return await Promise.race([sent, timeout]);
@@ -89,7 +89,7 @@ async function sendDm(message: HoneypotMessage, guildName: string, timeoutMs: nu
 
 /**
  * Softbans whoever posts in the guild's honeypot channel: DM, ban with a one hour message wipe,
- * unban at once, count the kick and log it. Exempt authors are left alone. Never throws.
+ * unban at once, count the kick and log it. Exempt people only get a DM. Never throws.
  */
 export async function handleHoneypotMessage(
   message: HoneypotMessage,
@@ -120,6 +120,11 @@ export async function handleHoneypotMessage(
       isOwner: guild.ownerId === author.id,
     });
     if (decision === 'ignore') {
+      return 'ignored';
+    }
+    const dmTimeoutMs = deps.dmTimeoutMs ?? honeypotConfig.dmTimeoutMs;
+    if (decision === 'notify') {
+      await sendDm(message, honeypotExemptDm(guild.name), dmTimeoutMs);
       return 'ignored';
     }
 
@@ -158,11 +163,7 @@ export async function handleHoneypotMessage(
         return await failed(problem);
       }
 
-      const dmSent = await sendDm(
-        message,
-        guild.name,
-        deps.dmTimeoutMs ?? honeypotConfig.dmTimeoutMs,
-      );
+      const dmSent = await sendDm(message, honeypotDm(guild.name), dmTimeoutMs);
 
       const banned = await Promise.resolve()
         .then(() =>

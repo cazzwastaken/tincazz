@@ -7,9 +7,10 @@ export interface AuthorFacts {
   isOwner: boolean;
 }
 
-export type AuthorDecision = 'ignore' | 'softban';
+export type AuthorDecision = 'ignore' | 'notify' | 'softban';
 
-/** Exempt authors are left alone; everyone else who posts in the honeypot is softbanned. */
+/** Notify exempt people, but ignore automated messages entirely. */
 export function classifyAuthor(facts: AuthorFacts): AuthorDecision {
-  return Object.values(facts).some(Boolean) ? 'ignore' : 'softban';
+  if (facts.isBot || facts.isWebhook || facts.isSystem || facts.isSelf) return 'ignore';
+  return facts.isStaff || facts.isOwner ? 'notify' : 'softban';
 }

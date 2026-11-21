@@ -179,6 +179,15 @@ describe('handleHoneypotMessage', () => {
     ['a webhook', { webhookId: 'w' }],
     ['a system message', { system: true }],
     ['the bot itself', { author: { ...author, id: 'bot' } }],
+  ])('ignores %s without sending a DM', async (_name, overrides) => {
+    const m = makeMessage(overrides);
+    expect(await handleHoneypotMessage(m, deps)).toBe('ignored');
+    expect(m.delete).not.toHaveBeenCalled();
+    expect(m.author.send).not.toHaveBeenCalled();
+    expect(m.guild.bans.create).not.toHaveBeenCalled();
+  });
+
+  it.each<[string, MessageOverrides]>([
     [
       'staff',
       {
@@ -198,12 +207,16 @@ describe('handleHoneypotMessage', () => {
       },
     ],
     ['the owner', { guildOwner: '5' }],
-  ])('leaves %s alone', async (_name, overrides) => {
+  ])('notifies %s without kicking them', async (_name, overrides) => {
     const m = makeMessage(overrides);
     expect(await handleHoneypotMessage(m, deps)).toBe('ignored');
     expect(m.delete).not.toHaveBeenCalled();
-    expect(m.author.send).not.toHaveBeenCalled();
+    expect(m.author.send).toHaveBeenCalledExactlyOnceWith({
+      content: expect.stringContaining("you weren't kicked because of your server permissions"),
+    });
     expect(m.guild.bans.create).not.toHaveBeenCalled();
+    expect(deps.log).not.toHaveBeenCalled();
+    expect(honeypot(container.db, '2').kicks).toBe(0);
   });
 
   it('fetches an uncached member before deciding', async () => {

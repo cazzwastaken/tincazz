@@ -18,10 +18,10 @@ const none: AuthorFacts = {
 
 describe('classifyAuthor', () => {
   it('softbans a plain member', () => expect(classifyAuthor(none)).toBe('softban'));
-  it.each(Object.keys(none))('ignores when %s', (flag) =>
+  it.each(['isBot', 'isWebhook', 'isSystem', 'isSelf'])('ignores when %s', (flag) =>
     expect(classifyAuthor({ ...none, [flag]: true })).toBe('ignore'),
   );
-  it('ignores exactly when any exempt flag is set', () =>
+  it('notifies exempt humans and ignores automated messages even if exempt', () =>
     fc.assert(
       fc.property(
         fc.record({
@@ -32,7 +32,13 @@ describe('classifyAuthor', () => {
           isStaff: fc.boolean(),
           isOwner: fc.boolean(),
         }),
-        (f) => classifyAuthor(f) === (Object.values(f).some(Boolean) ? 'ignore' : 'softban'),
+        ({ isBot, isWebhook, isSystem, isSelf, isStaff, isOwner }) =>
+          classifyAuthor({ isBot, isWebhook, isSystem, isSelf, isStaff, isOwner }) ===
+          (isBot || isWebhook || isSystem || isSelf
+            ? 'ignore'
+            : isStaff || isOwner
+              ? 'notify'
+              : 'softban'),
       ),
     ));
 });

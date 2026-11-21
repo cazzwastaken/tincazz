@@ -13,6 +13,10 @@ export function honeypotWarningCard(kicks: number): ContainerBuilder {
   );
 }
 
+export function honeypotExemptDm(guildName: string): string {
+  return `You posted in the honeypot channel in **${guildName}**, but you weren't kicked because of your server permissions.`;
+}
+
 export function honeypotDm(guildName: string): string {
   return `You were softbanned from **${guildName}** because your account sent a message in a channel that catches spam bots. Your account may be compromised: change your password and turn on two-factor authentication. You may rejoin the server afterwards.`;
 }
