@@ -24,7 +24,8 @@ Type `/help` (or `?help`) in Discord for a paged guide with the live numbers.
 
 - `/bubble`: put a speech bubble on an image, GIF, avatar or a whole message (reply to it, paste
   its link, or right-click > Apps > Bubble message)
-- `/caption`: add a white caption bar above an image or GIF
+- `/caption`: add a white caption bar above an image, GIF, avatar or a whole message (reply to it,
+  paste its link, or right-click > Apps > Caption message)
 
 **Economy**
 

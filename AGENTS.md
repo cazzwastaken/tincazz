@@ -64,7 +64,8 @@ src/
     economy/      `/balance` (also `?bal` / `?balance`), `/daily`, `/collect`, `/bailout`, `/eco`
     general/      `?ping` / `/ping`, `?help` / `/help` (paged card, `topic` option / argument)
     image/        `?bubble` / `/bubble` (also the "Bubble message" message context menu) and
-                  `?caption` / `/caption`; thin, all logic is in `features/imaging/`
+                  `?caption` / `/caption` (also the "Caption message" context menu, which asks for
+                  the text in a modal); thin, all logic is in `features/imaging/`
     misc/         games: `?gamba` / `/gamba`, `?coinflip` / `/coinflip` (aliases `?cf`, `?flip`),
                   `?dice` / `/dice` (alias `?roll`)
     stats/        `/stats`, `/leaderboard`
@@ -89,7 +90,8 @@ src/
                   link, avatar, sticker), message-link parsing, decode, bubble and caption
                   rendering with sharp, the Discord-style message screenshot (`message.ts`), GIF
                   encoding with a size ladder, the job queue (timeout, concurrency, per-user lock),
-                  prefix argument parsing, text sanitising and the Discord adapters
+                  prefix argument parsing, text sanitising, the `cap:*` caption modal custom IDs
+                  and the Discord adapters
     logs/         log channels: event types and cards, fire-and-forget `sendLog`, economy events
                   (admin adjustments, jackpots and member events)
     members/      departed-member tracking: hidden from boards and ranks, daily reconcile against
@@ -102,8 +104,8 @@ src/
                   dice commands and buttons), their cards and role assignment
     stats/        read-only profile, recent plays and leaderboard queries, `lb:*` custom IDs, cards
     ui/           shared Components V2 card helpers
-  interaction-handlers/  one file per component handler (gamba, coinflip, dice and help buttons
-                  and menu, leaderboard paging and category select)
+  interaction-handlers/  one file per component or modal handler (gamba, coinflip, dice and help
+                  buttons and menu, leaderboard paging and category select, the caption modal)
   listeners/      one file per Discord/Sapphire event listener (member join, leave and screening,
                   channel and role delete cleanup, chat rewards, ready, a generic ephemeral reply
                   when a command or handler throws, and a reply explaining why a precondition
