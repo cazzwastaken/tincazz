@@ -1,5 +1,5 @@
 import { container } from '@sapphire/framework';
-import { MessageFlags, PermissionFlagsBits } from 'discord.js';
+import { Events, MessageFlags, PermissionFlagsBits } from 'discord.js';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createClient } from '../src/client.js';
 import { openDatabase } from '../src/db/index.js';
@@ -207,5 +207,30 @@ describe('honeypot card sync', () => {
     expect(await onCardDeleted({ id: 'card-1', guildId: null })).toBe(false);
     expect(await onCardDeleted({ id: 'card-1', guildId: '2' })).toBe(true);
     expect(channel.send).toHaveBeenCalledTimes(1);
+  });
+
+  it('re-posts the card through the messageDelete listener', async () => {
+    channel.messages.edit.mockRejectedValue(unknownMessage);
+    client.emit(Events.MessageDelete, {
+      id: 'card-1',
+      guildId: '2',
+      channelId: '70',
+      partial: true,
+    } as never);
+    await vi.waitFor(() => expect(channel.send).toHaveBeenCalledTimes(1));
+    expect(honeypot(container.db, '2').messageId).toBe('card-2');
+  });
+
+  it('ignores the delete of a card the store no longer points at', async () => {
+    setHoneypot(container.db, '2', '71', 'card-9', 2); // moved: the bot then deletes card-1 itself
+    client.emit(Events.MessageDelete, {
+      id: 'card-1',
+      guildId: '2',
+      channelId: '70',
+      partial: true,
+    } as never);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(channel.send).not.toHaveBeenCalled();
+    expect(channel.messages.edit).not.toHaveBeenCalled();
   });
 });
