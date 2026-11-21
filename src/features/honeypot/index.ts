@@ -1,4 +1,5 @@
 export * from './bannable.js';
+export * from './card-sync.js';
 export * from './cards.js';
 export * from './config.js';
 export * from './decide.js';
