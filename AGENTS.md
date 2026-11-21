@@ -111,7 +111,8 @@ src/
                   buttons and menu, leaderboard paging and category select, the caption modal)
   listeners/      one file per Discord/Sapphire event listener (member join, leave and screening,
                   channel and role delete cleanup, chat rewards, the honeypot trigger and card re-post
-                  (`honeypot.ts`, `honeypot-card-delete.ts`), ready, a generic ephemeral reply
+                  after a single or bulk delete (`honeypot.ts`, `honeypot-card-delete.ts`,
+                  `honeypot-card-bulk-delete.ts`), ready, a generic ephemeral reply
                   when a command or handler throws, and a reply explaining why a precondition
                   denied a command, such as a cooldown)
 assets/fonts/     the OFL fonts used for image captions, each with its licence file
@@ -157,8 +158,8 @@ ID (see `features/gamba/custom-ids.ts`), so handlers must ignore IDs they cannot
 - **Ban Members** is required for the honeypot (`/settings honeypot`), together with Manage
   Messages in the honeypot channel. It softbans with `deleteMessageSeconds: 3600` and cannot ban
   members whose highest role is at or above the bot's.
-- **`Partials.Message`** (`src/client.ts`) lets `messageDelete` fire for an uncached honeypot card
-  so it can be re-posted. Do not remove it.
+- **`Partials.Message`** (`src/client.ts`) lets `messageDelete` and `messageDeleteBulk` include an
+  uncached honeypot card so it can be re-posted. Do not remove it.
 - Known limitation: a member who joined before a restart and passes Rules Screening after it may
   not get auto-roles, because the guild-member partial's old `pending` is unknown
   (`src/listeners/member-screening.ts`).

@@ -168,6 +168,25 @@ export async function onCardDeleted(message: {
   }
 }
 
+/** onCardDeleted for a bulk delete: re-posts once when `ids` holds the stored card. */
+export async function onCardsDeleted(guildId: string, ids: Iterable<string>): Promise<boolean> {
+  try {
+    const { messageId } = honeypot(container.db, guildId);
+    if (messageId === undefined) {
+      return false;
+    }
+    for (const id of ids) {
+      if (id === messageId) {
+        return await onCardDeleted({ id, guildId });
+      }
+    }
+    return false;
+  } catch (error) {
+    container.logger.warn('Honeypot card: could not handle a bulk delete', error);
+    return false;
+  }
+}
+
 /** Clears pending timers and chains; for tests. */
 export function resetCardSync(): void {
   const { timers, chains } = state();

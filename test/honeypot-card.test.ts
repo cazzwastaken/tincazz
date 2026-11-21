@@ -1,5 +1,5 @@
 import { container } from '@sapphire/framework';
-import { Events, MessageFlags, PermissionFlagsBits } from 'discord.js';
+import { Collection, Events, MessageFlags, PermissionFlagsBits } from 'discord.js';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createClient } from '../src/client.js';
 import { openDatabase } from '../src/db/index.js';
@@ -259,6 +259,30 @@ describe('honeypot card sync', () => {
     } as never);
     await vi.waitFor(() => expect(channel.send).toHaveBeenCalledTimes(1));
     expect(honeypot(container.db, '2').messageId).toBe('card-2');
+  });
+
+  it('re-posts the card once through the messageDeleteBulk listener', async () => {
+    channel.messages.edit.mockRejectedValue(unknownMessage);
+    const purged = new Collection([
+      ['card-1', { id: 'card-1', guildId: '2', channelId: '70', partial: true }],
+      ['other', { id: 'other', guildId: '2', channelId: '70', partial: true }],
+    ]);
+    client.emit(Events.MessageBulkDelete, purged as never, { id: '70', guildId: '2' } as never);
+    await vi.waitFor(() => expect(channel.send).toHaveBeenCalledTimes(1));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(channel.send).toHaveBeenCalledTimes(1);
+    expect(honeypot(container.db, '2').messageId).toBe('card-2');
+  });
+
+  it('ignores a bulk delete without the stored card', async () => {
+    const purged = new Collection([
+      ['a', { id: 'a', guildId: '2', channelId: '70', partial: true }],
+      ['b', { id: 'b', guildId: '2', channelId: '70', partial: true }],
+    ]);
+    client.emit(Events.MessageBulkDelete, purged as never, { id: '70', guildId: '2' } as never);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(channel.messages.edit).not.toHaveBeenCalled();
+    expect(channel.send).not.toHaveBeenCalled();
   });
 
   it('ignores the delete of a card the store no longer points at', async () => {
