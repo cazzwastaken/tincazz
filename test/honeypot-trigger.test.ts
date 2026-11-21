@@ -283,6 +283,35 @@ describe('handleHoneypotMessage', () => {
     expect(deps.log).toHaveBeenCalledTimes(1);
   });
 
+  it('deletes every message of a concurrent burst it cannot ban, logging once', async () => {
+    const high = { ...plain, roles: { highest: { position: 8 } } };
+    const messages = Array.from({ length: 5 }, () => makeMessage({ member: high }));
+    const outcomes = await Promise.all(messages.map((m) => handleHoneypotMessage(m, deps)));
+    expect(outcomes.sort()).toEqual(['busy', 'busy', 'busy', 'busy', 'failed']);
+    for (const m of messages) {
+      expect(m.delete).toHaveBeenCalled();
+      expect(m.guild.bans.create).not.toHaveBeenCalled();
+    }
+    expect(deps.log).toHaveBeenCalledTimes(1);
+    expect(deps.log).toHaveBeenCalledWith(
+      '2',
+      expect.objectContaining({ type: 'honeypot_failed' }),
+    );
+    expect(honeypot(container.db, '2').kicks).toBe(0);
+  });
+
+  it('deletes a message from a softbanned account that rejoins within the cooldown', async () => {
+    expect(await handleHoneypotMessage(makeMessage(), deps)).toBe('softbanned');
+    clock += 30_000;
+    const again = makeMessage();
+    expect(await handleHoneypotMessage(again, deps)).toBe('busy');
+    expect(again.delete).toHaveBeenCalled();
+    expect(again.guild.bans.create).not.toHaveBeenCalled();
+    expect(again.author.send).not.toHaveBeenCalled();
+    expect(deps.log).toHaveBeenCalledTimes(1);
+    expect(honeypot(container.db, '2').kicks).toBe(1);
+  });
+
   it('still bans when the DM fails', async () => {
     const m = makeMessage();
     m.author.send.mockRejectedValue(new Error('Cannot send messages to this user'));

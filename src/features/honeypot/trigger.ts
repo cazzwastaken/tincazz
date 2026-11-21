@@ -126,10 +126,10 @@ export async function handleHoneypotMessage(
     const key = guardKey(guildId, author.id);
     const claim = tryBegin(key, deps.now());
     if (!claim.begun) {
-      if (claim.blockedBy === 'failed') {
-        // Already logged once: keep the channel clean without flooding the mod log.
-        await deleteMessage(message);
-      }
+      // In flight, softbanned or failed: the account is already handled (and logged once), but a
+      // ban wipe may never come (failed, or a burst before it) or has already passed (a quick
+      // rejoin). Keep the channel clean without flooding the mod log.
+      await deleteMessage(message);
       return 'busy';
     }
 
