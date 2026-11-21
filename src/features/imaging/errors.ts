@@ -20,5 +20,7 @@ export const messages = {
   busyUser: 'You already have an image in progress.',
   busy: "I'm busy with other images, try again in a moment.",
   timeout: 'That took too long. Try a smaller image.',
+  emptyMessage: 'That message has no text or image I can use.',
+  messageNotFound: "I can't find that message.",
   noAttachFiles: 'I need the Attach Files permission in this channel.',
 } as const;

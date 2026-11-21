@@ -19,6 +19,9 @@ export const limits = {
   outputBytes: 10 * 1024 ** 2,
   captionChars: 200,
   captionLines: 5,
+  /** a message screenshot keeps this many lines and characters of text, then an ellipsis */
+  messageLines: 12,
+  messageChars: 600,
   jobTimeoutMs: 20_000,
   concurrency: 2,
   queueSize: 10,

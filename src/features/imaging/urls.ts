@@ -90,3 +90,26 @@ function trimUrl(url: string): string {
 export function extractUrls(text: string): string[] {
   return (text.match(/https?:\/\/[^\s<>]+/gi) ?? []).map(trimUrl);
 }
+
+function sameUrl(a: string, b: string): boolean {
+  try {
+    return new URL(a).href === new URL(b).href;
+  } catch {
+    return a === b;
+  }
+}
+
+/**
+ * Removes every occurrence of the link `target` (as {@link extractUrls} would find it, also inside
+ * `<>`) from `text`, keeping the punctuation after it. Other text and links stay.
+ */
+export function removeUrl(text: string, target: string): string {
+  return text.replace(
+    /(<?)(https?:\/\/[^\s<>]+)(>?)/gi,
+    (match, open: string, raw: string, close: string) => {
+      if (open && close) return sameUrl(raw, target) ? '' : match;
+      const url = trimUrl(raw);
+      return sameUrl(url, target) ? `${open}${raw.slice(url.length)}${close}` : match;
+    },
+  );
+}
