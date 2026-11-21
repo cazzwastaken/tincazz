@@ -78,7 +78,14 @@ function prefixMessage(
     attachment = false,
     canAttach = true,
     replyTo = null,
-  }: { attachment?: boolean; canAttach?: boolean; replyTo?: unknown } = {},
+    unfetchableReply = false,
+  }: {
+    attachment?: boolean;
+    canAttach?: boolean;
+    replyTo?: unknown;
+    /** a reply to a message that cannot be fetched (deleted) */
+    unfetchableReply?: boolean;
+  } = {},
 ) {
   const attachments = new Collection<string, unknown>();
   if (attachment) {
@@ -95,7 +102,10 @@ function prefixMessage(
     webhookId: null,
     system: false,
     attachments,
-    reference: replyTo ? { messageId: 'target', channelId: '3', guildId: '2', type: 0 } : null,
+    reference:
+      replyTo || unfetchableReply
+        ? { messageId: 'target', channelId: '3', guildId: '2', type: 0 }
+        : null,
     fetchReference: vi.fn(async () => replyTo),
     channelId: '3',
     guild: {
@@ -352,6 +362,22 @@ describe('bubbling a message', () => {
     // only the avatar is downloaded: the message has no image
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(String((fetchMock.mock.calls[0] as unknown[])[0])).toBe(avatar);
+  });
+
+  it('?bubble as a reply to a message that cannot be found says so, not the usage', async () => {
+    const fetchMock = stubFetch();
+    const message = prefixMessage('?bubble', 'u30', { unfetchableReply: true });
+    await runPrefix(message);
+
+    expect(message.reply).toHaveBeenCalledWith(messages.messageNotFound);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('?bubble as a reply with an attached image still uses the attachment', async () => {
+    stubFetch();
+    const message = prefixMessage('?bubble', 'u31', { attachment: true, unfetchableReply: true });
+    await runPrefix(message);
+    expect(sentFile(message.reply.mock.calls)).toBe('bubble.gif');
   });
 
   it('?bubble as a reply to an image-only message bubbles the image itself', async () => {

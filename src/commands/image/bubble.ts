@@ -142,7 +142,13 @@ export class BubbleCommand extends Command {
     }
     const op: ImageOperation = { kind: 'bubble', style: parsed.style, tail: parsed.tail };
     const inputs = await messageInputs(message, parsed, { reply: false });
-    const target = hasDirectSource(inputs) ? null : await repliedMessage(message);
+    const direct = hasDirectSource(inputs);
+    const target = direct ? null : await repliedMessage(message);
+    // A reply whose message cannot be used (deleted, another channel, a forward) is not "nothing
+    // given": say so instead of showing the usage.
+    if (!direct && !target && message.reference?.messageId) {
+      return message.reply(messages.messageNotFound);
+    }
     const result = target
       ? await produceMessageImage(
           await messageSnapshot(target, message.member),
