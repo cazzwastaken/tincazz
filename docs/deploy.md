@@ -15,6 +15,14 @@ permission in the Developer Portal, a `.env` variable or a `docker-compose.yml` 
 automatic and do not roll back on their own. The **Server Members Intent** in particular must be
 enabled first: the bot always requests it and cannot log in without it.
 
+Bot permissions:
+
+- **Manage Roles**: gamba jackpot roles and `/settings autorole`.
+- **Ban Members**: honeypot softbans.
+- **Manage Messages**: in the honeypot channel, to delete what the guard blocks.
+
+A running server must grant **Ban Members** before anyone uses `/settings honeypot`.
+
 ## One-time VPS setup
 
 After [installing Docker](https://docs.docker.com/engine/install/):

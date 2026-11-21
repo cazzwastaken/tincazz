@@ -45,7 +45,7 @@ function home(prefix: string): Page {
         (page) =>
           `### ${topicInfo[page].emoji} ${topicInfo[page].label}\n${homeSummary(page, prefix)}`,
       ),
-      `-# Also: \`/ping\`, \`/help\`. Admins: \`/settings\` (log channels, auto-roles, game channels) and \`/eco\`.`,
+      `-# Also: \`/ping\`, \`/help\`. Admins: \`/settings\` (log channels, auto-roles, game channels, honeypot) and \`/eco\`.`,
     ],
   };
 }
