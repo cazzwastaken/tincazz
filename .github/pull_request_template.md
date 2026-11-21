@@ -21,5 +21,5 @@ docker-compose.yml change. Write "None" if nothing. -->
 - [ ] Tests cover the new behavior or the fix
 - [ ] Schema changes come with a generated migration in `drizzle/`
 - [ ] New environment variables are in `src/config/env.ts` and `.env.example`
-- [ ] README / AGENTS.md updated if behavior or conventions changed
+- [ ] README, `/help`, `docs/games.md` and AGENTS.md updated if behavior, rules or conventions changed
 - [ ] No secrets, tokens or private IDs in the diff

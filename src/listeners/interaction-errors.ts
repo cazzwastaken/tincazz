@@ -1,11 +1,12 @@
 import {
   type ChatInputCommandErrorPayload,
+  type ContextMenuCommandErrorPayload,
   container,
   Events,
   type InteractionHandlerError,
   Listener,
 } from '@sapphire/framework';
-import { type Interaction, MessageFlags } from 'discord.js';
+import { type ContextMenuCommandInteraction, type Interaction, MessageFlags } from 'discord.js';
 
 const genericError = {
   content: 'Something went wrong running that. It has been logged.',
@@ -16,7 +17,9 @@ const genericError = {
  * Tells the user a command failed. Sapphire's core listeners already log the error itself, so this
  * only replies; a failing reply (for example an expired token) is logged, never thrown.
  */
-export async function replyWithGenericError(interaction: Interaction): Promise<void> {
+export async function replyWithGenericError(
+  interaction: Interaction | ContextMenuCommandInteraction,
+): Promise<void> {
   if (!interaction.isRepliable()) return;
   try {
     if (interaction.replied || interaction.deferred) {
@@ -38,6 +41,16 @@ export class ChatInputCommandErrorListener extends Listener {
   }
 
   public override async run(_error: Error, { interaction }: ChatInputCommandErrorPayload) {
+    await replyWithGenericError(interaction);
+  }
+}
+
+export class ContextMenuCommandErrorListener extends Listener {
+  public constructor(context: Listener.LoaderContext) {
+    super(context, { name: 'ContextMenuCommandErrorReply', event: Events.ContextMenuCommandError });
+  }
+
+  public override async run(_error: Error, { interaction }: ContextMenuCommandErrorPayload) {
     await replyWithGenericError(interaction);
   }
 }

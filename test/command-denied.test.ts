@@ -69,3 +69,10 @@ it('logs a failing reply instead of throwing', async () => {
   client.emit(Events.MessageCommandDenied, denied(), { message } as never);
   await vi.waitFor(() => expect(warn).toHaveBeenCalledTimes(2));
 });
+
+it('replies ephemerally to a denied context menu command', async () => {
+  const interaction = interactionStub();
+  client.emit(Events.ContextMenuCommandDenied, denied(), { interaction } as never);
+  await vi.waitFor(() => expect(interaction.reply).toHaveBeenCalledTimes(1));
+  expect(interaction.reply).toHaveBeenCalledWith(errorReply('Wait 5s'));
+});

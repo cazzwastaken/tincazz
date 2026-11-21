@@ -6,12 +6,19 @@ import {
   captionFontFile,
   emojiFontFile,
   ensureFonts,
+  messageFont,
+  messageFontFiles,
 } from '../src/features/imaging/index.js';
 
 describe('imaging fonts', () => {
   it('font files exist', () => {
     expect(existsSync(captionFontFile)).toBe(true);
     expect(existsSync(emojiFontFile)).toBe(true);
+    for (const file of messageFontFiles) expect(existsSync(file)).toBe(true);
+  });
+
+  it('messageFont falls back to Noto Emoji too', () => {
+    expect(messageFont(16)).toBe('Noto Sans, Noto Emoji 16');
   });
 
   it('captionFont uses the comma form', () => {

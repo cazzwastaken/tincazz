@@ -6,11 +6,25 @@ type Interaction = Parameters<typeof interactionMentionNames>[0];
 
 const ids = ['1', '22', '333', '4444', '55555'];
 
+const viewer = { id: 'v' };
+const canView = { has: () => true };
+
 const interaction = {
+  guildId: 'g',
+  user: { id: 'v' },
   guild: {
-    members: { cache: new Map(ids.map((id) => [id, { displayName: `m${id}` }])) },
+    members: {
+      cache: new Map([...ids.map((id) => [id, { displayName: `m${id}` }]), ['v', viewer]] as [
+        string,
+        object,
+      ][]),
+    },
     roles: { cache: new Map(ids.map((id) => [id, { name: `r${id}` }])) },
-    channels: { cache: new Map(ids.map((id) => [id, { name: `c${id}` }])) },
+    channels: {
+      cache: new Map(
+        ids.map((id) => [id, { name: `c${id}`, guildId: 'g', permissionsFor: () => canView }]),
+      ),
+    },
   },
   client: { users: { cache: new Map(ids.map((id) => [id, { globalName: null, username: id }])) } },
 } as unknown as Interaction;
@@ -64,6 +78,28 @@ describe('interactionMentionNames properties', () => {
         expect(names.users.get(id)).toBe(`m${id}`);
         expect(names.roles.get(id)).toBe(`r${id}`);
         expect(names.channels.get(id)).toBe(`c${id}`);
+      }),
+    );
+  });
+
+  it('names no channel when the invoker cannot see any', () => {
+    const blind = {
+      ...interaction,
+      guild: {
+        ...(interaction as unknown as { guild: object }).guild,
+        channels: {
+          cache: new Map(
+            ids.map((id) => [
+              id,
+              { name: `c${id}`, guildId: 'g', permissionsFor: () => ({ has: () => false }) },
+            ]),
+          ),
+        },
+      },
+    } as unknown as Interaction;
+    fc.assert(
+      fc.property(texts, (text) => {
+        expect(interactionMentionNames(blind, text).channels.size).toBe(0);
       }),
     );
   });

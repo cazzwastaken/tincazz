@@ -1,6 +1,7 @@
 import { AttachmentBuilder, Collection, PermissionFlagsBits, StickerFormatType } from 'discord.js';
 import { describe, expect, it, vi } from 'vitest';
 import {
+  attachmentData,
   avatarUrl,
   canAttachFiles,
   commandPrefix,
@@ -174,12 +175,18 @@ describe('messageInputs', () => {
     const text = {
       url: 'https://cdn.discordapp.com/attachments/1/2/notes.txt',
       contentType: 'text/plain',
+      spoiler: false,
     };
     const image = {
       url: 'https://cdn.discordapp.com/attachments/1/2/cat.png',
       contentType: 'image/png',
+      spoiler: false,
     };
-    const unknown = { url: 'https://cdn.discordapp.com/attachments/1/2/x', contentType: null };
+    const unknown = {
+      url: 'https://cdn.discordapp.com/attachments/1/2/x',
+      contentType: null,
+      spoiler: false,
+    };
     const inputs = (entries: [string, object][]) =>
       messageInputs(base({ attachments: new Collection(entries) }), {});
     expect(
@@ -204,39 +211,84 @@ describe('messageInputs', () => {
   });
 });
 
+describe('attachmentData', () => {
+  it('carries the spoiler flag', () => {
+    const url = 'https://cdn.discordapp.com/attachments/1/2/SPOILER_a.png';
+    expect(attachmentData({ url, contentType: 'image/png', spoiler: true }).spoiler).toBe(true);
+    expect(attachmentData({ url, contentType: 'image/png' }).spoiler).toBe(false);
+  });
+});
+
 describe('mention names', () => {
+  const viewer = (visible: string[]) =>
+    cast<Parameters<typeof messageMentionNames>[1]>({ id: 'v', visible });
+  /** A channel in guild `g`; the stub `permissionsFor` reads `visible` off the viewer. */
+  const channel = (id: string, name: string, guildId = 'g') => ({
+    id,
+    name,
+    guildId,
+    permissionsFor: (member: { visible: string[] }) => ({
+      has: (bit: bigint) => bit === PermissionFlagsBits.ViewChannel && member.visible.includes(id),
+    }),
+  });
+  const mentioning = (channels: ReturnType<typeof channel>[]) =>
+    cast<Parameters<typeof messageMentionNames>[0]>({
+      guildId: 'g',
+      mentions: {
+        users: col([['1', { id: '1', globalName: 'Global', username: 'user' }]]),
+        members: col([['1', { id: '1', displayName: 'Nick' }]]),
+        roles: col([['2', { id: '2', name: 'Mods' }]]),
+        channels: col(channels.map((c) => [c.id, c])),
+      },
+    });
+
   it('prefers member display names for a message', () => {
-    const names = messageMentionNames(
-      cast({
-        mentions: {
-          users: col([['1', { id: '1', globalName: 'Global', username: 'user' }]]),
-          members: col([['1', { id: '1', displayName: 'Nick' }]]),
-          roles: col([['2', { id: '2', name: 'Mods' }]]),
-          channels: col([['3', { id: '3', name: 'general' }]]),
-        },
-      }),
-    );
+    const names = messageMentionNames(mentioning([channel('3', 'general')]), viewer(['3']));
     expect(names.users.get('1')).toBe('Nick');
     expect(names.roles.get('2')).toBe('Mods');
     expect(names.channels.get('3')).toBe('general');
   });
 
+  it('only names channels the invoker can see', () => {
+    const message = mentioning([channel('3', 'general'), channel('4', 'staff-only')]);
+    expect([...messageMentionNames(message, viewer(['3'])).channels]).toEqual([['3', 'general']]);
+    expect(messageMentionNames(message, viewer([])).channels.size).toBe(0);
+    expect(messageMentionNames(message, null).channels.size).toBe(0);
+  });
+
+  it('never names a channel of another guild', () => {
+    const message = mentioning([channel('3', 'elsewhere', 'other')]);
+    expect(messageMentionNames(message, viewer(['3'])).channels.size).toBe(0);
+  });
+
   it('looks up only the ids in the slash text', () => {
     const interaction = cast<Parameters<typeof interactionMentionNames>[0]>({
+      guildId: 'g',
+      user: { id: 'v' },
       guild: {
-        members: { cache: col([['1', { displayName: 'Nick' }]]) },
+        members: {
+          cache: col([
+            ['1', { displayName: 'Nick' }],
+            ['v', { id: 'v', visible: ['3'] }],
+          ]),
+        },
         roles: { cache: col([['2', { name: 'Mods' }]]) },
-        channels: { cache: col([['3', { name: 'general' }]]) },
+        channels: {
+          cache: col([
+            ['3', channel('3', 'general')],
+            ['6', channel('6', 'staff-only')],
+          ]),
+        },
       },
       client: { users: { cache: col([['4', { globalName: null, username: 'plain' }]]) } },
     });
-    const names = interactionMentionNames(interaction, '<@1> <@!4> <@&2> <#3> <@5>');
+    const names = interactionMentionNames(interaction, '<@1> <@!4> <@&2> <#3> <#6> <@5>');
     expect([...names.users]).toEqual([
       ['1', 'Nick'],
       ['4', 'plain'],
     ]);
     expect(names.roles.get('2')).toBe('Mods');
-    expect(names.channels.get('3')).toBe('general');
+    expect([...names.channels]).toEqual([['3', 'general']]);
   });
 });
 
@@ -252,14 +304,14 @@ describe('produceImage', () => {
     expect(fetcher).toHaveBeenCalled();
   });
 
-  it('names a meme meme.gif', async () => {
+  it('names a caption caption.gif', async () => {
     const png = await makePng({ width: 40, height: 30 });
     const fetcher = vi.fn<Fetcher>(async () => new Response(Buffer.from(png)));
-    const result = await produceImage({ url }, { kind: 'meme', text: 'hi' }, 'u1', {
+    const result = await produceImage({ url }, { kind: 'caption', text: 'hi' }, 'u1', {
       fetch: fetcher,
       jobs: new ImageJobs(),
     });
-    expect('file' in result && result.file.name).toBe('meme.gif');
+    expect('file' in result && result.file.name).toBe('caption.gif');
   });
 
   it('returns the message for a disallowed url without fetching', async () => {

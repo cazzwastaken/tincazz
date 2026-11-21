@@ -1,7 +1,7 @@
 import { Collection, Events, MessageFlags, PermissionFlagsBits } from 'discord.js';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createClient } from '../src/client.js';
-import { memeUsage, messages } from '../src/features/imaging/index.js';
+import { captionUsage, messages } from '../src/features/imaging/index.js';
 import { errorReply } from '../src/features/ui/index.js';
 import { testEnv } from './support/env.js';
 import { makeGif } from './support/images.js';
@@ -44,7 +44,7 @@ function stubFetch() {
 
 /** A slash interaction with the extra option and reply stubs the image commands use. */
 function slash(userId: string, options: Record<string, unknown> = {}) {
-  const base = makeChatInput(client, { commandName: 'meme', userId, options });
+  const base = makeChatInput(client, { commandName: 'caption', userId, options });
   const interaction = Object.assign(base, {
     options: { ...base.options, getAttachment: () => null },
     deferReply: vi.fn(async () => {
@@ -137,8 +137,8 @@ const runSlashReply = async (interaction: ReturnType<typeof slash>) => {
   await vi.waitFor(() => expect(interaction.reply).toHaveBeenCalled(), { timeout: 10000 });
 };
 
-describe('/meme', () => {
-  it('defers publicly then edits in one meme.gif', async () => {
+describe('/caption', () => {
+  it('defers publicly then edits in one caption.gif', async () => {
     const fetchMock = stubFetch();
     const interaction = slash('m1', { text: 'do not run python', url: tenor });
     await runSlash(interaction);
@@ -149,7 +149,7 @@ describe('/meme', () => {
       { files: { name: string }[] },
     ];
     expect(options.files).toHaveLength(1);
-    expect(options.files[0]?.name).toBe('meme.gif');
+    expect(options.files[0]?.name).toBe('caption.gif');
     expect(interaction.followUp).not.toHaveBeenCalled();
   });
 
@@ -204,15 +204,15 @@ describe('/meme', () => {
   });
 });
 
-describe('?meme', () => {
+describe('?caption', () => {
   it('captions an attached image, resolving mentions', async () => {
     stubFetch();
-    const message = prefixMessage('?meme <@1> when it works', 'm5', { attachment: true });
+    const message = prefixMessage('?caption <@1> when it works', 'm5', { attachment: true });
     await runPrefix(message);
 
     const [options] = message.reply.mock.calls[0] as unknown as [{ files: { name: string }[] }];
     expect(options.files).toHaveLength(1);
-    expect(options.files[0]?.name).toBe('meme.gif');
+    expect(options.files[0]?.name).toBe('caption.gif');
     expect(message.channel.sendTyping).toHaveBeenCalled();
   });
 
@@ -229,7 +229,7 @@ describe('?meme', () => {
       stickers: new Collection<string, unknown>(),
       content: '',
     };
-    const message = prefixMessage('?meme from a reply', 'm11', { replyTo: replied });
+    const message = prefixMessage('?caption from a reply', 'm11', { replyTo: replied });
     await runPrefix(message);
 
     expect(String((fetchMock.mock.calls[0] as unknown[])[0])).toContain('cdn.discordapp.com');
@@ -238,7 +238,7 @@ describe('?meme', () => {
 
   it('uses a leading link as the source', async () => {
     const fetchMock = stubFetch();
-    const message = prefixMessage('?meme https://media.tenor.com/a.gif hello', 'm6');
+    const message = prefixMessage('?caption https://media.tenor.com/a.gif hello', 'm6');
     await runPrefix(message);
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -248,16 +248,16 @@ describe('?meme', () => {
 
   it('replies with the usage when there is no text', async () => {
     const fetchMock = stubFetch();
-    const message = prefixMessage('?meme', 'm7', { attachment: true });
+    const message = prefixMessage('?caption', 'm7', { attachment: true });
     await runPrefix(message);
 
-    expect(message.reply).toHaveBeenCalledWith(memeUsage('?'));
+    expect(message.reply).toHaveBeenCalledWith(captionUsage('?'));
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('refuses a caption over the limit', async () => {
     const fetchMock = stubFetch();
-    const message = prefixMessage(`?meme ${'a'.repeat(201)}`, 'm8', { attachment: true });
+    const message = prefixMessage(`?caption ${'a'.repeat(201)}`, 'm8', { attachment: true });
     await runPrefix(message);
 
     expect(message.reply).toHaveBeenCalledWith(messages.captionTooLongChars);
@@ -266,7 +266,7 @@ describe('?meme', () => {
 
   it('asks for Attach Files when the bot lacks it', async () => {
     const fetchMock = stubFetch();
-    const message = prefixMessage('?meme hi', 'm9', { attachment: true, canAttach: false });
+    const message = prefixMessage('?caption hi', 'm9', { attachment: true, canAttach: false });
     await runPrefix(message);
 
     expect(message.reply).toHaveBeenCalledWith(messages.noAttachFiles);

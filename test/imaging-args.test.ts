@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   bubbleUsage,
+  captionUsage,
   commandRemainder,
-  memeUsage,
   parseBubbleArgs,
-  parseMemeArgs,
+  parseCaptionArgs,
 } from '../src/features/imaging/index.js';
 
 describe('parseBubbleArgs', () => {
@@ -49,38 +49,38 @@ describe('parseBubbleArgs', () => {
   });
 });
 
-describe('parseMemeArgs', () => {
+describe('parseCaptionArgs', () => {
   it('takes a leading url as the source', () => {
-    expect(parseMemeArgs('https://media.tenor.com/a.gif when it works')).toEqual({
+    expect(parseCaptionArgs('https://media.tenor.com/a.gif when it works')).toEqual({
       url: 'https://media.tenor.com/a.gif',
       text: 'when it works',
     });
-    expect(parseMemeArgs('<https://media.tenor.com/a.gif> hi')).toEqual({
+    expect(parseCaptionArgs('<https://media.tenor.com/a.gif> hi')).toEqual({
       url: 'https://media.tenor.com/a.gif',
       text: 'hi',
     });
   });
 
   it('never takes mentions as sources and keeps newlines', () => {
-    expect(parseMemeArgs('<@1> when\nthe build passes')).toEqual({
+    expect(parseCaptionArgs('<@1> when\nthe build passes')).toEqual({
       text: '<@1> when\nthe build passes',
     });
   });
 
   it('does not take a later url', () => {
-    expect(parseMemeArgs('look https://media.tenor.com/a.gif').url).toBeUndefined();
+    expect(parseCaptionArgs('look https://media.tenor.com/a.gif').url).toBeUndefined();
   });
 });
 
 describe('commandRemainder', () => {
   it('keeps newlines after the invoked name', () => {
-    expect(commandRemainder('?Meme  top\nbottom', '?', 'meme')).toBe('top\nbottom');
+    expect(commandRemainder('?Caption  top\nbottom', '?', 'caption')).toBe('top\nbottom');
   });
 
   it('requires a word boundary and the prefix', () => {
-    expect(commandRemainder('?memex hi', '?', 'meme')).toBe('');
-    expect(commandRemainder('meme hi', '?', 'meme')).toBe('');
-    expect(commandRemainder('?meme', '?', 'meme')).toBe('');
+    expect(commandRemainder('?captionx hi', '?', 'caption')).toBe('');
+    expect(commandRemainder('caption hi', '?', 'caption')).toBe('');
+    expect(commandRemainder('?caption', '?', 'caption')).toBe('');
   });
 
   it('works with alias and multi-character prefixes', () => {
@@ -91,10 +91,10 @@ describe('commandRemainder', () => {
 describe('usage', () => {
   it('mentions the prefix', () => {
     expect(bubbleUsage('?')).toBe(
-      'Usage: `?bubble [white|transparent] [left|right] [link | @user]`, with an image attached or as a reply to one. Or use `/bubble`.',
+      'Usage: `?bubble [white|transparent] [left|right] [link | @user]`, with an image attached or as a reply to an image or a message (a message with text becomes a screenshot). Or use `/bubble`, or right-click a message > Apps > Bubble message.',
     );
-    expect(memeUsage('?')).toBe(
-      'Usage: `?meme <text>`, with an image attached or as a reply to one. Or use `/meme`.',
+    expect(captionUsage('?')).toBe(
+      'Usage: `?caption <text>`, with an image attached or as a reply to one. Or use `/caption`.',
     );
   });
 });

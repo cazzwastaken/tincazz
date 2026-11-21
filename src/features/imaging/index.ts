@@ -2,10 +2,10 @@ export {
   type BubbleArgs,
   type BubbleStyle,
   bubbleUsage,
+  captionUsage,
   commandRemainder,
-  memeUsage,
   parseBubbleArgs,
-  parseMemeArgs,
+  parseCaptionArgs,
   type TailSide,
 } from './args.js';
 export { applyBubble, type BubbleGeometry, bubbleGeometry, bubbleSvg } from './bubble.js';
@@ -16,12 +16,18 @@ export {
   attachmentData,
   avatarUrl,
   canAttachFiles,
+  canReadHistory,
   commandPrefix,
   interactionInputs,
   interactionMentionNames,
+  invokerMember,
+  linkedMessage,
   messageInputs,
   messageMentionNames,
+  messageSnapshot,
   produceImage,
+  produceMessageImage,
+  repliedMessage,
   replyData,
   replyWithImage,
   slashUsage,
@@ -29,9 +35,36 @@ export {
 export { encodeGif, type GifTuning } from './encode.js';
 export { ImagingError, messages } from './errors.js';
 export { downloadImage, type Fetcher, type ImageFormat, sniffImage } from './fetch.js';
-export { captionFont, captionFontFile, emojiFontFile, ensureFonts } from './fonts.js';
+export {
+  captionFont,
+  captionFontFile,
+  emojiFontFile,
+  ensureFonts,
+  messageFont,
+  messageFontFiles,
+} from './fonts.js';
 export { type Frames, fromSharp, halveFrames, sampleGroups, toSharp } from './frames.js';
 export { ImageJobs, imageJobs } from './jobs.js';
+export { type MessageLink, messageLinkUrl, parseMessageLink } from './links.js';
+export {
+  attachmentPreview,
+  avatarCircle,
+  bubbleHeadroom,
+  cleanName,
+  composeScreenshot,
+  contentWidth,
+  discordColors,
+  fitImage,
+  formatTimestamp,
+  layoutScreenshot,
+  type MessageSnapshot,
+  messageMarkup,
+  nameColor,
+  renderScreenshot,
+  type ScreenshotLayout,
+  type ScreenshotParts,
+  screenshot,
+} from './message.js';
 export {
   type ImageOperation,
   type MeasuredEncode,
@@ -43,11 +76,23 @@ export {
 export {
   type AttachmentData,
   type EmbedData,
+  hasDirectSource,
+  type MessageSource,
+  messageSource,
   pickSource,
   type ReplyData,
   type SourceInputs,
   type SourcePick,
   type StickerData,
 } from './source.js';
-export { escapeMarkup, type MentionNames, noMentionNames, sanitizeCaption } from './text.js';
-export { checkUrl, extractUrls, isAllowedHost, type UrlCheck } from './urls.js';
+export {
+  cleanMessageText,
+  escapeMarkup,
+  type MentionNames,
+  noMentionNames,
+  runsText,
+  sanitizeCaption,
+  stripMarkdown,
+  type TextRun,
+} from './text.js';
+export { checkUrl, extractUrls, isAllowedHost, removeUrl, type UrlCheck } from './urls.js';

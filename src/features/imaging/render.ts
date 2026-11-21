@@ -9,7 +9,7 @@ import { type Frames, halveFrames } from './frames.js';
 
 export type ImageOperation =
   | { kind: 'bubble'; style: BubbleStyle; tail: TailSide }
-  | { kind: 'meme'; text: string };
+  | { kind: 'caption'; text: string };
 
 export interface RenderResult {
   gif: Buffer;

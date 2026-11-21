@@ -49,10 +49,10 @@ export function parseBubbleArgs(rest: string): BubbleArgs | { error: 'usage' } {
 }
 
 /**
- * Parses the words after `?meme`: an optional leading link, then the caption (newlines kept).
+ * Parses the words after `?caption`: an optional leading link, then the caption (newlines kept).
  * The allowlist check happens later, when the source is picked.
  */
-export function parseMemeArgs(rest: string): { url?: string; text: string } {
+export function parseCaptionArgs(rest: string): { url?: string; text: string } {
   const trimmed = rest.trim();
   const match = /^(\S+)(?:\s+([\s\S]*))?$/.exec(trimmed);
   const urlMatch = match?.[1] ? urlToken.exec(match[1]) : null;
@@ -72,9 +72,9 @@ export function commandRemainder(content: string, prefix: string, commandName: s
 }
 
 export function bubbleUsage(prefix: string): string {
-  return `Usage: \`${prefix}bubble [white|transparent] [left|right] [link | @user]\`, with an image attached or as a reply to one. Or use \`/bubble\`.`;
+  return `Usage: \`${prefix}bubble [white|transparent] [left|right] [link | @user]\`, with an image attached or as a reply to an image or a message (a message with text becomes a screenshot). Or use \`/bubble\`, or right-click a message > Apps > Bubble message.`;
 }
 
-export function memeUsage(prefix: string): string {
-  return `Usage: \`${prefix}meme <text>\`, with an image attached or as a reply to one. Or use \`/meme\`.`;
+export function captionUsage(prefix: string): string {
+  return `Usage: \`${prefix}caption <text>\`, with an image attached or as a reply to one. Or use \`/caption\`.`;
 }

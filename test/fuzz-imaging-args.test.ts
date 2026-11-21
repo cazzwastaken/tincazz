@@ -1,14 +1,18 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
-import { commandRemainder, parseBubbleArgs, parseMemeArgs } from '../src/features/imaging/index.js';
+import {
+  commandRemainder,
+  parseBubbleArgs,
+  parseCaptionArgs,
+} from '../src/features/imaging/index.js';
 
 describe('args fuzz', () => {
   it('never throws on any string', () => {
     fc.assert(
       fc.property(fc.string({ unit: 'binary' }), fc.string(), (x, p) => {
         parseBubbleArgs(x);
-        parseMemeArgs(x);
-        commandRemainder(x, p, 'meme');
+        parseCaptionArgs(x);
+        commandRemainder(x, p, 'caption');
       }),
     );
   });
@@ -64,7 +68,7 @@ describe('args fuzz', () => {
         fc.string(),
         (rest, extra) => {
           const text = ` ${rest}${extra}`;
-          expect(commandRemainder(`?meme${text}`, '?', 'meme')).toBe(text.trim());
+          expect(commandRemainder(`?caption${text}`, '?', 'caption')).toBe(text.trim());
         },
       ),
     );

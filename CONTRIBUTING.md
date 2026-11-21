@@ -2,8 +2,9 @@
 
 Thanks for wanting to help. Bug reports, ideas and pull requests are all welcome. This guide covers
 how to get set up and what a pull request needs to be merged. [AGENTS.md](AGENTS.md) holds the
-full conventions (layout, database, Discord quirks, economy rules) and applies to humans as much as
-to AI agents.
+full conventions (layout, a "where to change things" table, database, Discord quirks, economy rules)
+and applies to humans as much as to AI agents. Game rules for players are in
+[docs/games.md](docs/games.md), and the operator guide is [docs/deploy.md](docs/deploy.md).
 
 By taking part you agree to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
 
@@ -27,7 +28,7 @@ to test with. Do not test against the production bot.
 
 1. Fork the repository and clone your fork.
 2. Create a test application and bot as described in
-   [Create the bot](README.md#create-the-bot-once), and invite it to a private test server.
+   [Add it to your server](README.md#add-it-to-your-server), and invite it to a private test server.
 3. Install and run:
 
    ```sh
@@ -50,7 +51,9 @@ The SQLite database is created under `./data/` on first start.
    migration in `drizzle/` with it.
 6. If you add an environment variable, add it to the zod schema in `src/config/env.ts` **and** to
    `.env.example` in the same commit. Read config only through `parseEnv`.
-7. Update the README when user-visible behavior changes, and AGENTS.md when a convention changes.
+7. Keep the docs in step: the README feature list and the `/help` cards for user-visible behavior,
+   [docs/games.md](docs/games.md) for rule or payout changes, and AGENTS.md (layout, conventions)
+   plus this file when a convention changes.
 
 ## Checks
 
@@ -60,7 +63,7 @@ CI runs exactly this, and a pull request cannot be merged until it passes:
 pnpm lint && pnpm typecheck && pnpm test && pnpm build
 ```
 
-`pnpm lint:fix` applies Biome's formatting and safe fixes. CI also fails when `drizzle/` and the
+`pnpm lint:fix` applies Biome's formatting and safe fixes (Markdown included). CI also fails when `drizzle/` and the
 schema drift apart, and builds the Docker image for every pull request.
 
 ## Tests
@@ -92,7 +95,8 @@ The economy is balanced deliberately. Changes here get extra review:
 - Image commands fetch sources only from the allowlist in `src/features/imaging/urls.ts`; never
   widen it to arbitrary hosts (SSRF).
 - Add fonts to `assets/fonts/` only if they are OFL (or similarly licensed), with their licence
-  file. The runtime image needs `fontconfig` and `assets/` to render captions.
+  file. The runtime image needs `fontconfig` and `assets/` to render captions and message
+  screenshots.
 
 Explain the reasoning (and the numbers) in the pull request.
 
@@ -118,7 +122,8 @@ type(scope): imperative summary in lower case
   focused on one thing.
 - Include screenshots of new or changed cards and messages.
 - Mention any manual step a deploy needs: a new intent or permission, a `.env` variable or a
-  `docker-compose.yml` change. Merges to `main` deploy automatically, so these must be done first.
+  `docker-compose.yml` change. Merges to `main` deploy automatically, so these must be done first
+  (see [docs/deploy.md](docs/deploy.md)).
 - A maintainer reviews every PR. Address feedback with new commits; force-pushing your own branch is
   fine, force-pushing `main` never is.
 
