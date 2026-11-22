@@ -23,14 +23,13 @@ import {
   cannotChallengeBot,
   cannotChallengeSelf,
   challengeCard,
-  challengeClosedCard,
   coinflip,
   flipErrorText,
   flipUsage,
   memberNotFound,
   parseFlipArgs,
-  scheduleExpiry,
   settleBotFlip,
+  trackChallengeCard,
   wager,
 } from '../../features/coinflip/index.js';
 import { getOrCreateWallet } from '../../features/economy/index.js';
@@ -45,9 +44,8 @@ interface FlipSurface {
   guildId: string;
   /**
    * Posts a card. Mentions stay suppressed except for `mentions`, the only users it may ping.
-   * Resolves to the posted message when it is known.
    */
-  reply(card: ContainerBuilder, mentions?: string[]): Promise<Message | undefined>;
+  reply(card: ContainerBuilder, mentions?: string[]): Promise<Message>;
   /** Replaces the card posted by `reply`. */
   edit(card: ContainerBuilder): Promise<unknown>;
   /** Shows an animated game: the first card, then edits of it. */
@@ -192,7 +190,7 @@ export class CoinflipCommand extends Command {
           ...mentionOnly(mentions),
           withResponse: true,
         });
-        return resource?.message ?? undefined;
+        return resource?.message ?? interaction.fetchReply();
       },
       edit: (card) => interaction.editReply(cardReply(card)),
       display: replyDisplay(interaction),
@@ -265,10 +263,6 @@ export class CoinflipCommand extends Command {
 
     // Only a named opponent is pinged; an open challenge pings nobody.
     const sent = await surface.reply(challengeCard(view), opponent ? [opponent.id] : undefined);
-    if (sent?.id) {
-      scheduleExpiry(sent.id, view.expiresAt - now, () =>
-        surface.edit(challengeClosedCard(view, 'expired')),
-      );
-    }
+    trackChallengeCard(surface.channelId, sent.id, view, surface.edit);
   }
 }

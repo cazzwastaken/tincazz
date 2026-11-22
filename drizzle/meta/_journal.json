@@ -57,6 +57,20 @@
       "when": 1795277128520,
       "tag": "0007_honeypot",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1795360096362,
+      "tag": "0008_game_channels_restricted",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1795360382897,
+      "tag": "0009_pending_coinflip_challenges",
+      "breakpoints": true
     }
   ]
 }

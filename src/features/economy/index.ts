@@ -7,6 +7,7 @@ export * from './collect.js';
 export * from './config.js';
 export * from './daily.js';
 export * from './errors.js';
+export * from './history.js';
 export * from './ledger.js';
 export * from './prune.js';
 export * from './time.js';

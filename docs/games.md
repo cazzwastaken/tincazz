@@ -4,8 +4,11 @@ Player-facing rules for the games. The `/help` command in Discord always shows t
 (it is built from the same config as the games), so trust it if this page ever disagrees.
 
 Everyone starts with 1,000 coins. Earn more with `/daily`, `/collect`, `/bailout` and by chatting;
-see `/help topic:coins`. Server admins can limit the games to certain channels with
-`/settings games allow`.
+see `/help topic:coins`. Games are available in every channel by default. Server admins can limit
+them to certain channels with `/settings games allow`; threads follow their parent channel.
+Removing or deleting the last allowed channel pauses games across the server. To resume, allow
+another channel or use `/settings games reset` to allow every channel again. The bot notifies the
+configured mod log when a game channel is deleted, unless that log channel was deleted too.
 
 ## Gamba
 
@@ -51,6 +54,8 @@ and no buttons.
 - **bot**: flip against the bot.
 - **challenge**: challenge a member. They have 60 seconds to accept.
 - **open**: anyone can accept within 120 seconds.
+- Pending challenges keep their original deadline across bot restarts. If they expire while the
+  bot is offline, it updates the cards when it comes back.
 - The winner takes the pool minus a 3% rake (at least 1 coin) that goes into the gamba pot. Against
   the bot a win nets your bet minus the rake and a loss costs the bet.
 - The coin spins for a few seconds before the result shows.

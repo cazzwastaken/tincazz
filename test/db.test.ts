@@ -1,7 +1,18 @@
-import { existsSync, mkdtempSync, rmSync } from 'node:fs';
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { container } from '@sapphire/framework';
+import Database from 'better-sqlite3';
+import { drizzle } from 'drizzle-orm/better-sqlite3';
+import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { closeDatabase, openDatabase } from '../src/db/index.js';
 import {
@@ -48,6 +59,7 @@ describe('database', () => {
       'guild_settings',
       'job_runs',
       'ledger',
+      'pending_coinflip_challenges',
       'player_stats',
       'pots',
       'rolls',
@@ -172,6 +184,8 @@ describe('database', () => {
     const path = join(dir, 'tincazz.db');
     const first = openDatabase(path);
     first.insert(pots).values({ guildId: 'g', amount: 7 }).run();
+    const migrationCount = first.$client.prepare('select count(*) from __drizzle_migrations');
+    const applied = migrationCount.pluck().get();
     closeDatabase(first);
 
     const second = openDatabase(path);
@@ -180,9 +194,57 @@ describe('database', () => {
       { guildId: 'g', amount: 7, lastWinnerId: null, lastWonAt: null },
     ]);
     expect(second.$client.prepare('select count(*) from __drizzle_migrations').pluck().get()).toBe(
-      8,
+      applied,
     );
     closeDatabase(second);
+  });
+
+  it('keeps existing game-channel allowlists restricted on upgrade', () => {
+    const source = new URL('../drizzle/', import.meta.url);
+    const legacy = join(dir, 'legacy');
+    mkdirSync(join(legacy, 'meta'), { recursive: true });
+    const journal = JSON.parse(readFileSync(new URL('meta/_journal.json', source), 'utf8')) as {
+      entries: { tag: string }[];
+    };
+    const entries = journal.entries.slice(
+      0,
+      journal.entries.findIndex(({ tag }) => tag === '0008_game_channels_restricted'),
+    );
+    writeFileSync(join(legacy, 'meta', '_journal.json'), JSON.stringify({ ...journal, entries }));
+    for (const { tag } of entries) {
+      copyFileSync(new URL(`${tag}.sql`, source), join(legacy, `${tag}.sql`));
+    }
+
+    const path = join(dir, 'legacy.db');
+    const sqlite = new Database(path);
+    try {
+      migrate(drizzle(sqlite), { migrationsFolder: legacy });
+      sqlite.exec(`
+        INSERT INTO guild_settings (guild_id, mod_log_channel_id, updated_at)
+        VALUES ('configured', 'logs', 10), ('unrestricted', NULL, 20);
+        INSERT INTO guild_game_channels (guild_id, channel_id, created_at)
+        VALUES ('configured', 'games', 30), ('channel-only', 'games', 40);
+      `);
+    } finally {
+      sqlite.close();
+    }
+    const db = openDatabase(path);
+    try {
+      expect(db.select().from(guildSettings).all()).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            guildId: 'configured',
+            gameChannelsRestricted: true,
+            modLogChannelId: 'logs',
+            updatedAt: 10,
+          }),
+          expect.objectContaining({ guildId: 'channel-only', gameChannelsRestricted: true }),
+          expect.objectContaining({ guildId: 'unrestricted', gameChannelsRestricted: false }),
+        ]),
+      );
+    } finally {
+      closeDatabase(db);
+    }
   });
 
   it('stores a flip and rejects a second flip for the same message', () => {

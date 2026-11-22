@@ -1,3 +1,4 @@
+import type { LedgerReason } from '../../db/schema.js';
 import { accents, card, coins, discordTime } from '../ui/index.js';
 import type { AdminAction } from './admin.js';
 import type { BailoutResult } from './bailout.js';
@@ -10,6 +11,7 @@ import {
   CooldownError,
   NotEligibleError,
 } from './errors.js';
+import type { CoinHistoryEntry } from './history.js';
 
 export const botsHaveNoWallets = "Bots don't have wallets.";
 
@@ -28,6 +30,38 @@ export function balanceCard(userId: string, wallet: { balance: number; rank: num
     '## Balance',
     `<@${userId}> has **${coins(wallet.balance)}** coins`,
     `-# Rank #${wallet.rank} by coins`,
+  );
+}
+
+const ledgerReasonLabels: Record<LedgerReason, string> = {
+  start: 'Starting coins',
+  daily: 'Daily claim',
+  cashback: 'Cashback',
+  bailout: 'Bailout',
+  collect: 'Hourly collect',
+  chat: 'Chat reward',
+  free_prize: 'Free spin prize (legacy)',
+  bet: 'Gamba bet',
+  payout: 'Gamba payout',
+  pot_win: 'Jackpot pot win',
+  flip_bet: 'Coinflip bet',
+  flip_win: 'Coinflip win',
+  dice_bet: 'Dice bet',
+  dice_win: 'Dice win',
+  admin_grant: 'Moderator grant',
+  admin_take: 'Moderator deduction',
+  pruned: 'Wallet removed',
+};
+
+export function coinHistoryCard(entries: CoinHistoryEntry[]) {
+  const lines = entries.map(({ delta, reason, balanceAfter, createdAt }) => {
+    const change = `${delta > 0 ? '+' : ''}${coins(delta)}`;
+    return `**${change}** coins · ${ledgerReasonLabels[reason]} · Balance after: ${coins(balanceAfter)} · ${discordTime(createdAt)}`;
+  });
+  return card(
+    accents.brand,
+    '## Coin history',
+    lines.join('\n') || 'No coin history in this server yet.',
   );
 }
 

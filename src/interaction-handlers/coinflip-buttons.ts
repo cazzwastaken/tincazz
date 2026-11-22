@@ -10,14 +10,16 @@ import {
   type ChallengeView,
   type CoinflipId,
   challengeCard,
-  challengeClosedCard,
   challengeFlipFrames,
   challengeResultCard,
   challengeTaken,
+  closeChallengeCard,
   coinflip,
   decodeCoinflipId,
   type FlipAgainId,
   flipErrorText,
+  forgetChallengeCard,
+  isChallengeCardClosed,
   isChallengeSettled,
   notYourChallenge,
   notYourFlip,
@@ -26,9 +28,9 @@ import {
   rematchTaken,
   reopen,
   ShortStakeError,
-  scheduleExpiry,
   settleBotFlip,
   settleChallenge,
+  trackChallengeCard,
   tryClose,
 } from '../features/coinflip/index.js';
 import { gameChannelDenied } from '../features/settings/index.js';
@@ -150,8 +152,8 @@ export class CoinflipButtonsHandler extends InteractionHandler {
       );
       return;
     }
-    scheduleExpiry(sent.id, view.expiresAt - now, () =>
-      sent.edit(cardReply(challengeClosedCard(view, 'expired'))),
+    trackChallengeCard(interaction.channelId, sent.id, view, (closed) =>
+      sent.edit(cardReply(closed)),
     );
   }
 
@@ -187,12 +189,18 @@ export class CoinflipButtonsHandler extends InteractionHandler {
     if (clickerId !== owner) {
       return interaction.reply(errorReply(notYourChallenge));
     }
-    // The registry is lost on restart; the flip row is not.
-    if (!tryClose(messageId) || isChallengeSettled(this.container.db, messageId)) {
+    if (
+      isChallengeCardClosed(messageId) ||
+      isChallengeSettled(this.container.db, messageId) ||
+      !tryClose(messageId)
+    ) {
       return interaction.reply(errorReply(challengeTaken));
     }
-    const reason = id.action === 'decline' ? 'declined' : 'cancelled';
-    return interaction.update(cardReply(challengeClosedCard(view, reason)));
+    const reason =
+      Date.now() >= id.expiresAt ? 'expired' : id.action === 'decline' ? 'declined' : 'cancelled';
+    return closeChallengeCard(messageId, view, reason, (closed) =>
+      interaction.update(cardReply(closed)),
+    );
   }
 
   private async accept(
@@ -201,11 +209,17 @@ export class CoinflipButtonsHandler extends InteractionHandler {
     view: ChallengeView,
     messageId: string,
   ) {
-    if (!tryClose(messageId) || isChallengeSettled(this.container.db, messageId)) {
+    if (
+      isChallengeCardClosed(messageId) ||
+      isChallengeSettled(this.container.db, messageId) ||
+      !tryClose(messageId)
+    ) {
       return interaction.reply(errorReply(challengeTaken));
     }
-    if (Date.now() > id.expiresAt) {
-      return interaction.update(cardReply(challengeClosedCard(view, 'expired')));
+    if (Date.now() >= id.expiresAt) {
+      return closeChallengeCard(messageId, view, 'expired', (closed) =>
+        interaction.update(cardReply(closed)),
+      );
     }
 
     const request: ChallengeRequest = {
@@ -222,7 +236,9 @@ export class CoinflipButtonsHandler extends InteractionHandler {
       settled = settleChallenge(this.container.db, request, Date.now());
     } catch (error) {
       if (error instanceof ShortStakeError && error.who === 'challenger') {
-        return interaction.update(cardReply(challengeClosedCard(view, 'challenger-short')));
+        return closeChallengeCard(messageId, view, 'challenger-short', (closed) =>
+          interaction.update(cardReply(closed)),
+        );
       }
       if (error instanceof ChallengeTakenError) {
         return interaction.reply(errorReply(challengeTaken));
@@ -232,11 +248,13 @@ export class CoinflipButtonsHandler extends InteractionHandler {
       reopen(messageId, Math.max(0, id.expiresAt - Date.now()));
       throw error;
     }
-    return play(
+    const result = await play(
       updateDisplay(interaction),
       challengeFlipFrames(view, request.acceptorId, settled.result),
       challengeResultCard(view, settled),
       { channelId: interaction.channelId },
     );
+    forgetChallengeCard(messageId);
+    return result;
   }
 }

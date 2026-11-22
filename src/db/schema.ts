@@ -179,6 +179,9 @@ export const guildSettings = sqliteTable('guild_settings', {
   honeypotChannelId: text('honeypot_channel_id'),
   honeypotMessageId: text('honeypot_message_id'),
   honeypotKicks: integer('honeypot_kicks').notNull().default(0),
+  gameChannelsRestricted: integer('game_channels_restricted', { mode: 'boolean' })
+    .notNull()
+    .default(false),
   updatedAt: integer('updated_at').notNull(),
 });
 
@@ -193,7 +196,7 @@ export const guildAutoRoles = sqliteTable(
   (table) => [primaryKey({ columns: [table.guildId, table.roleId, table.target] })],
 );
 
-/** Channels where the games may be played in a guild. No rows means every channel. */
+/** Channels where games may be played when a guild restricts games. */
 export const guildGameChannels = sqliteTable(
   'guild_game_channels',
   {
@@ -203,6 +206,20 @@ export const guildGameChannels = sqliteTable(
   },
   (table) => [primaryKey({ columns: [table.guildId, table.channelId] })],
 );
+
+/** Challenge cards that still need their expiry or terminal display applied. */
+export const pendingCoinflipChallenges = sqliteTable('pending_coinflip_challenges', {
+  messageId: text('message_id').primaryKey(),
+  channelId: text('channel_id').notNull(),
+  challengerId: text('challenger_id').notNull(),
+  opponentId: text('opponent_id'),
+  bet: integer('bet').notNull(),
+  side: text('side', { enum: flipSides }).notNull(),
+  expiresAt: integer('expires_at').notNull(),
+  closedReason: text('closed_reason', {
+    enum: ['expired', 'declined', 'cancelled', 'challenger-short'],
+  }),
+});
 
 export const jobRuns = sqliteTable('job_runs', {
   name: text('name').primaryKey(),

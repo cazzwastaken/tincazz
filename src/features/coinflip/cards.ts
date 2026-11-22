@@ -1,5 +1,5 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, type ContainerBuilder } from 'discord.js';
-import type { FlipSide } from '../../db/schema.js';
+import type { FlipSide, pendingCoinflipChallenges } from '../../db/schema.js';
 import { spinErrorText } from '../gamba/index.js';
 import { accents, card, coins, discordTime } from '../ui/index.js';
 import { type FlipStage, flipAnimation } from './config.js';
@@ -137,7 +137,9 @@ export function challengeResultCard(
   );
 }
 
-export type ChallengeClosedReason = 'expired' | 'declined' | 'cancelled' | 'challenger-short';
+export type ChallengeClosedReason = NonNullable<
+  (typeof pendingCoinflipChallenges.$inferSelect)['closedReason']
+>;
 
 export function challengeClosedCard(
   view: ChallengeView,

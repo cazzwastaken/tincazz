@@ -11,7 +11,11 @@ import { createClient } from '../src/client.js';
 import { openDatabase } from '../src/db/index.js';
 import { honeypot, incrementKicks, setHoneypot } from '../src/features/honeypot/index.js';
 import { logChannelAlreadySet, settingsNeedsManageServer } from '../src/features/settings/cards.js';
-import { addGameChannel, gameChannels } from '../src/features/settings/game-channels.js';
+import {
+  addGameChannel,
+  gameChannelDenied,
+  gameChannels,
+} from '../src/features/settings/game-channels.js';
 import {
   addAutoRole,
   autoRoles,
@@ -287,7 +291,7 @@ describe('/settings autorole', () => {
 });
 
 describe('/settings games', () => {
-  it('limits the games to a channel, lists it and lifts the limit again', async () => {
+  it('lists the allowed channel and pauses the games when it is removed', async () => {
     const channel = fakeChannel('c1');
     const allow = await run('games', 'allow', { channel });
     expect(allow.text).toContain('limited to <#c1>');
@@ -300,17 +304,31 @@ describe('/settings games', () => {
     expect(show.text).toContain('**Game channels:** <#c1>');
 
     const remove = await run('games', 'remove', { channel });
-    expect(remove.text).toContain('every channel again');
+    expect(remove.text).toContain('Games are paused until you allow a channel');
+    expect(remove.text).toContain('/settings games reset');
     expect(gameChannels(container.db, '2')).toEqual([]);
+    expect(gameChannelDenied(container.db, '2', 'c1')).toContain('Games are paused');
+
+    const paused = await run(undefined, 'show');
+    expect(paused.text).toContain('**Game channels:** none (games are paused');
 
     const missing = await run('games', 'remove', { channel });
     expect(missing.text).toContain("isn't a game channel");
+
+    const reset = await run('games', 'reset');
+    expect(reset.text).toContain('Games can be played in every channel again.');
+    expect(gameChannelDenied(container.db, '2', 'c1')).toBeUndefined();
+    const unrestricted = await run(undefined, 'show');
+    expect(unrestricted.text).toContain('**Game channels:** all channels');
   });
 
   it('resets the list and needs Manage Server', async () => {
     addGameChannel(container.db, '2', 'c1', 1);
-    await run('games', 'reset');
+    const reset = await run('games', 'reset');
+    expect(reset.text).toContain('Games can be played in every channel again.');
     expect(gameChannels(container.db, '2')).toEqual([]);
+    const again = await run('games', 'reset');
+    expect(again.text).toContain('Games are already allowed in every channel.');
     const denied = await run('games', 'allow', { channel: fakeChannel('c2') }, { permissions: 0n });
     expect(denied.text).toContain(settingsNeedsManageServer);
     expect(gameChannels(container.db, '2')).toEqual([]);

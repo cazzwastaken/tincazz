@@ -12,10 +12,24 @@ export class ChannelDeleteListener extends Listener {
 
   public override run(channel: DMChannel | NonThreadGuildBasedChannel) {
     try {
-      removeGameChannelEverywhere(this.container.db, channel.id);
+      const { db } = this.container;
       const now = Date.now();
-      const cleared = clearChannelEverywhere(this.container.db, channel.id, now);
-      for (const { guildId, kind } of cleared) {
+      const { removedGames, clearedLogs, clearedHoneypots } = db.transaction((tx) => ({
+        removedGames: removeGameChannelEverywhere(tx, channel.id),
+        clearedLogs: clearChannelEverywhere(tx, channel.id, now),
+        clearedHoneypots: clearHoneypotChannelEverywhere(tx, channel.id, now),
+      }));
+      for (const { guildId, paused } of removedGames) {
+        void logMod(guildId, {
+          type: 'setting_auto_cleared',
+          setting: 'game_channel',
+          id: channel.id,
+          detail: paused
+            ? 'The last allowed channel was deleted. Games are paused until you allow a channel or use `/settings games reset`.'
+            : 'A game channel was deleted.',
+        });
+      }
+      for (const { guildId, kind } of clearedLogs) {
         if (kind === 'economy') {
           void logMod(guildId, {
             type: 'setting_auto_cleared',
@@ -27,7 +41,7 @@ export class ChannelDeleteListener extends Listener {
           this.container.logger.info(`Mod log channel ${channel.id} was deleted in ${guildId}`);
         }
       }
-      for (const guildId of clearHoneypotChannelEverywhere(this.container.db, channel.id, now)) {
+      for (const guildId of clearedHoneypots) {
         void logMod(guildId, {
           type: 'setting_auto_cleared',
           setting: 'honeypot',

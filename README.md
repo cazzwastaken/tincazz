@@ -30,6 +30,7 @@ Type `/help` (or `?help`) in Discord for a paged guide with the live numbers.
 **Economy**
 
 - `/balance`, `/daily`, `/collect`, `/bailout`: earn and check your coins, plus a little for chatting
+- `/coins history`: privately see your latest 10 coin changes in this server
 - `/stats` and `/leaderboard`: profiles and top-10 boards
 - `/eco`: moderators give or take coins
 
