@@ -102,9 +102,10 @@ src/
     presence/     the bot's rotating status (live pot, last jackpot, spins today), started from
                   the ready listener
     scheduler/    the hourly tick that runs periodic jobs (started from the ready listener)
-    settings/     per-guild settings store: log channels, auto-roles, game channels (the games work
-                  everywhere until some are listed; `gameChannelDenied` gates gamba, coinflip and
-                  dice commands and buttons), their cards and role assignment
+    settings/     per-guild settings store: log channels, auto-roles, game channels (unrestricted
+                  by default; once restricted, an empty list pauses games until an admin allows
+                  a channel or resets the restriction; `gameChannelDenied` gates game commands
+                  and buttons), their cards and role assignment
     stats/        read-only profile, recent plays and leaderboard queries, `lb:*` custom IDs, cards
     ui/           shared Components V2 card helpers
   interaction-handlers/  one file per component or modal handler (gamba, coinflip, dice and help

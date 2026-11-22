@@ -13,6 +13,7 @@ const clearedSettingLabels = {
   autorole: (id: string) => `Auto-role <@&${id}>`,
   log_channel: (id: string) => `Log channel <#${id}>`,
   honeypot: (id: string) => `Honeypot channel <#${id}>`,
+  game_channel: (id: string) => `Game channel <#${id}>`,
 } as const;
 
 export function economyLogCard(event: EconomyEvent, now: number): ContainerBuilder {

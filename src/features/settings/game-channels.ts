@@ -1,9 +1,9 @@
 import { and, asc, eq } from 'drizzle-orm';
 import type { DbOrTx } from '../../db/index.js';
-import { guildGameChannels } from '../../db/schema.js';
+import { guildGameChannels, guildSettings } from '../../db/schema.js';
 import { gameChannels as gameChannelConfig } from './config.js';
 
-/** The channels the games are limited to, oldest first. Empty means every channel. */
+/** The channels the games are limited to, oldest first. */
 export function gameChannels(db: DbOrTx, guildId: string): string[] {
   return db
     .select({ channelId: guildGameChannels.channelId })
@@ -14,17 +14,38 @@ export function gameChannels(db: DbOrTx, guildId: string): string[] {
     .map((row) => row.channelId);
 }
 
+export function areGameChannelsRestricted(db: DbOrTx, guildId: string): boolean {
+  const row = db
+    .select({ restricted: guildSettings.gameChannelsRestricted })
+    .from(guildSettings)
+    .where(eq(guildSettings.guildId, guildId))
+    .get();
+  return row?.restricted ?? false;
+}
+
 export function addGameChannel(
   db: DbOrTx,
   guildId: string,
   channelId: string,
   now: number,
 ): 'added' | 'exists' | 'full' {
-  const current = gameChannels(db, guildId);
-  if (current.includes(channelId)) return 'exists';
-  if (current.length >= gameChannelConfig.max) return 'full';
-  db.insert(guildGameChannels).values({ guildId, channelId, createdAt: now }).run();
-  return 'added';
+  return db.transaction((tx) => {
+    const current = gameChannels(tx, guildId);
+    if (current.includes(channelId)) return 'exists';
+    if (current.length >= gameChannelConfig.max) return 'full';
+    tx.insert(guildGameChannels).values({ guildId, channelId, createdAt: now }).run();
+    if (current.length === 0) {
+      tx.insert(guildSettings)
+        .values({ guildId, gameChannelsRestricted: true, updatedAt: now })
+        .onConflictDoUpdate({
+          target: guildSettings.guildId,
+          set: { gameChannelsRestricted: true, updatedAt: now },
+          setWhere: eq(guildSettings.gameChannelsRestricted, false),
+        })
+        .run();
+    }
+    return 'added';
+  });
 }
 
 export function removeGameChannel(db: DbOrTx, guildId: string, channelId: string): boolean {
@@ -35,20 +56,41 @@ export function removeGameChannel(db: DbOrTx, guildId: string, channelId: string
   return result.changes > 0;
 }
 
-/** Lifts the limit: the games work everywhere again. Returns how many channels were removed. */
-export function clearGameChannels(db: DbOrTx, guildId: string): number {
-  return db.delete(guildGameChannels).where(eq(guildGameChannels.guildId, guildId)).run().changes;
+/** Lifts the limit, even if the list is empty. Returns whether the games were restricted. */
+export function clearGameChannels(db: DbOrTx, guildId: string, now: number): boolean {
+  return db.transaction((tx) => {
+    const updated = tx
+      .update(guildSettings)
+      .set({ gameChannelsRestricted: false, updatedAt: now })
+      .where(
+        and(eq(guildSettings.guildId, guildId), eq(guildSettings.gameChannelsRestricted, true)),
+      )
+      .run();
+    if (updated.changes === 0) return false;
+    tx.delete(guildGameChannels).where(eq(guildGameChannels.guildId, guildId)).run();
+    return true;
+  });
 }
 
-/** Removes a (deleted) channel from every guild and returns the guilds it was listed in. */
-export function removeGameChannelEverywhere(db: DbOrTx, channelId: string): string[] {
-  const rows = db
-    .select({ guildId: guildGameChannels.guildId })
-    .from(guildGameChannels)
+/** Removes a deleted channel and reports which affected guilds have no allowed channels left. */
+export function removeGameChannelEverywhere(
+  db: DbOrTx,
+  channelId: string,
+): { guildId: string; paused: boolean }[] {
+  const removed = db
+    .delete(guildGameChannels)
     .where(eq(guildGameChannels.channelId, channelId))
+    .returning({ guildId: guildGameChannels.guildId })
     .all();
-  db.delete(guildGameChannels).where(eq(guildGameChannels.channelId, channelId)).run();
-  return rows.map((row) => row.guildId);
+  return removed.map(({ guildId }) => ({
+    guildId,
+    paused:
+      db
+        .select({ channelId: guildGameChannels.channelId })
+        .from(guildGameChannels)
+        .where(eq(guildGameChannels.guildId, guildId))
+        .get() === undefined,
+  }));
 }
 
 interface MaybeThread {
@@ -58,7 +100,7 @@ interface MaybeThread {
 
 /**
  * The reply for playing in a channel the games are not allowed in, or undefined when it is fine.
- * With no limit set every channel is allowed. A thread counts as its parent channel.
+ * Unrestricted guilds allow every channel. A thread counts as its parent channel.
  */
 export function gameChannelDenied(
   db: DbOrTx,
@@ -66,8 +108,11 @@ export function gameChannelDenied(
   channelId: string,
   channel?: MaybeThread | null,
 ): string | undefined {
+  if (!areGameChannelsRestricted(db, guildId)) return undefined;
   const allowed = gameChannels(db, guildId);
-  if (allowed.length === 0) return undefined;
+  if (allowed.length === 0) {
+    return 'Games are paused because there are no allowed game channels. Ask a server admin to allow one or reset the game channel settings.';
+  }
   const id = channel?.isThread() && channel.parentId ? channel.parentId : channelId;
   if (allowed.includes(id)) return undefined;
   return `Games can only be played in ${allowed.map((c) => `<#${c}>`).join(', ')}.`;

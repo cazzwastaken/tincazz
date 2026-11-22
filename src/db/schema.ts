@@ -179,6 +179,9 @@ export const guildSettings = sqliteTable('guild_settings', {
   honeypotChannelId: text('honeypot_channel_id'),
   honeypotMessageId: text('honeypot_message_id'),
   honeypotKicks: integer('honeypot_kicks').notNull().default(0),
+  gameChannelsRestricted: integer('game_channels_restricted', { mode: 'boolean' })
+    .notNull()
+    .default(false),
   updatedAt: integer('updated_at').notNull(),
 });
 
@@ -193,7 +196,7 @@ export const guildAutoRoles = sqliteTable(
   (table) => [primaryKey({ columns: [table.guildId, table.roleId, table.target] })],
 );
 
-/** Channels where the games may be played in a guild. No rows means every channel. */
+/** Channels where games may be played when a guild restricts games. */
 export const guildGameChannels = sqliteTable(
   'guild_game_channels',
   {

@@ -31,6 +31,7 @@ import type { ModEvent } from '../../features/logs/events.js';
 import { type LogKind, logKinds, logMod, modLogCard, sendLog } from '../../features/logs/index.js';
 import {
   addGameChannel,
+  areGameChannelsRestricted,
   clearGameChannels,
   gameChannels,
   removeGameChannel,
@@ -146,7 +147,7 @@ export class SettingsCommand extends Command {
             .addSubcommand((sub) =>
               sub
                 .setName('remove')
-                .setDescription('Stop allowing the games in a channel')
+                .setDescription('Remove an allowed game channel (removing the last pauses games)')
                 .addChannelOption(gameChannelOption),
             )
             .addSubcommand((sub) =>
@@ -356,14 +357,13 @@ export class SettingsCommand extends Command {
     const left = gameChannels(this.container.db, guildId);
     const text =
       left.length === 0
-        ? `Removed <#${channel.id}>. Games can be played in every channel again.`
+        ? `Removed <#${channel.id}>. Games are paused until you allow a channel or use \`/settings games reset\`.`
         : `Removed <#${channel.id}>. Games are limited to ${left.map((id) => `<#${id}>`).join(', ')}.`;
     return interaction.reply(cardReply(card(accents.brand, text), { ephemeral: true }));
   }
 
   private async gamesReset(interaction: ChatInputCommandInteraction) {
-    const removed = clearGameChannels(this.container.db, interaction.guildId as string);
-    if (removed === 0) {
+    if (!clearGameChannels(this.container.db, interaction.guildId as string, Date.now())) {
       return interaction.reply(errorReply('Games are already allowed in every channel.'));
     }
     return interaction.reply(
@@ -501,7 +501,9 @@ export class SettingsCommand extends Command {
           honeypot: { channelId: pot.channelId, kicks: pot.kicks, problem: potProblem },
           autoRoles: { member: roleView('member'), bot: roleView('bot') },
           logs,
-          gameChannels: gameChannels(this.container.db, guildId),
+          gameChannels: areGameChannelsRestricted(this.container.db, guildId)
+            ? gameChannels(this.container.db, guildId)
+            : undefined,
         }),
         {
           ephemeral: true,

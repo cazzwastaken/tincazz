@@ -47,7 +47,7 @@ export type ModEvent =
   | { type: 'log_channel_cleared'; actorId: string; kind: LogKind; fromChannelId: string }
   | {
       type: 'setting_auto_cleared';
-      setting: 'autorole' | 'log_channel' | 'honeypot';
+      setting: 'autorole' | 'log_channel' | 'honeypot' | 'game_channel';
       id: string;
       detail: string;
     }

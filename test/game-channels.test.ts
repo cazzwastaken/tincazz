@@ -3,15 +3,18 @@ import { Events } from 'discord.js';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createClient } from '../src/client.js';
 import { openDatabase } from '../src/db/index.js';
+import { guildSettings } from '../src/db/schema.js';
 import { findWallet } from '../src/features/economy/index.js';
 import {
   addGameChannel,
+  areGameChannelsRestricted,
   clearGameChannels,
   gameChannelDenied,
   gameChannels,
   removeGameChannel,
   removeGameChannelEverywhere,
 } from '../src/features/settings/game-channels.js';
+import { setLogChannel } from '../src/features/settings/store.js';
 import { testEnv } from './support/env.js';
 import { makeChatInput } from './support/interaction.js';
 
@@ -31,12 +34,23 @@ const json = (value: unknown) => JSON.stringify(value);
 
 describe('game channel store', () => {
   it('allows every channel by default', () => {
+    expect(areGameChannelsRestricted(container.db, 'g')).toBe(false);
     expect(gameChannels(container.db, 'g')).toEqual([]);
+    expect(gameChannelDenied(container.db, 'g', 'c1')).toBeUndefined();
+    setLogChannel(container.db, 'g', 'mod', 'log', 1);
+    expect(container.db.select().from(guildSettings).get()?.gameChannelsRestricted).toBe(false);
     expect(gameChannelDenied(container.db, 'g', 'c1')).toBeUndefined();
   });
 
   it('limits the games to the listed channels', () => {
+    setLogChannel(container.db, 'g', 'mod', 'log', 0);
     expect(addGameChannel(container.db, 'g', 'c1', 1)).toBe('added');
+    expect(container.db.select().from(guildSettings).get()).toMatchObject({
+      guildId: 'g',
+      gameChannelsRestricted: true,
+      modLogChannelId: 'log',
+      updatedAt: 1,
+    });
     expect(addGameChannel(container.db, 'g', 'c1', 2)).toBe('exists');
     expect(addGameChannel(container.db, 'g', 'c2', 3)).toBe('added');
     expect(gameChannelDenied(container.db, 'g', 'c1')).toBeUndefined();
@@ -46,6 +60,16 @@ describe('game channel store', () => {
     );
     // Another guild is unaffected.
     expect(gameChannelDenied(container.db, 'other', 'c3')).toBeUndefined();
+  });
+
+  it('does not persist an allowed channel if activating the restriction fails', () => {
+    container.db.$client.exec(`
+      CREATE TRIGGER reject_game_restriction BEFORE INSERT ON guild_settings
+      BEGIN SELECT RAISE(ABORT, 'settings unavailable'); END;
+    `);
+    expect(() => addGameChannel(container.db, 'g', 'c1', 1)).toThrow();
+    expect(gameChannels(container.db, 'g')).toEqual([]);
+    expect(areGameChannelsRestricted(container.db, 'g')).toBe(false);
   });
 
   it('treats a thread as its parent channel', () => {
@@ -61,17 +85,45 @@ describe('game channel store', () => {
     expect(addGameChannel(container.db, 'g', 'extra', 99)).toBe('full');
   });
 
-  it('removes, resets and cleans up deleted channels', () => {
+  it('pauses after the final manual removal and resumes when a channel is allowed again', () => {
+    addGameChannel(container.db, 'g', 'c1', 1);
+    expect(removeGameChannel(container.db, 'g', 'c1')).toBe(true);
+    expect(removeGameChannel(container.db, 'g', 'c1')).toBe(false);
+    expect(gameChannels(container.db, 'g')).toEqual([]);
+    expect(areGameChannelsRestricted(container.db, 'g')).toBe(true);
+    expect(gameChannelDenied(container.db, 'g', 'c1')).toContain('Games are paused');
+    const thread = { isThread: () => true, parentId: 'c1' };
+    expect(gameChannelDenied(container.db, 'g', 't1', thread)).toContain('Games are paused');
+
+    addGameChannel(container.db, 'g', 'c2', 2);
+    expect(gameChannelDenied(container.db, 'g', 'c2')).toBeUndefined();
+    expect(gameChannelDenied(container.db, 'g', 'c1')).toContain('only be played in <#c2>');
+
+    expect(clearGameChannels(container.db, 'g', 3)).toBe(true);
+    expect(gameChannels(container.db, 'g')).toEqual([]);
+    expect(areGameChannelsRestricted(container.db, 'g')).toBe(false);
+    expect(gameChannelDenied(container.db, 'g', 'c1')).toBeUndefined();
+  });
+
+  it('keeps restrictions after cleanup and resets even an empty restricted list', () => {
     addGameChannel(container.db, 'g', 'c1', 1);
     addGameChannel(container.db, 'g', 'c2', 2);
     addGameChannel(container.db, 'h', 'c1', 3);
-    expect(removeGameChannel(container.db, 'g', 'c2')).toBe(true);
-    expect(removeGameChannel(container.db, 'g', 'c2')).toBe(false);
-    expect(removeGameChannelEverywhere(container.db, 'c1').sort()).toEqual(['g', 'h']);
-    expect(gameChannels(container.db, 'g')).toEqual([]);
-    addGameChannel(container.db, 'g', 'c1', 4);
-    expect(clearGameChannels(container.db, 'g')).toBe(1);
-    expect(gameChannels(container.db, 'g')).toEqual([]);
+    const removed = removeGameChannelEverywhere(container.db, 'c1');
+    expect(removed).toHaveLength(2);
+    expect(removed).toEqual(
+      expect.arrayContaining([
+        { guildId: 'g', paused: false },
+        { guildId: 'h', paused: true },
+      ]),
+    );
+    expect(gameChannels(container.db, 'g')).toEqual(['c2']);
+    expect(gameChannelDenied(container.db, 'g', 'c1')).toContain('only be played in <#c2>');
+    expect(gameChannelDenied(container.db, 'h', 'c1')).toContain('Games are paused');
+    expect(clearGameChannels(container.db, 'h', 4)).toBe(true);
+    expect(gameChannelDenied(container.db, 'h', 'c1')).toBeUndefined();
+    expect(clearGameChannels(container.db, 'h', 5)).toBe(false);
+    expect(areGameChannelsRestricted(container.db, 'g')).toBe(true);
   });
 });
 
@@ -104,6 +156,15 @@ describe('game channel gating', () => {
     client.emit(Events.InteractionCreate, flip as never);
     await new Promise((resolve) => setTimeout(resolve, 100));
     expect(json(flip.reply.mock.calls[0])).toContain('Games can only be played in <#c1>.');
+    expect(findWallet(container.db, '2', '1')).toBeUndefined();
+  });
+
+  it('refuses game play when no channels remain allowed', async () => {
+    addGameChannel(container.db, '2', '3', 1);
+    removeGameChannel(container.db, '2', '3');
+
+    const interaction = await slash('gamba');
+    expect(json(interaction.reply.mock.calls[0])).toContain('Games are paused');
     expect(findWallet(container.db, '2', '1')).toBeUndefined();
   });
 

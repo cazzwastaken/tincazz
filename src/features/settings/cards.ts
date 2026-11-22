@@ -12,8 +12,8 @@ export const logChannelAlreadySet = (kind: LogKind, id: string) =>
 export interface SettingsView {
   autoRoles: Record<AutoRoleTarget, { roleId: string; problem?: string }[]>;
   logs: Record<LogKind, { channelId?: string; problem?: string }>;
-  /** Channels the games are limited to; empty means every channel. */
-  gameChannels: string[];
+  /** Undefined means unrestricted; an empty allowlist means games are paused. */
+  gameChannels: string[] | undefined;
   honeypot: { channelId?: string; kicks: number; problem?: string };
 }
 
@@ -31,6 +31,14 @@ export function settingsCard(view: SettingsView): ContainerBuilder {
     return channelId ? `<#${channelId}>${warn(problem)}` : 'not set';
   };
   const { channelId: pot, kicks, problem: potProblem } = view.honeypot;
+  const allowed = view.gameChannels;
+  let games = 'all channels';
+  if (allowed) {
+    games =
+      allowed.length === 0
+        ? 'none (games are paused; allow a channel or use `/settings games reset`)'
+        : allowed.map((id) => `<#${id}>`).join(', ');
+  }
   return card(
     accents.brand,
     [
@@ -39,7 +47,7 @@ export function settingsCard(view: SettingsView): ContainerBuilder {
       `**Auto-roles (bots):** ${roles('bot')}`,
       `**Economy log:** ${log('economy')}`,
       `**Mod log:** ${log('mod')}`,
-      `**Game channels:** ${view.gameChannels.length === 0 ? 'all channels' : view.gameChannels.map((id) => `<#${id}>`).join(', ')}`,
+      `**Game channels:** ${games}`,
       `**Honeypot:** ${pot ? `<#${pot}> · ${kicks.toLocaleString('en-US')} ${kicks === 1 ? 'kick' : 'kicks'}${warn(potProblem)}` : 'not set'}`,
     ].join('\n'),
   );
