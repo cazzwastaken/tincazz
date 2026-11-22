@@ -207,6 +207,20 @@ export const guildGameChannels = sqliteTable(
   (table) => [primaryKey({ columns: [table.guildId, table.channelId] })],
 );
 
+/** Challenge cards that still need their expiry or terminal display applied. */
+export const pendingCoinflipChallenges = sqliteTable('pending_coinflip_challenges', {
+  messageId: text('message_id').primaryKey(),
+  channelId: text('channel_id').notNull(),
+  challengerId: text('challenger_id').notNull(),
+  opponentId: text('opponent_id'),
+  bet: integer('bet').notNull(),
+  side: text('side', { enum: flipSides }).notNull(),
+  expiresAt: integer('expires_at').notNull(),
+  closedReason: text('closed_reason', {
+    enum: ['expired', 'declined', 'cancelled', 'challenger-short'],
+  }),
+});
+
 export const jobRuns = sqliteTable('job_runs', {
   name: text('name').primaryKey(),
   lastRunAt: integer('last_run_at').notNull(),

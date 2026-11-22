@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import { syncBuiltinESMExports } from 'node:module';
 import { container } from '@sapphire/framework';
-import { Events, MessageFlags } from 'discord.js';
+import { ComponentType, Events, MessageFlags } from 'discord.js';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createClient } from '../src/client.js';
 import { openDatabase } from '../src/db/index.js';
@@ -24,7 +24,10 @@ import {
   notYourChallenge,
   notYourFlip,
   rematchTaken,
+  restoreChallengeCards,
   scheduleExpiry,
+  settleChallenge,
+  trackChallengeCard,
 } from '../src/features/coinflip/index.js';
 import {
   adminAdjust,
@@ -417,6 +420,103 @@ describe('coinflip buttons', () => {
       expect(json(late.reply.mock.calls[0])).toContain('Someone already took this');
       expect(late.update).not.toHaveBeenCalled();
     });
+
+    it('restores a failed cancellation without letting anyone accept it after restart', async () => {
+      const expiresAt = Date.now() + 60_000;
+      trackChallengeCard(
+        '3',
+        'm1',
+        { challengerId: '1', opponentId: '3', bet: 100, side: 'heads', expiresAt },
+        vi.fn(),
+      );
+      const cancel = makeButton(client, {
+        customId: challengeId('cancel', { expiresAt }),
+        userId: '1',
+      });
+      cancel.update.mockRejectedValueOnce(new Error('Service Unavailable'));
+      const error = vi.spyOn(container.logger, 'error').mockImplementation(() => undefined);
+      client.emit(Events.InteractionCreate, cancel as never);
+      await vi.waitFor(() => expect(error).toHaveBeenCalled());
+
+      clearChallenges();
+      const accept = await click(challengeId('accept', { expiresAt }), '3');
+      expect(json(accept.reply.mock.calls[0])).toContain('Someone already took this');
+      expect(flipCount()).toBe(0);
+
+      const edit = vi.fn(async (_messageId: string, _options: unknown) => ({}));
+      vi.spyOn(client.channels, 'fetch').mockResolvedValue({
+        isSendable: () => true,
+        messages: { edit },
+      } as never);
+      restoreChallengeCards(client);
+      await vi.waitFor(() => expect(edit).toHaveBeenCalledTimes(1));
+      expect(json(edit.mock.calls[0])).toContain('<@1> cancelled.');
+      expect(json(edit.mock.calls[0])).not.toContain('cf:accept');
+    });
+
+    it('retires stale challenge buttons without replacing a displayed result', async () => {
+      const now = Date.now();
+      for (const messageId of ['stale', 'result']) {
+        trackChallengeCard(
+          '3',
+          messageId,
+          { challengerId: '1', opponentId: '3', bet: 100, side: 'heads', expiresAt: now + 60_000 },
+          vi.fn(),
+        );
+        settleChallenge(
+          container.db,
+          {
+            guildId: '2',
+            mode: 'challenge',
+            messageId,
+            challengerId: '1',
+            acceptorId: '3',
+            bet: 100,
+            challengerSide: 'heads',
+          },
+          now,
+          () => 0,
+        );
+      }
+      clearChallenges();
+      const fetch = vi.fn(async ({ message }: { message: string }) => ({
+        components: [
+          {
+            type: ComponentType.Container,
+            components: [
+              {
+                type: ComponentType.ActionRow,
+                components: [
+                  {
+                    type: ComponentType.Button,
+                    customId:
+                      message === 'stale'
+                        ? challengeId('accept')
+                        : encodeRematchId({
+                            challengerId: '1',
+                            acceptorId: '3',
+                            bet: 100,
+                            challengerSide: 'heads',
+                          }),
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      }));
+      const edit = vi.fn(async (_messageId: string, _options: unknown) => ({}));
+      vi.spyOn(client.channels, 'fetch').mockResolvedValue({
+        isSendable: () => true,
+        messages: { edit, fetch },
+      } as never);
+      restoreChallengeCards(client);
+      await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
+      expect(edit).toHaveBeenCalledExactlyOnceWith('stale', expect.anything());
+      expect(json(edit.mock.calls[0])).toContain('Challenge already settled.');
+      expect(json(edit.mock.calls[0])).not.toContain('cf:accept');
+      expect(flipCount()).toBe(2);
+    });
   });
 
   describe('decline and cancel', () => {
@@ -575,18 +675,27 @@ describe('coinflip buttons', () => {
       }
     });
 
-    it('the rematch challenge expires by editing the new message', async () => {
-      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    it('re-arms the rematch card after restart without extending its deadline', async () => {
+      vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
       try {
         const { interaction, sent } = press('3');
         await vi.waitFor(() => expect(interaction.announce).toHaveBeenCalledTimes(1));
-        await vi.advanceTimersByTimeAsync(59_000);
-        expect(sent.edit).not.toHaveBeenCalled();
+        await vi.advanceTimersByTimeAsync(20_000);
+        clearChallenges();
+        const edit = vi.fn(async (_messageId: string, _options: unknown) => ({}));
+        vi.spyOn(client.channels, 'fetch').mockResolvedValue({
+          isSendable: () => true,
+          messages: { edit },
+        } as never);
+        restoreChallengeCards(client);
+        await vi.advanceTimersByTimeAsync(39_000);
+        expect(edit).not.toHaveBeenCalled();
         await vi.advanceTimersByTimeAsync(1_000);
 
-        expect(sent.edit).toHaveBeenCalledTimes(1);
-        expect(json(sent.edit.mock.calls[0])).toContain('Challenge expired.');
-        expect(buttonIds(sent.edit.mock.calls[0])).toEqual([]);
+        expect(edit).toHaveBeenCalledExactlyOnceWith('r2', expect.anything());
+        expect(json(edit.mock.calls[0])).toContain('Challenge expired.');
+        expect(buttonIds(edit.mock.calls[0])).toEqual([]);
+        expect(sent.edit).not.toHaveBeenCalled();
         expect(interaction.message.edit).not.toHaveBeenCalled();
       } finally {
         vi.useRealTimers();

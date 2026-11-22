@@ -18,6 +18,13 @@ export {
   notYourFlip,
   rematchTaken,
 } from './cards.js';
+export {
+  closeChallengeCard,
+  forgetChallengeCard,
+  isChallengeCardClosed,
+  restoreChallengeCards,
+  trackChallengeCard,
+} from './challenge-cards.js';
 export { clearChallenges, reopen, scheduleExpiry, tryClose } from './challenges.js';
 export { coinflip, type FlipStage, flipAnimation, wager } from './config.js';
 export {

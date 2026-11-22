@@ -59,6 +59,7 @@ describe('database', () => {
       'guild_settings',
       'job_runs',
       'ledger',
+      'pending_coinflip_challenges',
       'player_stats',
       'pots',
       'rolls',

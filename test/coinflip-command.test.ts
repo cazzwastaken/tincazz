@@ -1,10 +1,13 @@
 import crypto from 'node:crypto';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { syncBuiltinESMExports } from 'node:module';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { container } from '@sapphire/framework';
 import { Events, MessageFlags } from 'discord.js';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createClient } from '../src/client.js';
-import { openDatabase } from '../src/db/index.js';
+import { closeDatabase, openDatabase } from '../src/db/index.js';
 import { flips, ledger } from '../src/db/schema.js';
 import {
   clearBudgets,
@@ -18,6 +21,7 @@ import {
   cannotChallengeSelf,
   clearChallenges,
   flipAnimation,
+  restoreChallengeCards,
 } from '../src/features/coinflip/index.js';
 import { adminAdjust, findWallet, startingBalance } from '../src/features/economy/index.js';
 import { setLogChannel } from '../src/features/settings/store.js';
@@ -197,6 +201,45 @@ describe('/coinflip', () => {
       await vi.advanceTimersByTimeAsync(120_000);
       expect(interaction.editReply).toHaveBeenCalledTimes(1);
       expect(json(interaction.editReply.mock.calls[0])).toContain('Challenge expired.');
+    });
+
+    it('restores an already expired challenge after the database is reopened', async () => {
+      const dir = mkdtempSync(join(tmpdir(), 'tincazz-coinflip-'));
+      const path = join(dir, 'bot.db');
+      closeDatabase(container.db);
+      container.db = openDatabase(path);
+      try {
+        vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+        const interaction = await run('open', { bet: '100' });
+        clearChallenges();
+        closeDatabase(container.db);
+        vi.setSystemTime(Date.now() + 120_001);
+        container.db = openDatabase(path);
+
+        const edit = vi.fn(async (_messageId: string, _options: unknown) => ({}));
+        vi.mocked(client.channels.fetch).mockResolvedValue({
+          isSendable: () => true,
+          messages: { edit },
+        } as never);
+        restoreChallengeCards(client);
+        await vi.advanceTimersByTimeAsync(1);
+
+        expect(interaction.editReply).not.toHaveBeenCalled();
+        expect(edit).toHaveBeenCalledExactlyOnceWith('card-1', expect.anything());
+        expect(json(edit.mock.calls[0]?.[1])).toContain('Challenge expired.');
+        expect(json(edit.mock.calls[0]?.[1])).not.toContain('cf:accept');
+        expect(flipCount()).toBe(0);
+        expect(ledgerReasons()).toEqual(['start']);
+
+        clearChallenges();
+        restoreChallengeCards(client);
+        await vi.advanceTimersByTimeAsync(1);
+        expect(edit).toHaveBeenCalledTimes(1);
+      } finally {
+        clearChallenges();
+        closeDatabase(container.db);
+        rmSync(dir, { recursive: true });
+      }
     });
   });
 });

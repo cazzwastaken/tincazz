@@ -73,9 +73,9 @@ src/
   features/       plain feature logic, one folder per feature (not auto-loaded)
     animation/    shared frame playback: per-channel frame budget, per-user busy lock, display
                   adapters for slash, button and prefix
-    coinflip/     rake, flips, `cf:*` custom IDs, the one transactional settle module, the
-                  in-memory challenge registry (exactly-once and expiry), cards (challenge results
-                  carry a single-use Rematch button) and flip frames
+    coinflip/     rake, flips, `cf:*` custom IDs, transactional settlement, and challenge cards
+                  persisted until closed so their original expiry survives restarts; result
+                  cards have a single-use Rematch button
     dice/         2d6 calls and payouts (tuned to a 99% return), the edge into the pot, the
                   single-transaction settle, `dc:*` custom IDs, the prefix parser, cards, frames
     economy/      wallets and ledger; the only code that changes balances. Faucets: daily (with

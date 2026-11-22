@@ -54,6 +54,8 @@ and no buttons.
 - **bot**: flip against the bot.
 - **challenge**: challenge a member. They have 60 seconds to accept.
 - **open**: anyone can accept within 120 seconds.
+- Pending challenges keep their original deadline across bot restarts. If they expire while the
+  bot is offline, it updates the cards when it comes back.
 - The winner takes the pool minus a 3% rake (at least 1 coin) that goes into the gamba pot. Against
   the bot a win nets your bet minus the rake and a loss costs the bet.
 - The coin spins for a few seconds before the result shows.
