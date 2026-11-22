@@ -128,6 +128,7 @@ function coinsPage(prefix: string): Page {
       [
         '### Where you stand',
         `\`/balance\` (or \`${prefix}bal\`, \`${prefix}balance\`): your coins`,
+        '`/coins history`: privately see your latest 10 coin changes in this server',
         '`/stats`: your profile and recent plays',
         '`/leaderboard`: the richest players and more boards',
       ].join('\n'),
