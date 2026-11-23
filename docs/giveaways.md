@@ -26,3 +26,5 @@ the original post with the result. The winner contacts the host to claim the pri
 If Tincazz loses channel access, restore its channel permissions to resume. It retries automatically,
 starting after five minutes and backing off to one hour. Once Tincazz records a result, it retries
 the result edit with the same winner. Deleting the giveaway post before the draw cancels it.
+
+Staff can run `/giveaway cancel id:1` in the original channel before a winner is drawn. The bot marks the post as cancelled, retrying the edit if channel access is unavailable. Cancellation requires the same staff permissions as creation.

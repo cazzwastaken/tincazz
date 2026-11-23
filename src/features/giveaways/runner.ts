@@ -24,7 +24,7 @@ import {
 export async function syncGiveaway(client: Client<true>, db: Db, row: Giveaway, now: number) {
   const forgetMessage = () => {
     updateGiveaway(db, row, {
-      status: row.status === 'ended' ? 'ended' : 'deleted',
+      status: row.status === 'ended' || row.status === 'cancelled' ? row.status : 'deleted',
       nextSyncAt: null,
       accessFailures: 0,
     });
@@ -32,7 +32,7 @@ export async function syncGiveaway(client: Client<true>, db: Db, row: Giveaway, 
 
   try {
     if (row.status === 'deleted') return;
-    if (row.messageId === null && row.status === 'publishing') {
+    if (row.messageId === null && (row.status === 'publishing' || row.status === 'cancelled')) {
       const messageId = await recoverOrPostGiveaway(client, row);
       const saved = updateGiveaway(db, row, { messageId });
       if (!saved) return;
@@ -111,7 +111,7 @@ export async function syncGiveaway(client: Client<true>, db: Db, row: Giveaway, 
       row = drawn;
     }
 
-    if (row.status === 'ended') {
+    if (row.status === 'ended' || row.status === 'cancelled') {
       await editGiveawayMessage(client, { ...row, ...location }, row.entryCount ?? 0);
       updateGiveaway(db, row, { nextSyncAt: null, accessFailures: 0 });
     }

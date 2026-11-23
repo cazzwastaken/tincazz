@@ -5,6 +5,7 @@ export { parseGiveawayDuration, parseGiveawayPrize } from './inputs.js';
 export { startGiveaways } from './runner.js';
 export {
   activeGiveaways,
+  cancelGiveaway,
   cancelGiveawayPosts,
   queueGiveaway,
   requestGiveawayRefresh,

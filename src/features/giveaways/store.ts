@@ -136,6 +136,28 @@ export function activeGiveaways(db: Db, guildId: string): Giveaway[] {
     .all();
 }
 
+export function cancelGiveaway(
+  db: Db,
+  guildId: string,
+  channelId: string,
+  id: number,
+  now: number,
+) {
+  return db
+    .update(giveaways)
+    .set({ status: 'cancelled', nextSyncAt: now, accessFailures: 0 })
+    .where(
+      and(
+        eq(giveaways.guildId, guildId),
+        eq(giveaways.channelId, channelId),
+        eq(giveaways.id, id),
+        inArray(giveaways.status, ['open', 'publishing']),
+      ),
+    )
+    .returning({ id: giveaways.id })
+    .get();
+}
+
 export function cancelGiveawayPosts(db: Db, guildId: string, messageIds: string[]): void {
   db.update(giveaways)
     .set({ status: 'deleted', nextSyncAt: null, accessFailures: 0 })

@@ -238,7 +238,7 @@ export const giveaways = sqliteTable(
     hostId: text('host_id').notNull(),
     prize: text('prize').notNull(),
     endsAt: integer('ends_at'),
-    status: text('status', { enum: ['publishing', 'open', 'ended', 'deleted'] })
+    status: text('status', { enum: ['publishing', 'open', 'ended', 'cancelled', 'deleted'] })
       .notNull()
       .default('open'),
     accessFailures: integer('access_failures').notNull().default(0),

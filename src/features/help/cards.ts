@@ -220,6 +220,7 @@ function giveawaysPage(): Page {
   return {
     title: '# 🎁 Giveaways',
     body: [
+      'Staff can cancel a pending draw in its original channel with `/giveaway cancel`.',
       '`/giveaway list` shows active giveaways you can see in this server. Use the page option to see more.',
       `React with ${giveaway.emoji} on the giveaway post to enter. Remove your reaction to withdraw. Each person gets one entry. The host and bots are excluded.`,
       'Staff with Manage Messages at the server level and in the channel can run `/giveaway create` with a prize and a duration. ' +
