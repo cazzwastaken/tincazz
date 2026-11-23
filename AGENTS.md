@@ -164,9 +164,7 @@ ID (see `features/gamba/custom-ids.ts`), so handlers must ignore IDs they cannot
   members whose highest role is at or above the bot's.
 - **`Partials.Message`** (`src/client.ts`) lets `messageDelete` and `messageDeleteBulk` include an
   uncached honeypot card so it can be re-posted. Do not remove it.
-- Known limitation: a member who joined before a restart and passes Rules Screening after it may
-  not get auto-roles, because the guild-member partial's old `pending` is unknown
-  (`src/listeners/member-screening.ts`).
+- Pending screening joins persist until role assignment or departure. The hourly job recovers completions missed while offline.
 
 ## Conventions
 

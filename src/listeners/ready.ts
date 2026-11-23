@@ -7,6 +7,7 @@ import { ensureAllCards } from '../features/honeypot/index.js';
 import { createMemberReconcileJob } from '../features/members/job.js';
 import { startPresence } from '../features/presence/index.js';
 import { startJobs } from '../features/scheduler/index.js';
+import { screeningJob } from '../features/settings/screening.js';
 
 export class ReadyListener extends Listener {
   public constructor(context: Listener.LoaderContext) {
@@ -19,7 +20,7 @@ export class ReadyListener extends Listener {
     );
     const env = parseEnv(process.env);
     startPresence(client, env.GUILD_ID);
-    startJobs(client, [createMemberReconcileJob(env.GUILD_ID)]);
+    startJobs(client, [createMemberReconcileJob(env.GUILD_ID), screeningJob]);
     restoreChallengeCards(client);
     startGiveaways(client);
     void ensureAllCards();

@@ -4,6 +4,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createClient } from '../src/client.js';
 import { openDatabase } from '../src/db/index.js';
 import { wallets } from '../src/db/schema.js';
+import { screeningJob } from '../src/features/settings/screening.js';
 import { addAutoRole, autoRoles, setLogChannel } from '../src/features/settings/store.js';
 import { testEnv } from './support/env.js';
 
@@ -29,6 +30,7 @@ beforeEach(() => {
 function member(pending: boolean) {
   return {
     pending,
+    joinedTimestamp: 42,
     user: { id: '7', bot: false },
     guild: {
       id: '2',
@@ -130,4 +132,25 @@ describe('leave and rejoin', () => {
     expect(wallet()?.departedAt).toBeNull();
     expect(add).not.toHaveBeenCalled();
   });
+});
+
+it('uses a saved join after cache loss and consumes it once', async () => {
+  client.emit(Events.GuildMemberAdd, member(true));
+  await settle();
+  client.emit(Events.GuildMemberUpdate, member(false), member(false));
+  await settle();
+  client.emit(Events.GuildMemberUpdate, member(false), member(false));
+  await settle();
+  expect(add).toHaveBeenCalledTimes(1);
+});
+
+it('recovers offline screening completion and retries a failed role assignment', async () => {
+  client.emit(Events.GuildMemberAdd, member(true));
+  await settle();
+  const fetch = vi.fn(async () => member(false));
+  const recoveredClient = { guilds: { cache: new Map([['2', { members: { fetch } }]]) } } as never;
+  add.mockRejectedValueOnce(new Error('unavailable'));
+  for (let attempt = 0; attempt < 3; attempt++) await screeningJob.run(recoveredClient, 1);
+  expect(fetch).toHaveBeenCalledTimes(2);
+  expect(add).toHaveBeenCalledTimes(2);
 });

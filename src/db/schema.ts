@@ -254,3 +254,13 @@ export const giveaways = sqliteTable(
     index('giveaways_guild_active_idx').on(table.guildId, table.status, table.endsAt),
   ],
 );
+
+export const pendingScreenings = sqliteTable(
+  'pending_screenings',
+  {
+    guildId: text('guild_id').notNull(),
+    userId: text('user_id').notNull(),
+    joinedAt: integer('joined_at').notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.guildId, table.userId] })],
+);
