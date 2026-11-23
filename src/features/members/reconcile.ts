@@ -1,8 +1,10 @@
 import { container } from '@sapphire/framework';
+import { RESTJSONErrorCodes } from 'discord.js';
 import { eq } from 'drizzle-orm';
 import type { Db } from '../../db/index.js';
 import { wallets } from '../../db/schema.js';
 import { purgeWallet } from '../economy/prune.js';
+import { findWallet } from '../economy/wallets.js';
 import { logEconomy } from '../logs/send.js';
 import { members } from './config.js';
 import { markDeparted, markPresent } from './departures.js';
@@ -40,7 +42,10 @@ export function planReconcile(
 export interface ReconcileGuild {
   id: string;
   memberCount: number;
-  members: { fetch(): Promise<{ size: number; keys(): IterableIterator<string> }> };
+  members: {
+    fetch(options: { user: string; force: true }): Promise<unknown>;
+    fetch(): Promise<{ size: number; keys(): IterableIterator<string> }>;
+  };
 }
 
 export interface ReconcileResult {
@@ -71,7 +76,7 @@ export async function reconcileGuild(
   }
   const memberIds = new Set(roster.keys());
 
-  const result = db.transaction((tx) => {
+  const resultPlan = db.transaction((tx) => {
     const list = tx
       .select({ userId: wallets.userId, departedAt: wallets.departedAt })
       .from(wallets)
@@ -80,15 +85,42 @@ export async function reconcileGuild(
     const plan = planReconcile(list, memberIds, now);
     for (const userId of plan.depart) markDeparted(tx, guild.id, userId, now);
     for (const userId of plan.restore) markPresent(tx, guild.id, userId);
-    let coinsRemoved = 0;
-    for (const userId of plan.purge) coinsRemoved += purgeWallet(tx, guild.id, userId, now);
-    return {
-      departed: plan.depart.length,
-      restored: plan.restore.length,
-      purged: plan.purge,
-      coinsRemoved,
-    };
+    return { departed: plan.depart.length, restored: plan.restore.length, candidates: plan.purge };
   });
+
+  const result: ReconcileResult = {
+    departed: resultPlan.departed,
+    restored: resultPlan.restored,
+    purged: [],
+    coinsRemoved: 0,
+  };
+  for (const userId of resultPlan.candidates) {
+    try {
+      await guild.members.fetch({ user: userId, force: true });
+      if (markPresent(db, guild.id, userId)) result.restored++;
+    } catch (error) {
+      if (
+        !(
+          error &&
+          typeof error === 'object' &&
+          'code' in error &&
+          error.code === RESTJSONErrorCodes.UnknownMember
+        )
+      ) {
+        container.logger.warn(
+          `reconcile: could not confirm absence of ${userId} in ${guild.id}`,
+          error,
+        );
+        continue;
+      }
+      db.transaction((tx) => {
+        const departedAt = findWallet(tx, guild.id, userId)?.departedAt;
+        if (departedAt == null || now - departedAt < members.graceMs) return;
+        result.coinsRemoved += purgeWallet(tx, guild.id, userId, now);
+        result.purged.push(userId);
+      });
+    }
+  }
 
   if (result.departed || result.restored || result.purged.length) {
     void logEconomy(guild.id, { type: 'reconcile_summary', ...result });
