@@ -1,10 +1,11 @@
 # Giveaways
 
 Run `/giveaway create prize:Nitro 1 month duration:12 hours` in a server text or announcement
-channel. The command requires **Manage Messages** in that channel. The person who runs it is
-the host. Durations use whole minutes, hours, or days, from `1 minute` to `30 days`.
-Short forms such as `30m`, `12h`, and `1d` work too. Tincazz queues the request and starts
-the duration when the public entry card opens.
+channel. Only server staff can create giveaways. They need **Manage Messages** at the server level
+and in the channel where they run the command. The person who runs it is the host. Durations
+use whole minutes, hours, or days, from `1 minute` to `30 days`. Short forms such as `30m`,
+`12h`, and `1d` work too. Tincazz queues the request and starts the duration when the public
+entry card opens.
 
 React with 🎉 on the giveaway post to enter. Remove your 🎉 reaction to withdraw. If you added both
 a regular and a Super Reaction, remove both to withdraw. Each person gets one entry. The host and

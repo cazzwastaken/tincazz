@@ -1,5 +1,11 @@
 import { container } from '@sapphire/framework';
-import { ChannelType, Events, GatewayDispatchEvents, PermissionsBitField } from 'discord.js';
+import {
+  ChannelType,
+  Events,
+  GatewayDispatchEvents,
+  PermissionFlagsBits,
+  PermissionsBitField,
+} from 'discord.js';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createClient } from '../src/client.js';
 import { closeDatabase, openDatabase } from '../src/db/index.js';
@@ -20,15 +26,21 @@ beforeEach(() => {
 afterAll(() => client.destroy());
 afterEach(() => closeDatabase(container.db));
 
-function interaction(options: Partial<ChatInputOptions> = {}) {
+function interaction({
+  guildPermissions = PermissionFlagsBits.ManageMessages,
+  ...options
+}: Partial<ChatInputOptions> & { guildPermissions?: bigint } = {}) {
+  const input = makeChatInput(client, {
+    commandName: 'giveaway',
+    subcommand: 'create',
+    userId: '42',
+    permissions: PermissionFlagsBits.ManageMessages,
+    options: { prize: 'Nitro 1 month', duration: '12 hours' },
+    ...options,
+  });
   return {
-    ...makeChatInput(client, {
-      commandName: 'giveaway',
-      subcommand: 'create',
-      userId: '42',
-      options: { prize: 'Nitro 1 month', duration: '12 hours' },
-      ...options,
-    }),
+    ...input,
+    member: { ...input.member, permissions: new PermissionsBitField(guildPermissions) },
     id: '100',
     appPermissions: new PermissionsBitField(PermissionsBitField.All),
     deferReply: vi.fn(),
@@ -46,31 +58,49 @@ function add(guildId: string, channelId: string, messageId: string, prize: strin
 }
 
 describe('/giveaway', () => {
-  it('persists the creation request before any public post and leaves the draw time unset', async () => {
-    const input = interaction();
-    run(input);
-    await vi.waitFor(() =>
-      expect(input.editReply).toHaveBeenCalledWith(
-        'Giveaway #1 queued. It will open in this channel.',
-      ),
-    );
-    expect(input.deferReply).toHaveBeenCalled();
-    expect(input.channel.send).not.toHaveBeenCalled();
+  it.each([PermissionFlagsBits.ManageMessages, PermissionFlagsBits.Administrator])(
+    'persists the creation request for staff with permission %s',
+    async (permission) => {
+      const input = interaction({ guildPermissions: permission, permissions: permission });
+      run(input);
+      await vi.waitFor(() =>
+        expect(input.editReply).toHaveBeenCalledWith(
+          'Giveaway #1 queued. It will open in this channel.',
+        ),
+      );
+      expect(input.deferReply).toHaveBeenCalled();
+      expect(input.channel.send).not.toHaveBeenCalled();
 
-    const [row] = container.db.select().from(giveaways).all();
-    expect(row).toMatchObject({
-      id: 1,
-      guildId: '2',
-      channelId: '3',
-      messageId: null,
-      creationId: '100',
-      hostId: '42',
-      prize: 'Nitro 1 month',
-      status: 'publishing',
-      endsAt: null,
-      durationMs: 12 * 3_600_000,
-    });
-  });
+      const [row] = container.db.select().from(giveaways).all();
+      expect(row).toMatchObject({
+        id: 1,
+        guildId: '2',
+        channelId: '3',
+        messageId: null,
+        creationId: '100',
+        hostId: '42',
+        prize: 'Nitro 1 month',
+        status: 'publishing',
+        endsAt: null,
+        durationMs: 12 * 3_600_000,
+      });
+    },
+  );
+
+  it.each([0n, PermissionFlagsBits.ManageMessages])(
+    'denies a non-staff member with channel permission %s',
+    async (permissions) => {
+      const input = interaction({ guildPermissions: 0n, permissions });
+      run(input);
+      await vi.waitFor(() =>
+        expect(input.reply).toHaveBeenCalledWith(
+          expect.objectContaining({ content: expect.stringContaining('Only server staff') }),
+        ),
+      );
+      expect(input.deferReply).not.toHaveBeenCalled();
+      expect(container.db.select().from(giveaways).all()).toEqual([]);
+    },
+  );
 
   it('rejects invalid durations and distinguishes member from bot permissions', async () => {
     const invalid = interaction({ options: { prize: 'Nitro', duration: '0 days' } });
@@ -103,6 +133,7 @@ describe('/giveaway', () => {
 
     const input = interaction({
       subcommand: 'list',
+      guildPermissions: 0n,
       permissions: 0n,
       guild: {
         channels: {

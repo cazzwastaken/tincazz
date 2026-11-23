@@ -99,14 +99,19 @@ export class GiveawayCommand extends Command {
   private async create(interaction: ChatInputCommandInteraction) {
     const reject = (content: string) =>
       interaction.reply({ content, flags: MessageFlags.Ephemeral });
-    const { channel, guildId } = interaction;
+    const { channel } = interaction;
     if (
-      !guildId ||
+      !interaction.inCachedGuild() ||
       (channel?.type !== ChannelType.GuildText && channel?.type !== ChannelType.GuildAnnouncement)
     ) {
       return reject('Run this command in a server text or announcement channel.');
     }
-    if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageMessages)) {
+    if (!interaction.member.permissions.has(PermissionFlagsBits.ManageMessages)) {
+      return reject(
+        'Only server staff with Manage Messages at the server level can host giveaways.',
+      );
+    }
+    if (!interaction.memberPermissions.has(PermissionFlagsBits.ManageMessages)) {
       return reject('You need Manage Messages in this channel to host a giveaway.');
     }
     if (!interaction.appPermissions.has(requiredBotPermissions)) {
@@ -125,7 +130,7 @@ export class GiveawayCommand extends Command {
       this.container.db,
       {
         creationId: interaction.id,
-        guildId,
+        guildId: interaction.guildId,
         channelId: channel.id,
         hostId: interaction.user.id,
         prize,
