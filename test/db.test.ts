@@ -17,6 +17,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { closeDatabase, openDatabase } from '../src/db/index.js';
 import {
   flips,
+  giveaways,
   guildSettings,
   ledger,
   playerStats,
@@ -200,7 +201,7 @@ describe('database', () => {
     closeDatabase(second);
   });
 
-  it('keeps existing game-channel allowlists restricted on upgrade', () => {
+  function copyMigrationsBefore(nextMigration: string) {
     const source = new URL('../drizzle/', import.meta.url);
     const legacy = join(dir, 'legacy');
     mkdirSync(join(legacy, 'meta'), { recursive: true });
@@ -209,13 +210,18 @@ describe('database', () => {
     };
     const entries = journal.entries.slice(
       0,
-      journal.entries.findIndex(({ tag }) => tag === '0008_game_channels_restricted'),
+      journal.entries.findIndex(({ tag }) => tag === nextMigration),
     );
     writeFileSync(join(legacy, 'meta', '_journal.json'), JSON.stringify({ ...journal, entries }));
     for (const { tag } of entries) {
       copyFileSync(new URL(`${tag}.sql`, source), join(legacy, `${tag}.sql`));
     }
 
+    return legacy;
+  }
+
+  it('keeps existing game-channel allowlists restricted on upgrade', () => {
+    const legacy = copyMigrationsBefore('0008_game_channels_restricted');
     const path = join(dir, 'legacy.db');
     const sqlite = new Database(path);
     try {
@@ -241,6 +247,58 @@ describe('database', () => {
           }),
           expect.objectContaining({ guildId: 'channel-only', gameChannelsRestricted: true }),
           expect.objectContaining({ guildId: 'unrestricted', gameChannelsRestricted: false }),
+        ]),
+      );
+    } finally {
+      closeDatabase(db);
+    }
+  });
+
+  it('upgrades existing giveaways and preserves deadlines and recorded winners', () => {
+    const path = join(dir, 'legacy.db');
+    const legacy = new Database(path);
+    try {
+      migrate(drizzle(legacy), {
+        migrationsFolder: copyMigrationsBefore('0011_giveaway_publication'),
+      });
+      legacy.exec(`
+        INSERT INTO giveaways (
+          id, guild_id, channel_id, message_id, host_id, prize, ends_at, status,
+          entry_count, winner_id, drawn_at, next_sync_at
+        ) VALUES
+          (1, 'guild', 'channel', 'open', 'host', 'Open prize', 100, 'open', 5, NULL, NULL, 85),
+          (2, 'guild', 'channel', 'ended', 'host', 'Ended prize', 90, 'ended', 9, 'winner', 92, 92);
+      `);
+    } finally {
+      legacy.close();
+    }
+
+    const db = openDatabase(path);
+    try {
+      expect(db.select().from(giveaways).all()).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            messageId: 'open',
+            status: 'open',
+            endsAt: 100,
+            entryCount: 5,
+            nextSyncAt: 85,
+            accessFailures: 0,
+            durationMs: null,
+            creationId: null,
+          }),
+          expect.objectContaining({
+            messageId: 'ended',
+            status: 'ended',
+            endsAt: 90,
+            entryCount: 9,
+            winnerId: 'winner',
+            drawnAt: 92,
+            nextSyncAt: 92,
+            accessFailures: 0,
+            durationMs: null,
+            creationId: null,
+          }),
         ]),
       );
     } finally {

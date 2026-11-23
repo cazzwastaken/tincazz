@@ -1,6 +1,6 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
-import { type Db, openDatabase } from '../src/db/index.js';
+import { closeDatabase, type Db, openDatabase } from '../src/db/index.js';
 import { flipSides, flips, ledger, pots, rolls, spins, wallets } from '../src/db/schema.js';
 import { settleBotFlip, settleChallenge } from '../src/features/coinflip/index.js';
 import { type DiceCall, settleRoll } from '../src/features/dice/index.js';
@@ -489,22 +489,34 @@ describe('economy fuzz', () => {
       fc.constantFrom(...sqlPayloads),
       fc.string({ unit: 'grapheme', minLength: 1, maxLength: 40 }),
     );
-    fc.assert(
-      fc.property(hostile, hostile, (guildId, userId) => {
-        const db = openDatabase(':memory:');
-        const tables = db.$client.prepare("select name from sqlite_master where type = 'table'");
-        const before = tables.all();
-        const wallet = getOrCreateWallet(db, guildId, userId, 1);
-        expect(wallet).toMatchObject({ guildId, userId, balance: startingBalance });
-        expect(findWallet(db, guildId, userId)).toEqual(wallet);
-        expect(coinsRank(db, guildId, userId)).toBeGreaterThanOrEqual(1);
-        expect(leaderboardRank(db, guildId, 'coins', userId)?.value).toBe(startingBalance);
-        const board = leaderboardPage(db, guildId, 'coins', 0);
-        expect(board.rows).toEqual([{ userId, value: startingBalance, rank: 1 }]);
-        expect(tables.all()).toEqual(before);
-        expectLedgerConsistent(db);
-      }),
-      { numRuns: 300 },
-    );
+    const db = openDatabase(':memory:');
+    try {
+      fc.assert(
+        fc.property(hostile, hostile, (guildId, userId) => {
+          // Restore the initial state between samples without rerunning every migration.
+          db.$client.exec('savepoint fuzz_ids');
+          try {
+            const tables = db.$client.prepare(
+              "select name from sqlite_master where type = 'table'",
+            );
+            const before = tables.all();
+            const wallet = getOrCreateWallet(db, guildId, userId, 1);
+            expect(wallet).toMatchObject({ guildId, userId, balance: startingBalance });
+            expect(findWallet(db, guildId, userId)).toEqual(wallet);
+            expect(coinsRank(db, guildId, userId)).toBeGreaterThanOrEqual(1);
+            expect(leaderboardRank(db, guildId, 'coins', userId)?.value).toBe(startingBalance);
+            const board = leaderboardPage(db, guildId, 'coins', 0);
+            expect(board.rows).toEqual([{ userId, value: startingBalance, rank: 1 }]);
+            expect(tables.all()).toEqual(before);
+            expectLedgerConsistent(db);
+          } finally {
+            db.$client.exec('rollback to fuzz_ids; release fuzz_ids');
+          }
+        }),
+        { numRuns: 300 },
+      );
+    } finally {
+      closeDatabase(db);
+    }
   });
 });

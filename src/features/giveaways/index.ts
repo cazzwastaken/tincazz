@@ -3,4 +3,9 @@ export { giveaway, giveawayDurationHint } from './config.js';
 export { entryReaction } from './discord.js';
 export { parseGiveawayDuration, parseGiveawayPrize } from './inputs.js';
 export { startGiveaways } from './runner.js';
-export { activeGiveaways, requestGiveawayRefresh, saveGiveaway } from './store.js';
+export {
+  activeGiveaways,
+  cancelGiveawayPosts,
+  queueGiveaway,
+  requestGiveawayRefresh,
+} from './store.js';

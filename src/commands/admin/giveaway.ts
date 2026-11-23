@@ -13,7 +13,7 @@ import {
   giveawayList,
   parseGiveawayDuration,
   parseGiveawayPrize,
-  saveGiveaway,
+  queueGiveaway,
 } from '../../features/giveaways/index.js';
 
 const requiredBotPermissions = [
@@ -121,37 +121,18 @@ export class GiveawayCommand extends Command {
     if (duration === null) return reject(giveawayDurationHint);
 
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-    const message = await channel.send({
-      content: '🎁 Setting up a Tincazz giveaway…',
-      nonce: interaction.id,
-      enforceNonce: true,
-    });
-    const now = Date.now();
-    let id: number;
-    try {
-      id = saveGiveaway(
-        this.container.db,
-        {
-          guildId,
-          channelId: channel.id,
-          messageId: message.id,
-          hostId: interaction.user.id,
-          prize,
-          endsAt: now + duration,
-        },
-        now,
-      ).id;
-    } catch (error) {
-      await message
-        .delete()
-        .catch((cleanupError) =>
-          this.container.logger.warn(
-            'Could not remove an unpublished giveaway message',
-            cleanupError,
-          ),
-        );
-      throw error;
-    }
-    return interaction.editReply(`Giveaway #${id} scheduled. [View the giveaway](${message.url}).`);
+    const row = queueGiveaway(
+      this.container.db,
+      {
+        creationId: interaction.id,
+        guildId,
+        channelId: channel.id,
+        hostId: interaction.user.id,
+        prize,
+        durationMs: duration,
+      },
+      Date.now(),
+    );
+    return interaction.editReply(`Giveaway #${row.id} queued. It will open in this channel.`);
   }
 }

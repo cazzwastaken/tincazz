@@ -9,6 +9,9 @@ export const giveaway = {
   scanMs: 1000,
   debounceMs: 3000,
   refreshMs: minute,
+  publishRetryMs: 5_000,
+  accessRetryMs: 5 * minute,
+  maxAccessRetryMs: 60 * minute,
   maxConcurrentSyncs: 4,
 } as const;
 

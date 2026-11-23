@@ -78,6 +78,13 @@
       "when": 1795416955388,
       "tag": "0010_giveaways",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1795417626216,
+      "tag": "0011_giveaway_publication",
+      "breakpoints": true
     }
   ]
 }

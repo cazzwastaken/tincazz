@@ -1,6 +1,6 @@
 import { randomInt } from 'node:crypto';
 import { container } from '@sapphire/framework';
-import type { Client } from 'discord.js';
+import type { Client, RESTGetAPIChannelMessageResult } from 'discord.js';
 import type { Db } from '../../db/index.js';
 import { giveaway } from './config.js';
 import {
@@ -8,7 +8,9 @@ import {
   eligibleEntrants,
   entryReaction,
   fetchGiveawayMessage,
+  isGiveawayAccessError,
   isGiveawayMessageGone,
+  recoverOrPostGiveaway,
   seedGiveawayReaction,
 } from './discord.js';
 import {
@@ -21,52 +23,128 @@ import {
 
 export async function syncGiveaway(client: Client<true>, db: Db, row: Giveaway, now: number) {
   const forgetMessage = () => {
-    if (row.status === 'open') updateGiveaway(db, row, { status: 'deleted', nextSyncAt: null });
-    else updateGiveaway(db, row, { nextSyncAt: null });
+    updateGiveaway(db, row, {
+      status: row.status === 'ended' ? 'ended' : 'deleted',
+      nextSyncAt: null,
+      accessFailures: 0,
+    });
   };
 
   try {
-    const message = await fetchGiveawayMessage(client, row);
+    if (row.status === 'deleted') return;
+    if (row.messageId === null && row.status === 'publishing') {
+      const messageId = await recoverOrPostGiveaway(client, row);
+      const saved = updateGiveaway(db, row, { messageId });
+      if (!saved) return;
+      row = saved;
+    }
+    if (row.messageId === null) throw new Error('Missing giveaway message ID');
+
+    const location = { channelId: row.channelId, messageId: row.messageId };
+    const message = await fetchGiveawayMessage(client, location);
     if (message.author.id !== client.user.id) {
       forgetMessage();
       return;
     }
 
-    if (row.status === 'open') {
-      const reaction = message.reactions?.find(({ emoji }) => entryReaction(emoji));
-      const closing = now >= row.endsAt;
-      if (!closing && !reaction?.me) await seedGiveawayReaction(client, row);
+    // An older version could schedule a draw before the placeholder was opened.
+    if (row.status === 'open' && message.content === '🎁 Setting up a Tincazz giveaway…') {
+      const durationMs = Math.min(
+        giveaway.maxDurationMs,
+        Math.max(giveaway.minDurationMs, (row.endsAt ?? now) - Date.parse(message.timestamp)),
+      );
+      const saved = updateGiveaway(db, row, { status: 'publishing', endsAt: null, durationMs });
+      if (!saved) return;
+      row = saved;
+    }
 
-      const entrants = await eligibleEntrants(client, row, reaction);
-      if (closing) {
-        const winner =
-          entrants.length === 0 ? null : (entrants[randomInt(entrants.length)] ?? null);
-        row = drawGiveaway(db, row, entrants.length, winner, now);
-      } else {
-        if (row.entryCount !== entrants.length || !message.embeds.length) {
-          await editGiveawayMessage(client, row, entrants.length);
-          updateGiveaway(db, row, { entryCount: entrants.length });
+    const reaction = message.reactions?.find(({ emoji }) => entryReaction(emoji));
+    if (row.status === 'publishing') {
+      let openedAt = publicationTime(message, row.id);
+      if (openedAt === null) {
+        if (!reaction?.me) await seedGiveawayReaction(client, location);
+        const card = await editGiveawayMessage(client, { ...row, ...location }, 0);
+        openedAt = publicationTime(card, row.id);
+      }
+      if (openedAt === null || row.durationMs === null) {
+        throw new Error('Missing giveaway publication data');
+      }
+
+      updateGiveaway(db, row, {
+        status: 'open',
+        endsAt: openedAt + row.durationMs,
+        nextSyncAt: now,
+        accessFailures: 0,
+      });
+      return;
+    }
+
+    if (row.status === 'open') {
+      const closing = row.endsAt !== null && now >= row.endsAt;
+      if (!closing && !reaction?.me) await seedGiveawayReaction(client, location);
+      const entrants = await eligibleEntrants(
+        client,
+        { ...location, hostId: row.hostId },
+        reaction,
+      );
+
+      if (!closing) {
+        const hasOldDrawLabel = message.embeds.some((embed) =>
+          embed.fields?.some((field) => field.name === 'Draws'),
+        );
+        if (row.entryCount !== entrants.length || !message.embeds.length || hasOldDrawLabel) {
+          await editGiveawayMessage(client, { ...row, ...location }, entrants.length);
+        }
+        if (row.entryCount !== entrants.length || row.accessFailures > 0) {
+          updateGiveaway(db, row, {
+            entryCount: entrants.length,
+            accessFailures: 0,
+            ...(row.accessFailures > 0 ? { nextSyncAt: nextRefresh(row, now) } : {}),
+          });
         }
         return;
       }
+
+      const winner = entrants.length === 0 ? null : (entrants[randomInt(entrants.length)] ?? null);
+      const drawn = drawGiveaway(db, row, entrants.length, winner, now);
+      if (!drawn) return;
+      row = drawn;
     }
 
     if (row.status === 'ended') {
-      await editGiveawayMessage(client, row, row.entryCount ?? 0);
-      updateGiveaway(db, row, { nextSyncAt: null });
+      await editGiveawayMessage(client, { ...row, ...location }, row.entryCount ?? 0);
+      updateGiveaway(db, row, { nextSyncAt: null, accessFailures: 0 });
     }
   } catch (error) {
-    if (isGiveawayMessageGone(error)) forgetMessage();
-    else {
-      updateGiveaway(db, row, { nextSyncAt: nextRefresh(row, now) });
-      throw error;
+    if (isGiveawayMessageGone(error)) {
+      forgetMessage();
+      return;
     }
+    const accessFailures = row.accessFailures + Number(isGiveawayAccessError(error));
+    const backoff = giveaway.accessRetryMs * 2 ** Math.min(accessFailures - 1, 4);
+    updateGiveaway(db, row, {
+      accessFailures,
+      nextSyncAt:
+        accessFailures > 0
+          ? now + Math.min(backoff, giveaway.maxAccessRetryMs)
+          : nextRefresh(row, now),
+    });
+    throw error;
   }
 }
 
+function publicationTime(message: RESTGetAPIChannelMessageResult, id: number): number | null {
+  if (!message.embeds.some((embed) => embed.footer?.text === `Giveaway #${id}`)) return null;
+  const timestamp = Date.parse(message.edited_timestamp ?? '');
+  return Number.isFinite(timestamp) ? timestamp : null;
+}
+
 function nextRefresh(row: Giveaway, now: number): number {
+  if (row.status === 'publishing') return now + giveaway.publishRetryMs;
   const refreshAt = now + giveaway.refreshMs;
-  return row.status === 'open' && row.endsAt > now ? Math.min(row.endsAt, refreshAt) : refreshAt;
+  return row.status === 'open' && row.endsAt !== null && row.endsAt > now
+    ? Math.min(row.endsAt, refreshAt)
+    : refreshAt;
 }
 
 export function startGiveaways(client: Client<true>): () => void {
@@ -79,17 +157,18 @@ export function startGiveaways(client: Client<true>): () => void {
     if (!client.isReady() || available === 0) return;
     try {
       const now = Date.now();
-      const due = dueGiveaways(db, now, giveaway.maxConcurrentSyncs)
-        .filter((row) => !inFlight.has(row.messageId))
-        .slice(0, available);
+      const due = dueGiveaways(db, now, giveaway.maxConcurrentSyncs);
       for (const row of due) {
+        const key = `${row.guildId}:${row.id}`;
+        if (inFlight.has(key)) continue;
+        if (inFlight.size >= giveaway.maxConcurrentSyncs) break;
         updateGiveaway(db, row, { nextSyncAt: nextRefresh(row, now) });
-        inFlight.add(row.messageId);
+        inFlight.add(key);
         void syncGiveaway(client, db, row, now)
           .catch((error) =>
             logger.warn(`Giveaway #${row.id} in guild ${row.guildId} sync failed`, error),
           )
-          .finally(() => inFlight.delete(row.messageId));
+          .finally(() => inFlight.delete(key));
       }
     } catch (error) {
       logger.warn('Giveaway scan failed', error);

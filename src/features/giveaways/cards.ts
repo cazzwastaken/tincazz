@@ -15,23 +15,26 @@ export function giveawayEmbed(row: Giveaway, entryCount: number): EmbedBuilder {
         ? row.winnerId
           ? 'Congratulations! Contact the host to claim your prize.'
           : 'No one eligible entered before the draw.'
-        : `React with ${giveaway.emoji} to enter. Remove your reaction to withdraw.`,
+        : `React with ${giveaway.emoji} to enter. Remove your reaction to withdraw. Entries are read when the draw runs.`,
     )
     .addFields(
       { name: 'Host', value: `<@${row.hostId}>`, inline: true },
       { name: 'Entries', value: entryText, inline: true },
       {
-        name: ended ? 'Winner' : 'Draws',
+        name: ended ? 'Winner' : 'Earliest draw',
         value: ended
           ? row.winnerId
             ? `<@${row.winnerId}>`
             : 'No winner'
-          : discordTime(row.endsAt),
+          : row.endsAt === null
+            ? 'Time will appear shortly'
+            : discordTime(row.endsAt),
         inline: true,
       },
     )
-    .setFooter({ text: `Giveaway #${row.id}` })
-    .setTimestamp(row.drawnAt ?? row.endsAt);
+    .setFooter({ text: `Giveaway #${row.id}` });
+  const timestamp = row.drawnAt ?? row.endsAt;
+  if (timestamp !== null) embed.setTimestamp(timestamp);
   return embed;
 }
 
@@ -52,14 +55,22 @@ export function giveawayList(rows: Giveaway[], page: number, now: number): Embed
 
   const start = (page - 1) * giveawaysPerPage;
   for (const row of rows.slice(start, start + giveawaysPerPage)) {
-    const ending = row.endsAt > now ? `Draws ${discordTime(row.endsAt)}` : 'Draw pending';
+    const ending =
+      row.accessFailures > 0
+        ? 'Bot access blocked. Restore its channel permissions to resume.'
+        : row.endsAt !== null && row.endsAt > now
+          ? `Earliest draw ${discordTime(row.endsAt)}`
+          : 'Draw pending';
+    const link = row.messageId
+      ? ` · [View post](${messageLink(row.channelId, row.messageId, row.guildId)})`
+      : '';
     const entries =
       row.entryCount === null
         ? 'Updating entry count'
         : `${row.entryCount.toLocaleString('en-US')} ${row.entryCount === 1 ? 'entry' : 'entries'}`;
     embed.addFields({
       name: `#${row.id} · ${escapeMarkdown(row.prize)}`,
-      value: `Hosted by <@${row.hostId}> · ${entries}\n${ending} · [View post](${messageLink(row.channelId, row.messageId, row.guildId)})`,
+      value: `Hosted by <@${row.hostId}> · ${entries}\n${ending}${link}`,
     });
   }
   return embed.setFooter({ text: `Page ${page} of ${totalPages}` });

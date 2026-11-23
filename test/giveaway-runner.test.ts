@@ -9,8 +9,17 @@ import { closeDatabase, type Db, openDatabase } from '../src/db/index.js';
 import { giveaways } from '../src/db/schema.js';
 import { giveaway } from '../src/features/giveaways/config.js';
 import { startGiveaways, syncGiveaway } from '../src/features/giveaways/runner.js';
-import { saveGiveaway, updateGiveaway } from '../src/features/giveaways/store.js';
+import {
+  activeGiveaways,
+  cancelGiveawayPosts,
+  dueGiveaways,
+  queueGiveaway,
+  refreshPendingGiveaways,
+  requestGiveawayRefresh,
+  updateGiveaway,
+} from '../src/features/giveaways/store.js';
 import { testEnv } from './support/env.js';
+import { openGiveaway } from './support/giveaways.js';
 
 const now = Date.UTC(2026, 9, 15);
 const path = Routes.channelMessage('20', '30');
@@ -34,11 +43,7 @@ afterEach(() => {
 });
 
 function save(endsAt = now + 60_000) {
-  return saveGiveaway(
-    db,
-    { guildId: '10', channelId: '20', messageId: '30', hostId: '2', prize: 'Nitro', endsAt },
-    now,
-  );
+  return openGiveaway(db, '10', '20', '30', 'Nitro', '2', endsAt, now);
 }
 
 const read = () => db.select().from(giveaways).get();
@@ -46,7 +51,10 @@ const read = () => db.select().from(giveaways).get();
 function discord() {
   const message = {
     author: user(1, true),
-    embeds: [] as object[],
+    content: '',
+    timestamp: new Date(now).toISOString(),
+    edited_timestamp: null as string | null,
+    embeds: [] as { footer?: { text: string } }[],
     reactions: [
       {
         emoji: { id: null, name: giveaway.emoji },
@@ -55,20 +63,23 @@ function discord() {
       },
     ],
   };
+  const history = vi.fn((_query?: URLSearchParams) => [] as object[]);
   const list = vi.fn((_query?: URLSearchParams) => [user(7)]);
   const get = vi.fn(async (route: string, options?: { query: URLSearchParams }) => {
     if (route === path) return message;
+    if (route === Routes.channelMessages('20')) return history(options?.query);
     if (route === reactionPath) return list(options?.query);
     throw new Error(`Unexpected route ${route}`);
   });
   const put = vi.fn();
   const patch = vi.fn();
+  const post = vi.fn(async () => ({ id: '30' }));
   const client = {
     user: message.author,
-    rest: { get, put, patch },
+    rest: { get, put, patch, post },
     isReady: () => true,
   } as unknown as Client<true>;
-  return { client, message, list, get, put, patch };
+  return { client, message, list, get, put, patch, post, history };
 }
 
 describe('giveaway lifecycle', () => {
@@ -86,7 +97,7 @@ describe('giveaway lifecycle', () => {
             fields: [
               expect.objectContaining({ name: 'Host', value: '<@2>' }),
               expect.objectContaining({ name: 'Entries', value: '1' }),
-              expect.objectContaining({ name: 'Draws' }),
+              expect.objectContaining({ name: 'Earliest draw' }),
             ],
           }),
         ],
@@ -222,5 +233,239 @@ describe('giveaway lifecycle', () => {
     );
     await syncGiveaway(api.client, db, read() ?? row, now);
     expect(read()).toMatchObject({ status: 'deleted', nextSyncAt: null });
+  });
+});
+
+describe('giveaway publication and recovery', () => {
+  function queue() {
+    return queueGiveaway(
+      db,
+      {
+        guildId: '10',
+        channelId: '20',
+        creationId: '100',
+        hostId: '2',
+        prize: 'Nitro',
+        durationMs: 60_000,
+      },
+      now,
+    );
+  }
+
+  function publishedCard(time: number) {
+    return {
+      embeds: [{ footer: { text: 'Giveaway #1' } }],
+      edited_timestamp: new Date(time).toISOString(),
+    };
+  }
+
+  it('starts the full duration after the entry card goes live, even after setup retries', async () => {
+    const api = discord();
+    api.message.reactions = [];
+    const row = queue();
+    api.put.mockRejectedValueOnce(new Error('Cannot seed yet'));
+
+    await expect(syncGiveaway(api.client, db, row, now)).rejects.toThrow('Cannot seed yet');
+    expect(api.post).toHaveBeenCalledWith(Routes.channelMessages('20'), {
+      body: {
+        content: '🎁 Setting up Tincazz giveaway #1…',
+        nonce: '100',
+        enforce_nonce: true,
+        allowed_mentions: { parse: [] },
+      },
+    });
+    expect(api.patch).not.toHaveBeenCalled();
+    expect(read()).toMatchObject({
+      status: 'publishing',
+      messageId: '30',
+      endsAt: null,
+      nextSyncAt: now + giveaway.publishRetryMs,
+    });
+
+    const openedAt = now + 80_000;
+    api.patch.mockResolvedValueOnce(publishedCard(openedAt));
+    await syncGiveaway(api.client, db, read() ?? row, openedAt);
+    expect(api.post).toHaveBeenCalledTimes(1);
+    expect(api.patch).toHaveBeenCalledTimes(1);
+    expect(read()).toMatchObject({ status: 'open', endsAt: openedAt + 60_000, winnerId: null });
+    expect(api.list).not.toHaveBeenCalled();
+  });
+
+  it('keeps the giveaway in setup when Discord returns the edit without the entry card', async () => {
+    const row = queue();
+    const api = discord();
+    api.patch.mockResolvedValueOnce({ embeds: [], edited_timestamp: new Date(now).toISOString() });
+
+    await expect(syncGiveaway(api.client, db, row, now)).rejects.toThrow(
+      'Missing giveaway publication data',
+    );
+    expect(read()).toMatchObject({ status: 'publishing', endsAt: null, winnerId: null });
+  });
+
+  it('reuses a setup post with a lost response after restart, including past the first page', async () => {
+    const row = queue();
+    const api = discord();
+    api.post.mockRejectedValueOnce(new Error('Send response lost'));
+    await expect(syncGiveaway(api.client, db, row, now)).rejects.toThrow('Send response lost');
+    closeDatabase(db);
+    db = openDatabase(file);
+
+    const setup = {
+      id: '30',
+      author: user(1, true),
+      content: '🎁 Setting up Tincazz giveaway #1…',
+    };
+    api.history.mockImplementation((query) => {
+      if (query?.get('before') === '200') return [setup];
+      return Array.from({ length: 100 }, (_, index) => ({
+        ...setup,
+        id: String(200 + index),
+        author: user(9),
+      }));
+    });
+    const openedAt = now + 3_600_000;
+    api.patch.mockResolvedValueOnce(publishedCard(openedAt));
+
+    await syncGiveaway(api.client, db, read() ?? row, openedAt);
+    expect(api.post).toHaveBeenCalledTimes(1);
+    expect(read()).toMatchObject({ status: 'open', messageId: '30', endsAt: openedAt + 60_000 });
+  });
+
+  it('recovers the deadline from an already published card after an interrupted edit', async () => {
+    const row = queue();
+    updateGiveaway(db, row, { messageId: '30' });
+    const api = discord();
+    api.message.edited_timestamp = new Date(now + 2_000).toISOString();
+    api.message.embeds = [{ footer: { text: 'Giveaway #1' } }];
+
+    await syncGiveaway(api.client, db, read() ?? row, now + 5_000);
+    expect(read()).toMatchObject({ status: 'open', endsAt: now + 62_000 });
+    expect(api.patch).not.toHaveBeenCalled();
+    expect(api.put).not.toHaveBeenCalled();
+    expect(api.post).not.toHaveBeenCalled();
+  });
+
+  it('recovers an overdue legacy placeholder without selecting a winner', async () => {
+    db.insert(giveaways)
+      .values({
+        id: 1,
+        guildId: '10',
+        channelId: '20',
+        messageId: '30',
+        hostId: '2',
+        prize: 'Nitro',
+        endsAt: now + 60_000,
+        nextSyncAt: now,
+      })
+      .run();
+    const api = discord();
+    api.message.content = '🎁 Setting up a Tincazz giveaway…';
+    api.patch.mockResolvedValueOnce(publishedCard(now + 80_000));
+
+    const row = read();
+    if (!row) throw new Error('Missing test giveaway');
+    await syncGiveaway(api.client, db, row, now + 80_000);
+    expect(read()).toMatchObject({ status: 'open', endsAt: now + 140_000, winnerId: null });
+    expect(api.list).not.toHaveBeenCalled();
+  });
+
+  it('prioritizes a due draw over older maintenance and uses the requested draw snapshot', async () => {
+    const later = openGiveaway(db, '10', '20', '31', 'Later', '2', now + 60_000, now - 5_000);
+    const due = save(now - 1_000);
+    expect(dueGiveaways(db, now, 1).map((row) => row.messageId)).toEqual([due.messageId]);
+
+    const api = discord();
+    api.list.mockReturnValue([user(8)]);
+    await syncGiveaway(api.client, db, due, now);
+    expect(db.select().from(giveaways).all()).toContainEqual(
+      expect.objectContaining({
+        messageId: due.messageId,
+        status: 'ended',
+        winnerId: '8',
+      }),
+    );
+    expect(activeGiveaways(db, '10')).toEqual([later]);
+  });
+
+  it('cancels a draw if a deletion arrives while the entrant list is fetched', async () => {
+    const row = save(now);
+    const api = discord();
+    api.list.mockImplementation(() => {
+      cancelGiveawayPosts(db, row.guildId, ['30']);
+      return [user(7)];
+    });
+
+    await syncGiveaway(api.client, db, row, now);
+    expect(read()).toMatchObject({ status: 'deleted', winnerId: null });
+    expect(api.patch).not.toHaveBeenCalled();
+  });
+
+  it('backs off after access errors, preserves that schedule, then resumes the draw', async () => {
+    const row = save(now);
+    const api = discord();
+    const error = new DiscordAPIError(
+      { message: 'Missing Access', code: RESTJSONErrorCodes.MissingAccess },
+      RESTJSONErrorCodes.MissingAccess,
+      403,
+      'GET',
+      path,
+      {},
+    );
+    api.get.mockRejectedValueOnce(error).mockRejectedValueOnce(error);
+    await expect(syncGiveaway(api.client, db, row, now)).rejects.toThrow('Missing Access');
+    const blocked = read() ?? row;
+    expect(blocked).toMatchObject({
+      status: 'open',
+      accessFailures: 1,
+      nextSyncAt: now + giveaway.accessRetryMs,
+    });
+
+    requestGiveawayRefresh(db, row.guildId, '30', now + 1_000);
+    refreshPendingGiveaways(db, now + 1_000);
+    expect(dueGiveaways(db, now + 1_000, 1)).toEqual([]);
+    expect(activeGiveaways(db, row.guildId)).toEqual([blocked]);
+    const retryAt = now + giveaway.accessRetryMs;
+    await expect(syncGiveaway(api.client, db, blocked, retryAt)).rejects.toThrow('Missing Access');
+    expect(read()).toMatchObject({
+      accessFailures: 2,
+      nextSyncAt: retryAt + 2 * giveaway.accessRetryMs,
+    });
+
+    await syncGiveaway(api.client, db, read() ?? row, retryAt + 2 * giveaway.accessRetryMs);
+    expect(read()).toMatchObject({
+      status: 'ended',
+      winnerId: '7',
+      accessFailures: 0,
+      nextSyncAt: null,
+    });
+  });
+
+  it('keeps a recorded winner on permission failure and retries only the result edit', async () => {
+    const row = save(now);
+    const api = discord();
+    const error = new DiscordAPIError(
+      { message: 'Missing Permissions', code: RESTJSONErrorCodes.MissingPermissions },
+      RESTJSONErrorCodes.MissingPermissions,
+      403,
+      'PATCH',
+      path,
+      {},
+    );
+    api.patch.mockRejectedValueOnce(error);
+    await expect(syncGiveaway(api.client, db, row, now)).rejects.toThrow('Missing Permissions');
+    const blocked = read() ?? row;
+    expect(blocked).toMatchObject({
+      status: 'ended',
+      winnerId: '7',
+      accessFailures: 1,
+      nextSyncAt: now + giveaway.accessRetryMs,
+    });
+    expect(activeGiveaways(db, row.guildId)).toEqual([blocked]);
+
+    api.list.mockReturnValue([user(8)]);
+    await syncGiveaway(api.client, db, blocked, now + giveaway.accessRetryMs);
+    expect(api.list).toHaveBeenCalledTimes(1);
+    expect(read()).toMatchObject({ winnerId: '7', accessFailures: 0, nextSyncAt: null });
+    expect(activeGiveaways(db, row.guildId)).toEqual([]);
   });
 });

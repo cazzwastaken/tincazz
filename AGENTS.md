@@ -116,8 +116,8 @@ src/
                   channel and role delete cleanup, chat rewards, the honeypot trigger and card re-post
                   after a single or bulk delete (`honeypot.ts`, `honeypot-card-delete.ts`,
                   `honeypot-card-bulk-delete.ts`), ready, a generic ephemeral reply
-                  when a command or handler throws, giveaway reaction refreshes, and replies when a
-                  precondition denies a command, such as a cooldown)
+                  when a command or handler throws, giveaway reaction refreshes and deletion handling,
+                  and replies when a precondition denies a command, such as a cooldown)
 assets/fonts/     the OFL fonts used for image captions, each with its licence file
 drizzle/          generated SQL migrations, committed and shipped in the image
 test/             Vitest tests (`test/support/` has shared helpers)

@@ -6,8 +6,9 @@ import { closeDatabase, openDatabase } from '../src/db/index.js';
 import { giveaways } from '../src/db/schema.js';
 import { giveawayList } from '../src/features/giveaways/cards.js';
 import { giveaway } from '../src/features/giveaways/config.js';
-import { saveGiveaway, updateGiveaway } from '../src/features/giveaways/store.js';
+import { queueGiveaway, updateGiveaway } from '../src/features/giveaways/store.js';
 import { testEnv } from './support/env.js';
+import { openGiveaway } from './support/giveaways.js';
 import { type ChatInputOptions, makeChatInput } from './support/interaction.js';
 
 const client = createClient(testEnv);
@@ -20,7 +21,6 @@ afterAll(() => client.destroy());
 afterEach(() => closeDatabase(container.db));
 
 function interaction(options: Partial<ChatInputOptions> = {}) {
-  const message = { id: '30', url: 'https://discord.com/channels/2/3/30', delete: vi.fn() };
   return {
     ...makeChatInput(client, {
       commandName: 'giveaway',
@@ -32,8 +32,7 @@ function interaction(options: Partial<ChatInputOptions> = {}) {
     id: '100',
     appPermissions: new PermissionsBitField(PermissionsBitField.All),
     deferReply: vi.fn(),
-    channel: { id: '3', type: ChannelType.GuildText, send: vi.fn(async () => message) },
-    message,
+    channel: { id: '3', type: ChannelType.GuildText, send: vi.fn() },
   };
 }
 
@@ -43,45 +42,34 @@ function run(input: ReturnType<typeof interaction>) {
 
 function add(guildId: string, channelId: string, messageId: string, prize: string) {
   const now = Date.now();
-  return saveGiveaway(
-    container.db,
-    {
-      guildId,
-      channelId,
-      messageId,
-      hostId: '81',
-      prize,
-      endsAt: now + 60_000,
-    },
-    now,
-  );
+  return openGiveaway(container.db, guildId, channelId, messageId, prize, '81', now + 60_000, now);
 }
 
 describe('/giveaway', () => {
-  it('posts a giveaway and persists the creator, guild and original deadline', async () => {
-    const start = Date.now();
+  it('persists the creation request before any public post and leaves the draw time unset', async () => {
     const input = interaction();
     run(input);
     await vi.waitFor(() =>
-      expect(input.editReply).toHaveBeenCalledWith(expect.stringContaining(input.message.url)),
+      expect(input.editReply).toHaveBeenCalledWith(
+        'Giveaway #1 queued. It will open in this channel.',
+      ),
     );
     expect(input.deferReply).toHaveBeenCalled();
-    expect(input.channel.send).toHaveBeenCalledWith(
-      expect.objectContaining({ nonce: '100', enforceNonce: true }),
-    );
+    expect(input.channel.send).not.toHaveBeenCalled();
 
     const [row] = container.db.select().from(giveaways).all();
     expect(row).toMatchObject({
       id: 1,
       guildId: '2',
       channelId: '3',
-      messageId: '30',
+      messageId: null,
+      creationId: '100',
       hostId: '42',
       prize: 'Nitro 1 month',
-      status: 'open',
+      status: 'publishing',
+      endsAt: null,
+      durationMs: 12 * 3_600_000,
     });
-    expect(row?.endsAt).toBeGreaterThanOrEqual(start + 12 * 3_600_000);
-    expect(row?.endsAt).toBeLessThanOrEqual(Date.now() + 12 * 3_600_000);
   });
 
   it('rejects invalid durations and distinguishes member from bot permissions', async () => {
@@ -106,10 +94,11 @@ describe('/giveaway', () => {
   it('lists guild-scoped IDs and filters out private channels and ended giveaways', async () => {
     const shown = add('2', '3', '30', 'Visible prize');
     const hidden = add('2', '4', '31', 'Private prize');
+    updateGiveaway(container.db, hidden, { accessFailures: 1 });
     const other = add('9', '9', '90', 'Other guild prize');
     const ended = add('2', '3', '32', 'Old prize');
     expect([shown.id, hidden.id, other.id, ended.id]).toEqual([1, 2, 1, 3]);
-    updateGiveaway(container.db, shown, { entryCount: 24 });
+    updateGiveaway(container.db, shown, { entryCount: 24, accessFailures: 1 });
     updateGiveaway(container.db, ended, { status: 'ended', nextSyncAt: null });
 
     const input = interaction({
@@ -129,13 +118,25 @@ describe('/giveaway', () => {
     const output = JSON.stringify(input.reply.mock.calls);
     expect(output).toContain('#1 · Visible prize');
     expect(output).toContain('Hosted by <@81> · 24 entries');
+    expect(output).toContain('Bot access blocked');
     expect(output).toContain('https://discord.com/channels/2/3/30');
     expect(output).not.toMatch(/Private prize|Other guild prize|Old prize/);
   });
 
-  it('preserves the first record on a duplicate post and pages visible giveaways', () => {
+  it('deduplicates creation requests and pages visible giveaways', () => {
     const first = add('2', '3', '30', 'Original prize');
-    const duplicate = add('2', '3', '30', 'Duplicate prize');
+    const duplicate = queueGiveaway(
+      container.db,
+      {
+        guildId: '2',
+        channelId: '3',
+        creationId: '30',
+        hostId: '81',
+        prize: 'Duplicate prize',
+        durationMs: 60_000,
+      },
+      Date.now(),
+    );
     expect(duplicate).toEqual(first);
     const rows = [
       first,
@@ -144,7 +145,7 @@ describe('/giveaway', () => {
       ),
     ];
 
-    const page = giveawayList(rows, 2, Math.max(...rows.map((row) => row.endsAt))).toJSON();
+    const page = giveawayList(rows, 2, Math.max(...rows.map((row) => row.endsAt ?? 0))).toJSON();
     expect(page.footer?.text).toBe('Page 2 of 2');
     expect(page.fields).toEqual([
       expect.objectContaining({
@@ -177,5 +178,17 @@ describe('/giveaway', () => {
     expect(scheduledAt()).toBe(nextSyncAt);
     emit('2', giveaway.emoji);
     expect(scheduledAt()).toBeLessThan(nextSyncAt);
+    client.emit(
+      Events.Raw,
+      {
+        t: GatewayDispatchEvents.MessageDeleteBulk,
+        d: { guild_id: '2', ids: [row.messageId] },
+      },
+      0,
+    );
+    expect(container.db.select().from(giveaways).get()).toMatchObject({
+      status: 'deleted',
+      nextSyncAt: null,
+    });
   });
 });

@@ -224,7 +224,7 @@ function giveawaysPage(): Page {
       `React with ${giveaway.emoji} on the giveaway post to enter. Remove your reaction to withdraw. Each person gets one entry. The host and bots are excluded.`,
       'Members with Manage Messages can run `/giveaway create` with a prize and a duration. ' +
         giveawayDurationHint,
-      'Tincazz edits the giveaway post with the result and the winner can contact the host to claim their prize.',
+      'The listed time is the earliest draw time. Tincazz reads entries when the draw runs and edits the post with the result.',
     ],
   };
 }

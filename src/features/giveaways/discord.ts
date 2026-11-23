@@ -4,7 +4,9 @@ import {
   DiscordAPIError,
   type RESTGetAPIChannelMessageReactionUsersResult,
   type RESTGetAPIChannelMessageResult,
+  type RESTGetAPIChannelMessagesResult,
   RESTJSONErrorCodes,
+  type RESTPostAPIChannelMessageResult,
   ReactionType,
   Routes,
 } from 'discord.js';
@@ -14,27 +16,73 @@ import type { Giveaway } from './store.js';
 
 const encodedEmoji = encodeURIComponent(giveaway.emoji);
 
-export async function fetchGiveawayMessage(client: Client<true>, row: Giveaway) {
+type PostedGiveaway = Pick<Giveaway, 'channelId'> & { messageId: string };
+
+const setupText = (row: Giveaway) => `🎁 Setting up Tincazz giveaway #${row.id}…`;
+
+export async function recoverOrPostGiveaway(client: Client<true>, row: Giveaway): Promise<string> {
+  if (!row.creationId) throw new Error('Missing giveaway creation ID');
+
+  const route = Routes.channelMessages(row.channelId);
+  const creationTime = BigInt(row.creationId) >> 22n;
+  const content = setupText(row);
+  const query = new URLSearchParams({ limit: '100' });
+  // The nonce also deduplicates Discord REST retries, but Discord only retains it briefly.
+  // Scan back to the interaction to recover an accepted send even after a long restart.
+  for (;;) {
+    const messages = (await client.rest.get(route, { query })) as RESTGetAPIChannelMessagesResult;
+    let oldest: bigint | undefined;
+    for (const message of messages) {
+      const id = BigInt(message.id);
+      if (
+        id >> 22n >= creationTime &&
+        message.author.id === client.user.id &&
+        message.content === content
+      ) {
+        return message.id;
+      }
+      if (oldest === undefined || id < oldest) oldest = id;
+    }
+    if (messages.length < 100 || oldest === undefined || oldest >> 22n < creationTime) break;
+    const before = oldest.toString();
+    if (before === query.get('before')) throw new Error('Giveaway history cursor did not advance');
+    query.set('before', before);
+  }
+
+  const message = (await client.rest.post(route, {
+    body: { content, nonce: row.creationId, enforce_nonce: true, allowed_mentions: { parse: [] } },
+  })) as RESTPostAPIChannelMessageResult;
+  return message.id;
+}
+
+export async function fetchGiveawayMessage(client: Client<true>, row: PostedGiveaway) {
   // Use the Discord snapshot directly so a cached gateway message cannot affect a draw.
   return (await client.rest.get(
     Routes.channelMessage(row.channelId, row.messageId),
   )) as RESTGetAPIChannelMessageResult;
 }
 
-export async function seedGiveawayReaction(client: Client<true>, row: Giveaway): Promise<void> {
+export async function seedGiveawayReaction(
+  client: Client<true>,
+  row: PostedGiveaway,
+): Promise<void> {
   await client.rest.put(
     Routes.channelMessageOwnReaction(row.channelId, row.messageId, encodedEmoji),
   );
 }
 
-export async function editGiveawayMessage(client: Client<true>, row: Giveaway, entryCount: number) {
-  await client.rest.patch(Routes.channelMessage(row.channelId, row.messageId), {
+export async function editGiveawayMessage(
+  client: Client<true>,
+  row: Giveaway & PostedGiveaway,
+  entryCount: number,
+) {
+  return (await client.rest.patch(Routes.channelMessage(row.channelId, row.messageId), {
     body: {
       content: '',
       embeds: [giveawayEmbed(row, entryCount).toJSON()],
       allowed_mentions: { parse: [] },
     },
-  });
+  })) as RESTGetAPIChannelMessageResult;
 }
 
 export function isGiveawayMessageGone(error: unknown): boolean {
@@ -45,9 +93,13 @@ export function isGiveawayMessageGone(error: unknown): boolean {
   );
 }
 
+export function isGiveawayAccessError(error: unknown): boolean {
+  return error instanceof DiscordAPIError && error.status === 403;
+}
+
 export async function eligibleEntrants(
   client: Client<true>,
-  row: Giveaway,
+  row: PostedGiveaway & Pick<Giveaway, 'hostId'>,
   reaction: APIReaction | undefined,
 ): Promise<string[]> {
   if (!reaction) return [];

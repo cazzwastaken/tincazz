@@ -232,13 +232,16 @@ export const giveaways = sqliteTable(
     id: integer('id').notNull(),
     guildId: text('guild_id').notNull(),
     channelId: text('channel_id').notNull(),
-    messageId: text('message_id').notNull().unique(),
+    messageId: text('message_id').unique(),
+    creationId: text('creation_id').unique(),
+    durationMs: integer('duration_ms'),
     hostId: text('host_id').notNull(),
     prize: text('prize').notNull(),
-    endsAt: integer('ends_at').notNull(),
-    status: text('status', { enum: ['open', 'ended', 'deleted'] })
+    endsAt: integer('ends_at'),
+    status: text('status', { enum: ['publishing', 'open', 'ended', 'deleted'] })
       .notNull()
       .default('open'),
+    accessFailures: integer('access_failures').notNull().default(0),
     entryCount: integer('entry_count'),
     winnerId: text('winner_id'),
     drawnAt: integer('drawn_at'),
