@@ -238,7 +238,7 @@ export const giveaways = sqliteTable(
     hostId: text('host_id').notNull(),
     prize: text('prize').notNull(),
     endsAt: integer('ends_at'),
-    status: text('status', { enum: ['publishing', 'open', 'ended', 'deleted'] })
+    status: text('status', { enum: ['publishing', 'open', 'ended', 'cancelled', 'deleted'] })
       .notNull()
       .default('open'),
     accessFailures: integer('access_failures').notNull().default(0),
@@ -253,4 +253,14 @@ export const giveaways = sqliteTable(
     index('giveaways_next_sync_idx').on(table.nextSyncAt),
     index('giveaways_guild_active_idx').on(table.guildId, table.status, table.endsAt),
   ],
+);
+
+export const pendingScreenings = sqliteTable(
+  'pending_screenings',
+  {
+    guildId: text('guild_id').notNull(),
+    userId: text('user_id').notNull(),
+    joinedAt: integer('joined_at').notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.guildId, table.userId] })],
 );

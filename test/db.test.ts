@@ -62,6 +62,7 @@ describe('database', () => {
       'job_runs',
       'ledger',
       'pending_coinflip_challenges',
+      'pending_screenings',
       'player_stats',
       'pots',
       'rolls',

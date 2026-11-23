@@ -4,6 +4,14 @@ import { giveaway } from './config.js';
 import type { Giveaway } from './store.js';
 
 export function giveawayEmbed(row: Giveaway, entryCount: number): EmbedBuilder {
+  if (row.status === 'cancelled') {
+    return new EmbedBuilder()
+      .setAuthor({ name: 'Giveaway cancelled' })
+      .setTitle(escapeMarkdown(row.prize))
+      .setColor(accents.loss)
+      .setDescription('Staff cancelled this giveaway before the draw.')
+      .setFooter({ text: `Giveaway #${row.id}` });
+  }
   const ended = row.status === 'ended';
   const entryText = entryCount.toLocaleString('en-US');
   const embed = new EmbedBuilder()

@@ -8,6 +8,7 @@ import {
 } from 'discord.js';
 import {
   activeGiveaways,
+  cancelGiveaway,
   giveaway,
   giveawayDurationHint,
   giveawayList,
@@ -38,6 +39,18 @@ export class GiveawayCommand extends Command {
         .setName(this.name)
         .setDescription(this.description)
         .setContexts(InteractionContextType.Guild)
+        .addSubcommand((sub) =>
+          sub
+            .setName('cancel')
+            .setDescription('Cancel a pending giveaway in this channel')
+            .addIntegerOption((option) =>
+              option
+                .setName('id')
+                .setDescription('Giveaway number')
+                .setMinValue(1)
+                .setRequired(true),
+            ),
+        )
         .addSubcommand((sub) =>
           sub
             .setName('create')
@@ -72,7 +85,7 @@ export class GiveawayCommand extends Command {
 
   public override async chatInputRun(interaction: ChatInputCommandInteraction) {
     if (interaction.options.getSubcommand() === 'list') return this.list(interaction);
-    return this.create(interaction);
+    return this.manage(interaction);
   }
 
   private list(interaction: ChatInputCommandInteraction) {
@@ -96,7 +109,7 @@ export class GiveawayCommand extends Command {
     });
   }
 
-  private async create(interaction: ChatInputCommandInteraction) {
+  private async manage(interaction: ChatInputCommandInteraction) {
     const reject = (content: string) =>
       interaction.reply({ content, flags: MessageFlags.Ephemeral });
     const { channel } = interaction;
@@ -108,11 +121,27 @@ export class GiveawayCommand extends Command {
     }
     if (!interaction.member.permissions.has(PermissionFlagsBits.ManageMessages)) {
       return reject(
-        'Only server staff with Manage Messages at the server level can host giveaways.',
+        'Only server staff with Manage Messages at the server level can manage giveaways.',
       );
     }
     if (!interaction.memberPermissions.has(PermissionFlagsBits.ManageMessages)) {
-      return reject('You need Manage Messages in this channel to host a giveaway.');
+      return reject('You need Manage Messages in this channel to manage giveaways.');
+    }
+    if (interaction.options.getSubcommand() === 'cancel') {
+      const id = interaction.options.getInteger('id', true);
+      const cancelled = cancelGiveaway(
+        this.container.db,
+        interaction.guildId,
+        channel.id,
+        id,
+        Date.now(),
+      );
+      return interaction.reply({
+        content: cancelled
+          ? `Giveaway #${id} cancelled.`
+          : 'No pending giveaway with that number in this channel.',
+        flags: MessageFlags.Ephemeral,
+      });
     }
     if (!interaction.appPermissions.has(requiredBotPermissions)) {
       return reject(

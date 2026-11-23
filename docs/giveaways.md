@@ -11,6 +11,8 @@ React with 🎉 on the giveaway post to enter. Remove your 🎉 reaction to with
 a regular and a Super Reaction, remove both to withdraw. Each person gets one entry. The host and
 bot accounts are excluded. The post shows the prize, host, entry count, and earliest draw time.
 
+Reaction changes trigger a recount after a short delay. Quiet giveaways refresh every 15 minutes to catch missed events.
+
 Use `/giveaway list` to see current giveaways and giveaways with channel access issues.
 Results are private and include only channels you can view and read. Use the `page` option for more.
 
@@ -24,3 +26,5 @@ the original post with the result. The winner contacts the host to claim the pri
 If Tincazz loses channel access, restore its channel permissions to resume. It retries automatically,
 starting after five minutes and backing off to one hour. Once Tincazz records a result, it retries
 the result edit with the same winner. Deleting the giveaway post before the draw cancels it.
+
+Staff can run `/giveaway cancel id:1` in the original channel before a winner is drawn. The bot marks the post as cancelled, retrying the edit if channel access is unavailable. Cancellation requires the same staff permissions as creation.

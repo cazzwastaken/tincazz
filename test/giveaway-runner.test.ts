@@ -11,7 +11,9 @@ import { giveaway } from '../src/features/giveaways/config.js';
 import { startGiveaways, syncGiveaway } from '../src/features/giveaways/runner.js';
 import {
   activeGiveaways,
+  cancelGiveaway,
   cancelGiveawayPosts,
+  drawGiveaway,
   dueGiveaways,
   queueGiveaway,
   refreshPendingGiveaways,
@@ -83,6 +85,43 @@ function discord() {
 }
 
 describe('giveaway lifecycle', () => {
+  it('recounts quiet giveaways infrequently and coalesces reaction events', async () => {
+    save(now + 2 * giveaway.recountMs);
+    vi.useFakeTimers({ now });
+    container.db = db;
+    const api = discord();
+    const stop = startGiveaways(api.client);
+    try {
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(api.list).toHaveBeenCalledTimes(1);
+      expect(read()?.nextSyncAt).toBe(now + giveaway.recountMs);
+      requestGiveawayRefresh(db, '10', '30', Date.now());
+      requestGiveawayRefresh(db, '10', '30', Date.now() + 1000);
+      await vi.advanceTimersByTimeAsync(giveaway.debounceMs);
+      expect(api.list).toHaveBeenCalledTimes(2);
+      await vi.advanceTimersByTimeAsync(giveaway.recountMs);
+      expect(api.list).toHaveBeenCalledTimes(3);
+    } finally {
+      stop();
+    }
+  });
+
+  it('serializes cancellation against drawing and retries the cancelled card', async () => {
+    const row = save(now);
+    expect(cancelGiveaway(db, '10', '20', row.id, now)).toBeDefined();
+    expect(drawGiveaway(db, row, 1, '7', now)).toBeUndefined();
+    const api = discord();
+    api.patch.mockRejectedValueOnce(new Error('unavailable'));
+    await expect(syncGiveaway(api.client, db, read() ?? row, now)).rejects.toThrow();
+    await syncGiveaway(api.client, db, read() ?? row, now + giveaway.retryMs);
+    expect(api.list).not.toHaveBeenCalled();
+    expect(JSON.stringify(api.patch.mock.calls)).toContain('Giveaway cancelled');
+    expect(read()).toMatchObject({ status: 'cancelled', nextSyncAt: null, winnerId: null });
+    const other = openGiveaway(db, '10', '20', '31', 'Other', '2', now, now);
+    expect(drawGiveaway(db, other, 1, '7', now)).toBeDefined();
+    expect(cancelGiveaway(db, '10', '20', other.id, now)).toBeUndefined();
+  });
+
   it('seeds the reaction, updates the public count and reflects withdrawals', async () => {
     const row = save();
     const api = discord();
@@ -200,10 +239,10 @@ describe('giveaway lifecycle', () => {
     expect(read()).toMatchObject({
       status: 'open',
       drawnAt: null,
-      nextSyncAt: now + giveaway.refreshMs,
+      nextSyncAt: now + giveaway.retryMs,
     });
 
-    await syncGiveaway(api.client, db, read() ?? row, now + giveaway.refreshMs);
+    await syncGiveaway(api.client, db, read() ?? row, now + giveaway.retryMs);
     expect(read()).toMatchObject({
       status: 'ended',
       winnerId: '7',

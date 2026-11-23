@@ -95,7 +95,7 @@ it('resolves and reports every role when roles.add rejects', async () => {
       throw new Error('Missing Permissions');
     }),
   );
-  await expect(assignAutoRoles(member)).resolves.toBeUndefined();
+  await expect(assignAutoRoles(member)).resolves.toBe(false);
   await new Promise((resolve) => setTimeout(resolve, 50));
   expect(send).toHaveBeenCalledTimes(1);
 });

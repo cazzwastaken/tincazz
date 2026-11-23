@@ -58,6 +58,39 @@ function add(guildId: string, channelId: string, messageId: string, prize: strin
 }
 
 describe('/giveaway', () => {
+  it('only lets staff cancel a pending giveaway in its own channel', async () => {
+    const visible = add('2', '3', '30', 'Visible');
+    const other = add('2', '4', '31', 'Other');
+    for (const [id, guildPermissions, permissions, expected] of [
+      [visible.id, 0n, PermissionFlagsBits.ManageMessages, 'Only server staff'],
+      [visible.id, PermissionFlagsBits.ManageMessages, 0n, 'You need Manage Messages'],
+      [
+        other.id,
+        PermissionFlagsBits.ManageMessages,
+        PermissionFlagsBits.ManageMessages,
+        'No pending giveaway',
+      ],
+      [
+        visible.id,
+        PermissionFlagsBits.ManageMessages,
+        PermissionFlagsBits.ManageMessages,
+        '#1 cancelled',
+      ],
+    ] as const) {
+      const input = interaction({
+        subcommand: 'cancel',
+        options: { id },
+        guildPermissions,
+        permissions,
+      });
+      run(input);
+      await vi.waitFor(() =>
+        expect(input.reply).toHaveBeenCalledWith(
+          expect.objectContaining({ content: expect.stringContaining(expected) }),
+        ),
+      );
+    }
+  });
   it.each([PermissionFlagsBits.ManageMessages, PermissionFlagsBits.Administrator])(
     'persists the creation request for staff with permission %s',
     async (permission) => {

@@ -5,11 +5,11 @@ import { botCannotAssign, botFacts, moderatorPermissionProblem, roleFacts } from
 import { autoRoles } from './store.js';
 
 /** Gives a new (or just-screened) member the configured auto-roles. Never throws. */
-export async function assignAutoRoles(member: GuildMember): Promise<void> {
+export async function assignAutoRoles(member: GuildMember): Promise<boolean> {
   try {
     const guild = member.guild;
     const ids = autoRoles(container.db, guild.id, member.user.bot ? 'bot' : 'member');
-    if (ids.length === 0) return;
+    if (ids.length === 0) return true;
 
     const bot = botFacts(guild);
     const assignable: string[] = [];
@@ -48,7 +48,9 @@ export async function assignAutoRoles(member: GuildMember): Promise<void> {
       );
       void logMod(guild.id, { type: 'autorole_failed', userId: member.user.id, failures });
     }
+    return failures.length === 0;
   } catch (error) {
     container.logger.error(`auto-role assignment failed for ${member.user.id}`, error);
+    return false;
   }
 }

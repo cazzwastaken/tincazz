@@ -40,10 +40,22 @@ function seed(userId: string, balance: number, departedAt: number | null) {
     .run();
 }
 
-const guild = (ids: string[], memberCount = ids.length, id = '2') => ({
+const guild = (
+  ids: string[],
+  memberCount = ids.length,
+  id = '2',
+  lookup: () => Promise<void> = async () => {
+    throw Object.assign(new Error('unknown member'), { code: 10007 });
+  },
+) => ({
   id,
   memberCount,
-  members: { fetch: async () => new Map(ids.map((i) => [i, {}])) },
+  members: {
+    fetch: async (options?: { force: true }) => {
+      if (options) await lookup();
+      return new Map(ids.map((i) => [i, {}]));
+    },
+  },
 });
 
 const departedAtOf = (userId: string) =>
@@ -138,4 +150,24 @@ it('resolves true when every guild reconciles, honouring a single guild id (unca
   expect(await createMemberReconcileJob().run(client, now)).toBe(true);
   expect(await createMemberReconcileJob('8').run(client, now)).toBe(true);
   expect(await createMemberReconcileJob('9').run(client, now)).toBe(false);
+});
+
+it('checks individual members before purging from an incomplete roster', async () => {
+  const ids = Array.from({ length: 95 }, (_, i) => String(1000 + i));
+  seed('1', 20, 0);
+  await reconcileGuild(
+    container.db,
+    guild(ids, 100, '2', async () => {
+      throw new Error('timeout');
+    }),
+    now,
+  );
+  expect(departedAtOf('1')).toBe(0);
+  await reconcileGuild(
+    container.db,
+    guild(ids, 100, '2', async () => {}),
+    now,
+  );
+  expect(departedAtOf('1')).toBeNull();
+  expect(container.db.select().from(wallets).get()?.balance).toBe(20);
 });

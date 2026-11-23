@@ -3,6 +3,7 @@ import type { GuildMember } from 'discord.js';
 import { logEconomy } from '../features/logs/send.js';
 import { markPresent } from '../features/members/departures.js';
 import { assignAutoRoles } from '../features/settings/assign.js';
+import { forgetScreening, rememberScreening } from '../features/settings/screening.js';
 
 export class MemberJoinListener extends Listener {
   public constructor(context: Listener.LoaderContext) {
@@ -22,7 +23,11 @@ export class MemberJoinListener extends Listener {
         }
       }
       // Members still in membership screening get their roles once they pass it.
-      if (!member.pending) await assignAutoRoles(member);
+      if (member.pending) rememberScreening(member);
+      else {
+        forgetScreening(member.guild.id, member.user.id);
+        await assignAutoRoles(member);
+      }
     } catch (error) {
       this.container.logger.error(`member join handling failed for ${member.id}`, error);
     }
