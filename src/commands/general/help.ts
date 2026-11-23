@@ -14,7 +14,7 @@ import { cardReply } from '../../features/ui/index.js';
 
 export class HelpCommand extends Command {
   public constructor(context: Command.LoaderContext) {
-    super(context, { name: 'help', description: 'Shows the games and how to earn coins' });
+    super(context, { name: 'help', description: 'Find commands and learn how to use Tincazz' });
   }
 
   public override registerApplicationCommands(registry: Command.Registry) {

@@ -1,4 +1,12 @@
-export const helpPages = ['home', 'games', 'images', 'coins', 'gamba', 'flipdice'] as const;
+export const helpPages = [
+  'home',
+  'games',
+  'images',
+  'coins',
+  'gamba',
+  'flipdice',
+  'giveaways',
+] as const;
 export type HelpPage = (typeof helpPages)[number];
 
 export function isHelpPage(value: string): value is HelpPage {
@@ -36,6 +44,11 @@ export const topicInfo: Record<Exclude<HelpPage, 'home'>, TopicInfo> = {
     label: 'Coinflip & dice',
     description: 'Modes, calls, payouts and rake',
   },
+  giveaways: {
+    emoji: '🎁',
+    label: 'Giveaways',
+    description: 'Enter, host, and find current giveaways',
+  },
 };
 
 const aliases: Record<string, HelpPage> = {
@@ -62,6 +75,8 @@ const aliases: Record<string, HelpPage> = {
   dice: 'flipdice',
   roll: 'flipdice',
   flipdice: 'flipdice',
+  giveaway: 'giveaways',
+  giveaways: 'giveaways',
 };
 
 /** A forgiving topic lookup for `?help <topic>`; anything unknown opens the home page. */

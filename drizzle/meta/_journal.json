@@ -71,6 +71,20 @@
       "when": 1795360382897,
       "tag": "0009_pending_coinflip_challenges",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1795416955388,
+      "tag": "0010_giveaways",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1795417626216,
+      "tag": "0011_giveaway_publication",
+      "breakpoints": true
     }
   ]
 }
