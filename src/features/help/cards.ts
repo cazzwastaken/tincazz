@@ -16,6 +16,7 @@ import type { BetLimits } from '../gamba/bet.js';
 import { payoutBps, pot, wager } from '../gamba/config.js';
 import { threeOfAKindOdds } from '../gamba/index.js';
 import { gambaJackpotRoleId, outcomeEmoji } from '../gamba/outcomes.js';
+import { giveaway, giveawayDurationHint } from '../giveaways/config.js';
 import { accents, coins } from '../ui/index.js';
 import { encodeHelpMenuId, encodeHelpPageId } from './custom-ids.js';
 import { type HelpPage, topicInfo, topicPages } from './topics.js';
@@ -62,6 +63,8 @@ function homeSummary(page: Exclude<HelpPage, 'home'>, prefix: string): string {
       return `Three reels, a ${times(payoutBps.cppTriple)} jackpot and a pot of ${coins(pot.seed)}+`;
     case 'flipdice':
       return 'Flip against the bot or a member, or call the roll of two dice';
+    case 'giveaways':
+      return 'Find current prize draws in this server';
   }
 }
 
@@ -213,6 +216,19 @@ function flipDice(prefix: string): Page {
   };
 }
 
+function giveawaysPage(): Page {
+  return {
+    title: '# 🎁 Giveaways',
+    body: [
+      '`/giveaway list` shows active giveaways you can see in this server. Use the page option to see more.',
+      `React with ${giveaway.emoji} on the giveaway post to enter. Remove your reaction to withdraw. Each person gets one entry. The host and bots are excluded.`,
+      'Members with Manage Messages can run `/giveaway create` with a prize and a duration. ' +
+        giveawayDurationHint,
+      'Tincazz edits the giveaway post with the result and the winner can contact the host to claim their prize.',
+    ],
+  };
+}
+
 const builders: Record<HelpPage, (prefix: string) => Page> = {
   home,
   games,
@@ -220,6 +236,7 @@ const builders: Record<HelpPage, (prefix: string) => Page> = {
   coins: coinsPage,
   gamba: gambaPage,
   flipdice: flipDice,
+  giveaways: giveawaysPage,
 };
 
 /**

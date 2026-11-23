@@ -225,3 +225,29 @@ export const jobRuns = sqliteTable('job_runs', {
   name: text('name').primaryKey(),
   lastRunAt: integer('last_run_at').notNull(),
 });
+
+export const giveaways = sqliteTable(
+  'giveaways',
+  {
+    id: integer('id').notNull(),
+    guildId: text('guild_id').notNull(),
+    channelId: text('channel_id').notNull(),
+    messageId: text('message_id').notNull().unique(),
+    hostId: text('host_id').notNull(),
+    prize: text('prize').notNull(),
+    endsAt: integer('ends_at').notNull(),
+    status: text('status', { enum: ['open', 'ended', 'deleted'] })
+      .notNull()
+      .default('open'),
+    entryCount: integer('entry_count'),
+    winnerId: text('winner_id'),
+    drawnAt: integer('drawn_at'),
+    /** Null once the final edit has been delivered or the message is gone. */
+    nextSyncAt: integer('next_sync_at'),
+  },
+  (table) => [
+    primaryKey({ columns: [table.guildId, table.id] }),
+    index('giveaways_next_sync_idx').on(table.nextSyncAt),
+    index('giveaways_guild_active_idx').on(table.guildId, table.status, table.endsAt),
+  ],
+);

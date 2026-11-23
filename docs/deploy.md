@@ -22,6 +22,9 @@ Bot permissions:
 - **View Channel**, **Send Messages** and **Manage Messages** in the honeypot channel: to post and
   re-post the warning card and delete what the guard blocks.
 
+- **View Channel**, **Send Messages**, **Embed Links**, **Read Message History** and
+  **Add Reactions** in giveaway channels.
+
 A running server must grant **Ban Members** before anyone uses `/settings honeypot`.
 
 ## One-time VPS setup

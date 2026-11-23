@@ -54,6 +54,7 @@ describe('database', () => {
 
     expect((tables as string[]).sort()).toEqual([
       'flips',
+      'giveaways',
       'guild_auto_roles',
       'guild_game_channels',
       'guild_settings',

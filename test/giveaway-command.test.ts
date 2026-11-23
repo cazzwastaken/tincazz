@@ -1,0 +1,181 @@
+import { container } from '@sapphire/framework';
+import { ChannelType, Events, GatewayDispatchEvents, PermissionsBitField } from 'discord.js';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createClient } from '../src/client.js';
+import { closeDatabase, openDatabase } from '../src/db/index.js';
+import { giveaways } from '../src/db/schema.js';
+import { giveawayList } from '../src/features/giveaways/cards.js';
+import { giveaway } from '../src/features/giveaways/config.js';
+import { saveGiveaway, updateGiveaway } from '../src/features/giveaways/store.js';
+import { testEnv } from './support/env.js';
+import { type ChatInputOptions, makeChatInput } from './support/interaction.js';
+
+const client = createClient(testEnv);
+
+beforeAll(() => client.stores.load());
+beforeEach(() => {
+  container.db = openDatabase(':memory:');
+});
+afterAll(() => client.destroy());
+afterEach(() => closeDatabase(container.db));
+
+function interaction(options: Partial<ChatInputOptions> = {}) {
+  const message = { id: '30', url: 'https://discord.com/channels/2/3/30', delete: vi.fn() };
+  return {
+    ...makeChatInput(client, {
+      commandName: 'giveaway',
+      subcommand: 'create',
+      userId: '42',
+      options: { prize: 'Nitro 1 month', duration: '12 hours' },
+      ...options,
+    }),
+    id: '100',
+    appPermissions: new PermissionsBitField(PermissionsBitField.All),
+    deferReply: vi.fn(),
+    channel: { id: '3', type: ChannelType.GuildText, send: vi.fn(async () => message) },
+    message,
+  };
+}
+
+function run(input: ReturnType<typeof interaction>) {
+  client.emit(Events.InteractionCreate, input as never);
+}
+
+function add(guildId: string, channelId: string, messageId: string, prize: string) {
+  const now = Date.now();
+  return saveGiveaway(
+    container.db,
+    {
+      guildId,
+      channelId,
+      messageId,
+      hostId: '81',
+      prize,
+      endsAt: now + 60_000,
+    },
+    now,
+  );
+}
+
+describe('/giveaway', () => {
+  it('posts a giveaway and persists the creator, guild and original deadline', async () => {
+    const start = Date.now();
+    const input = interaction();
+    run(input);
+    await vi.waitFor(() =>
+      expect(input.editReply).toHaveBeenCalledWith(expect.stringContaining(input.message.url)),
+    );
+    expect(input.deferReply).toHaveBeenCalled();
+    expect(input.channel.send).toHaveBeenCalledWith(
+      expect.objectContaining({ nonce: '100', enforceNonce: true }),
+    );
+
+    const [row] = container.db.select().from(giveaways).all();
+    expect(row).toMatchObject({
+      id: 1,
+      guildId: '2',
+      channelId: '3',
+      messageId: '30',
+      hostId: '42',
+      prize: 'Nitro 1 month',
+      status: 'open',
+    });
+    expect(row?.endsAt).toBeGreaterThanOrEqual(start + 12 * 3_600_000);
+    expect(row?.endsAt).toBeLessThanOrEqual(Date.now() + 12 * 3_600_000);
+  });
+
+  it('rejects invalid durations and distinguishes member from bot permissions', async () => {
+    const invalid = interaction({ options: { prize: 'Nitro', duration: '0 days' } });
+    const member = interaction({ permissions: 0n });
+    const bot = { ...interaction(), appPermissions: new PermissionsBitField(0n) };
+    for (const [input, text] of [
+      [invalid, '1 minute to 30 days'],
+      [member, 'You need Manage Messages'],
+      [bot, 'I need View Channel'],
+    ] as const) {
+      run(input);
+      await vi.waitFor(() =>
+        expect(input.reply).toHaveBeenCalledWith(
+          expect.objectContaining({ content: expect.stringContaining(text) }),
+        ),
+      );
+      expect(input.channel.send).not.toHaveBeenCalled();
+    }
+  });
+
+  it('lists guild-scoped IDs and filters out private channels and ended giveaways', async () => {
+    const shown = add('2', '3', '30', 'Visible prize');
+    const hidden = add('2', '4', '31', 'Private prize');
+    const other = add('9', '9', '90', 'Other guild prize');
+    const ended = add('2', '3', '32', 'Old prize');
+    expect([shown.id, hidden.id, other.id, ended.id]).toEqual([1, 2, 1, 3]);
+    updateGiveaway(container.db, shown, { entryCount: 24 });
+    updateGiveaway(container.db, ended, { status: 'ended', nextSyncAt: null });
+
+    const input = interaction({
+      subcommand: 'list',
+      permissions: 0n,
+      guild: {
+        channels: {
+          cache: new Map([
+            ['3', { permissionsFor: () => new PermissionsBitField(PermissionsBitField.All) }],
+            ['4', { permissionsFor: () => new PermissionsBitField(0n) }],
+          ]),
+        },
+      },
+    });
+    run(input);
+    await vi.waitFor(() => expect(input.reply).toHaveBeenCalledTimes(1));
+    const output = JSON.stringify(input.reply.mock.calls);
+    expect(output).toContain('#1 · Visible prize');
+    expect(output).toContain('Hosted by <@81> · 24 entries');
+    expect(output).toContain('https://discord.com/channels/2/3/30');
+    expect(output).not.toMatch(/Private prize|Other guild prize|Old prize/);
+  });
+
+  it('preserves the first record on a duplicate post and pages visible giveaways', () => {
+    const first = add('2', '3', '30', 'Original prize');
+    const duplicate = add('2', '3', '30', 'Duplicate prize');
+    expect(duplicate).toEqual(first);
+    const rows = [
+      first,
+      ...Array.from({ length: 8 }, (_, index) =>
+        add('2', '3', String(31 + index), `Prize ${index + 2}`),
+      ),
+    ];
+
+    const page = giveawayList(rows, 2, Math.max(...rows.map((row) => row.endsAt))).toJSON();
+    expect(page.footer?.text).toBe('Page 2 of 2');
+    expect(page.fields).toEqual([
+      expect.objectContaining({
+        name: '#9 · Prize 9',
+        value: expect.stringContaining('Draw pending'),
+      }),
+    ]);
+  });
+
+  it('handles reaction packets for uncached messages and ignores other guilds and emojis', () => {
+    const row = add('2', '3', '30', 'Nitro');
+    const nextSyncAt = Date.now() + 50_000;
+    updateGiveaway(container.db, row, { nextSyncAt });
+    const emit = (
+      guildId: string,
+      name: string,
+      event = GatewayDispatchEvents.MessageReactionRemove,
+    ) =>
+      client.emit(
+        Events.Raw,
+        {
+          t: event,
+          d: { guild_id: guildId, message_id: row.messageId, emoji: { id: null, name } },
+        },
+        0,
+      );
+    const scheduledAt = () => container.db.select().from(giveaways).get()?.nextSyncAt;
+    emit('2', '👍');
+    emit('9', giveaway.emoji);
+    expect(scheduledAt()).toBe(nextSyncAt);
+    emit('2', giveaway.emoji);
+    expect(scheduledAt()).toBeLessThan(nextSyncAt);
+  });
+});

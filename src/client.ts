@@ -33,6 +33,7 @@ export function createClient(env: Env) {
     intents: [
       GatewayIntentBits.Guilds,
       GatewayIntentBits.GuildMessages,
+      GatewayIntentBits.GuildMessageReactions,
       // Privileged: must also be enabled in the Developer Portal (Bot -> Message Content Intent).
       GatewayIntentBits.MessageContent,
       // Privileged: enable in the Developer Portal (Bot -> Server Members Intent). Needed for joins, leaves and member fetches.

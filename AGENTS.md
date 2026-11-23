@@ -61,7 +61,7 @@ src/
   db/             SQLite schema (Drizzle) and `openDatabase`, exposed as `container.db`
   commands/       one file per command, grouped in folders by category
     admin/        `/settings` (log channels, join auto-roles, game channels and the honeypot channel;
-                  Manage Server)
+                  Manage Server); `/giveaway create` (Manage Messages) and `/giveaway list`
     economy/      `/balance` (also `?bal` / `?balance`), `/daily`, `/collect`, `/bailout`, `/eco`
     general/      `?ping` / `/ping`, `?help` / `/help` (paged card, `topic` option / argument)
     image/        `?bubble` / `/bubble` (also the "Bubble message" message context menu) and
@@ -84,7 +84,8 @@ src/
     gamba/        spin logic, odds and payouts (tuned to a ~1% house edge), the pot, bet parsing,
                   result cards and the shared `spin()` flow used by commands and buttons (every
                   spin is a wager, default 1)
-    help/         the paged help card (home, games, images, coins, gamba, coinflip and dice), the
+    giveaways/    guild-scoped reaction giveaways, live entry counts, durable draw and result edits
+    help/         the paged help card (home, games, images, coins, gamba, coinflip and dice, giveaways), the
                   topic menu and aliases, built from the economy and wager config so it cannot
                   drift; `hp:*` custom IDs
     honeypot/     per-guild honeypot channel: the softban trigger with its in-memory guard, the
@@ -115,12 +116,12 @@ src/
                   channel and role delete cleanup, chat rewards, the honeypot trigger and card re-post
                   after a single or bulk delete (`honeypot.ts`, `honeypot-card-delete.ts`,
                   `honeypot-card-bulk-delete.ts`), ready, a generic ephemeral reply
-                  when a command or handler throws, and a reply explaining why a precondition
-                  denied a command, such as a cooldown)
+                  when a command or handler throws, giveaway reaction refreshes, and replies when a
+                  precondition denies a command, such as a cooldown)
 assets/fonts/     the OFL fonts used for image captions, each with its licence file
 drizzle/          generated SQL migrations, committed and shipped in the image
 test/             Vitest tests (`test/support/` has shared helpers)
-docs/             `games.md` (player-facing rules) and `deploy.md` (operator guide)
+docs/             `games.md` (player-facing rules), `giveaways.md` and `deploy.md` (operator guide)
 .github/          CI, image publishing, Dependabot, issue forms, PR template and CODEOWNERS
 ```
 
@@ -149,7 +150,7 @@ ID (see `features/gamba/custom-ids.ts`), so handlers must ignore IDs they cannot
 - **Slash commands register to `GUILD_ID` when it is set**, otherwise globally (global updates can
   take up to an hour). Each command implements `registerApplicationCommands` and `chatInputRun`
   (plus `contextMenuRun` for a context menu command).
-- **Intents** (`src/client.ts`): Guilds, GuildMessages, MessageContent and GuildMembers. Request
+- **Intents** (`src/client.ts`): Guilds, GuildMessages, GuildMessageReactions, MessageContent and GuildMembers. Request
   only what a feature needs. `MessageContent` (prefix commands) and `GuildMembers` (joins, leaves,
   member fetches) are privileged and must be enabled in the Developer Portal (Bot tab). With
   Server Members off, Discord closes the gateway (4014, disallowed intents) and the bot exits at
