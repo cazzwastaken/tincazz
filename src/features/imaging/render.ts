@@ -9,7 +9,8 @@ import { type Frames, halveFrames } from './frames.js';
 
 export type ImageOperation =
   | { kind: 'bubble'; style: BubbleStyle; tail: TailSide; shape?: BubbleShape }
-  | { kind: 'caption'; text: string };
+  | { kind: 'caption'; text: string }
+  | { kind: 'gif' };
 
 export interface RenderResult {
   gif: Buffer;
@@ -66,10 +67,15 @@ const ladder: readonly LadderStep[] = [
   { maxWidth: 256, tuning: squeezed, halve: true },
 ];
 
-function operate(frames: Frames, op: ImageOperation): Promise<Frames> {
-  return op.kind === 'bubble'
-    ? applyBubble(frames, { style: op.style, tail: op.tail, shape: op.shape })
-    : applyCaption(frames, op.text);
+async function operate(frames: Frames, op: ImageOperation): Promise<Frames> {
+  switch (op.kind) {
+    case 'bubble':
+      return applyBubble(frames, { style: op.style, tail: op.tail, shape: op.shape });
+    case 'caption':
+      return applyCaption(frames, op.text);
+    case 'gif':
+      return frames;
+  }
 }
 
 /**
@@ -96,10 +102,13 @@ export async function renderImage(
     if (measured && rungPredictedOver(measured, { width, halve: rung.halve }, maxBytes)) continue;
     if (rung.maxWidth !== frameMaxWidth) {
       frames = undefined; // drop the previous width's buffers before building the next
-      const decoded = await decodeFrames(input, { maxWidth: rung.maxWidth, signal });
-      // Decoding clamps up to the minimum width, so a narrow source can land on the width it
-      // already encoded at: a new width step that resulted in the same width cannot shrink the
-      // output unless it halves the frames, skip it.
+      const decoded = await decodeFrames(input, {
+        maxWidth: rung.maxWidth,
+        upscale: op.kind !== 'gif',
+        signal,
+      });
+      // A narrow source can land on the width it already encoded at. Skip the rung unless
+      // it halves the frames.
       frames = await operate(decoded, op);
       frameMaxWidth = rung.maxWidth;
       if (frames.width === encodedWidth && !rung.halve) continue;

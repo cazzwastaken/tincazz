@@ -66,7 +66,8 @@ src/
     general/      `?ping` / `/ping`, `?help` / `/help` (paged card, `topic` option / argument)
     image/        `?bubble` / `/bubble` (also the "Bubble message" message context menu) and
                   `?caption` / `/caption` (also the "Caption message" context menu, which asks for
-                  the text in a modal); thin, all logic is in `features/imaging/`
+                  the text in a modal); `?gif` / `/gif` converts an image to a downloadable GIF.
+                  All image processing is in `features/imaging/`
     misc/         games: `?gamba` / `/gamba`, `?coinflip` / `/coinflip` (aliases `?cf`, `?flip`),
                   `?dice` / `/dice` (alias `?roll`)
     stats/        `/stats`, `/leaderboard`
@@ -88,7 +89,7 @@ src/
                   drift; `hp:*` custom IDs
     honeypot/     per-guild honeypot channel: the softban trigger with its in-memory guard, the
                   warning card sync (debounced, re-posted when deleted), the store and copy
-    imaging/      `/bubble` and `/caption` logic: the URL allowlist (`urls.ts`), the capped
+    imaging/      `/bubble`, `/caption` and `/gif` logic: the URL allowlist (`urls.ts`), the capped
                   downloader with redirect checks, source picking (attachment, link, reply, message
                   link, avatar, sticker), message-link parsing, decode, bubble and caption
                   rendering with sharp, the Discord-style message screenshot (`message.ts`), GIF

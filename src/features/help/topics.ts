@@ -20,7 +20,11 @@ export interface TopicInfo {
 
 export const topicInfo: Record<Exclude<HelpPage, 'home'>, TopicInfo> = {
   games: { emoji: '🎰', label: 'Games', description: 'Gamba, coinflip and dice at a glance' },
-  images: { emoji: '🖼️', label: 'Images', description: 'Speech bubbles and caption bars' },
+  images: {
+    emoji: '🖼️',
+    label: 'Images',
+    description: 'Speech bubbles, captions and GIF conversion',
+  },
   coins: {
     emoji: '🪙',
     label: 'Coins',
@@ -42,6 +46,7 @@ const aliases: Record<string, HelpPage> = {
   image: 'images',
   bubble: 'images',
   caption: 'images',
+  gif: 'images',
   coins: 'coins',
   coin: 'coins',
   economy: 'coins',

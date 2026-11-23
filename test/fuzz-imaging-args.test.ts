@@ -4,6 +4,7 @@ import {
   commandRemainder,
   parseBubbleArgs,
   parseCaptionArgs,
+  parseGifArgs,
 } from '../src/features/imaging/index.js';
 
 describe('args fuzz', () => {
@@ -12,8 +13,25 @@ describe('args fuzz', () => {
       fc.property(fc.string({ unit: 'binary' }), fc.string(), (x, p) => {
         parseBubbleArgs(x);
         parseCaptionArgs(x);
+        parseGifArgs(x);
         commandRemainder(x, p, 'caption');
       }),
+    );
+  });
+
+  it('gif accepts a single URL with optional angle brackets and surrounding whitespace', () => {
+    fc.assert(
+      fc.property(
+        fc.stringMatching(/^[a-z0-9_-]{1,40}$/),
+        fc.boolean(),
+        fc.constantFrom('', ' ', '\t', '\r\n'),
+        (path, wrapped, padding) => {
+          const url = `https://media.tenor.com/${path}.gif`;
+          const token = wrapped ? `<${url}>` : url;
+          expect(parseGifArgs(`${padding}${token}${padding}`)).toEqual({ url });
+          expect(parseGifArgs(`${token} ${token}`)).toEqual({ error: 'usage' });
+        },
+      ),
     );
   });
 

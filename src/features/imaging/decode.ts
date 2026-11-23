@@ -20,10 +20,10 @@ const clamp = (value: number, min: number, max: number) => Math.min(max, Math.ma
  */
 export async function decodeFrames(
   input: Buffer,
-  options: { maxWidth: number; signal?: AbortSignal },
+  options: { maxWidth: number; upscale?: boolean; signal?: AbortSignal },
 ): Promise<Frames> {
   try {
-    return await decode(input, options.maxWidth, options.signal);
+    return await decode(input, options.maxWidth, options.upscale ?? true, options.signal);
   } catch (error) {
     if (options.signal?.aborted) throw error;
     if (error instanceof ImagingError) throw error;
@@ -51,16 +51,21 @@ export function sourceTooLarge(source: { width: number; pageHeight: number; page
 }
 
 /**
- * Working size for a source: its width clamped to `limits.minWidth..maxWidth`, aspect kept. When
- * that page would be taller than `limits.maxPageHeight` the width shrinks (below `minWidth` if it
- * must) to keep it under; a result narrower than `limits.minPageWidth` is too many pixels.
+ * Working size at the given width and height caps, keeping the aspect ratio. Overlays enlarge
+ * small images to `limits.minWidth`. Plain conversion keeps small images at their original size.
  */
-export function decodeGeometry(srcWidth: number, srcPageHeight: number, maxWidth: number) {
-  let width = clamp(srcWidth, limits.minWidth, maxWidth);
+export function decodeGeometry(
+  srcWidth: number,
+  srcPageHeight: number,
+  maxWidth: number,
+  upscale = true,
+) {
+  let width = upscale ? clamp(srcWidth, limits.minWidth, maxWidth) : Math.min(srcWidth, maxWidth);
   if ((srcPageHeight * width) / srcWidth > limits.maxPageHeight) {
     width = Math.floor((srcWidth * limits.maxPageHeight) / srcPageHeight);
   }
-  if (width < limits.minPageWidth) throw new ImagingError(messages.tooManyPixels);
+  const minWidth = upscale ? limits.minPageWidth : Math.min(srcWidth, limits.minPageWidth);
+  if (width < minWidth) throw new ImagingError(messages.tooManyPixels);
   const pageHeight = Math.max(1, Math.round((srcPageHeight * width) / srcWidth));
   return { width, pageHeight };
 }
@@ -70,7 +75,12 @@ export function decodeChunkPages(width: number, pageHeight: number): number {
   return clamp(Math.floor(limits.maxStripPixels / (width * pageHeight)), 1, maxChunkPages);
 }
 
-async function decode(input: Buffer, maxWidth: number, signal?: AbortSignal): Promise<Frames> {
+async function decode(
+  input: Buffer,
+  maxWidth: number,
+  upscale: boolean,
+  signal?: AbortSignal,
+): Promise<Frames> {
   signal?.throwIfAborted();
   const head = await sharp(input).metadata();
   const source = sourceSize(head);
@@ -78,7 +88,7 @@ async function decode(input: Buffer, maxWidth: number, signal?: AbortSignal): Pr
   if (!srcWidth || !srcPageHeight) throw new ImagingError(messages.notImage);
   if (sourceTooLarge(source)) throw new ImagingError(messages.tooManyPixels);
 
-  const { width, pageHeight } = decodeGeometry(srcWidth, srcPageHeight, maxWidth);
+  const { width, pageHeight } = decodeGeometry(srcWidth, srcPageHeight, maxWidth, upscale);
   const chunkPages = decodeChunkPages(width, pageHeight);
   const cap = Math.min(limits.maxFrames, Math.floor(limits.maxStripPixels / (width * pageHeight)));
   if (cap < 1) throw new ImagingError(messages.tooManyPixels);

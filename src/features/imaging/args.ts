@@ -60,6 +60,17 @@ export function parseCaptionArgs(rest: string): { url?: string; text: string } {
   return { text: trimmed };
 }
 
+export function parseGifArgs(rest: string): { url?: string } | { error: 'usage' } {
+  const trimmed = rest.trim();
+  if (!trimmed) return {};
+  const url = urlToken.exec(trimmed)?.[1];
+  return url ? { url } : { error: 'usage' };
+}
+
+export function gifUsage(prefix: string): string {
+  return `Use \`${prefix}gif [link]\` with an image attached, an image link, or as a reply to an image. Or use \`/gif\`.`;
+}
+
 /**
  * The text after the prefix and the invoked command name or alias, newlines preserved (Sapphire's
  * lexer drops them). Empty when the content is not that command.
