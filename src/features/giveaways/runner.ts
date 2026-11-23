@@ -127,7 +127,7 @@ export async function syncGiveaway(client: Client<true>, db: Db, row: Giveaway, 
       nextSyncAt:
         accessFailures > 0
           ? now + Math.min(backoff, giveaway.maxAccessRetryMs)
-          : nextRefresh(row, now),
+          : Math.min(now + giveaway.retryMs, nextRefresh(row, now)),
     });
     throw error;
   }
@@ -141,7 +141,7 @@ function publicationTime(message: RESTGetAPIChannelMessageResult, id: number): n
 
 function nextRefresh(row: Giveaway, now: number): number {
   if (row.status === 'publishing') return now + giveaway.publishRetryMs;
-  const refreshAt = now + giveaway.refreshMs;
+  const refreshAt = now + (row.status === 'open' ? giveaway.recountMs : giveaway.retryMs);
   return row.status === 'open' && row.endsAt !== null && row.endsAt > now
     ? Math.min(row.endsAt, refreshAt)
     : refreshAt;

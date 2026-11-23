@@ -83,6 +83,27 @@ function discord() {
 }
 
 describe('giveaway lifecycle', () => {
+  it('recounts quiet giveaways infrequently and coalesces reaction events', async () => {
+    save(now + 2 * giveaway.recountMs);
+    vi.useFakeTimers({ now });
+    container.db = db;
+    const api = discord();
+    const stop = startGiveaways(api.client);
+    try {
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(api.list).toHaveBeenCalledTimes(1);
+      expect(read()?.nextSyncAt).toBe(now + giveaway.recountMs);
+      requestGiveawayRefresh(db, '10', '30', Date.now());
+      requestGiveawayRefresh(db, '10', '30', Date.now() + 1000);
+      await vi.advanceTimersByTimeAsync(giveaway.debounceMs);
+      expect(api.list).toHaveBeenCalledTimes(2);
+      await vi.advanceTimersByTimeAsync(giveaway.recountMs);
+      expect(api.list).toHaveBeenCalledTimes(3);
+    } finally {
+      stop();
+    }
+  });
+
   it('seeds the reaction, updates the public count and reflects withdrawals', async () => {
     const row = save();
     const api = discord();
@@ -200,10 +221,10 @@ describe('giveaway lifecycle', () => {
     expect(read()).toMatchObject({
       status: 'open',
       drawnAt: null,
-      nextSyncAt: now + giveaway.refreshMs,
+      nextSyncAt: now + giveaway.retryMs,
     });
 
-    await syncGiveaway(api.client, db, read() ?? row, now + giveaway.refreshMs);
+    await syncGiveaway(api.client, db, read() ?? row, now + giveaway.retryMs);
     expect(read()).toMatchObject({
       status: 'ended',
       winnerId: '7',

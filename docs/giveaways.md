@@ -11,6 +11,8 @@ React with 🎉 on the giveaway post to enter. Remove your 🎉 reaction to with
 a regular and a Super Reaction, remove both to withdraw. Each person gets one entry. The host and
 bot accounts are excluded. The post shows the prize, host, entry count, and earliest draw time.
 
+Reaction changes trigger a recount after a short delay. Quiet giveaways refresh every 15 minutes to catch missed events.
+
 Use `/giveaway list` to see current giveaways and giveaways with channel access issues.
 Results are private and include only channels you can view and read. Use the `page` option for more.
 
