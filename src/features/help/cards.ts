@@ -55,7 +55,7 @@ function homeSummary(page: Exclude<HelpPage, 'home'>, prefix: string): string {
     case 'games':
       return `\`/gamba\`, \`/coinflip\`, \`/dice\` and their \`${prefix}\` forms`;
     case 'images':
-      return 'Put a speech bubble or a caption bar on any image, GIF or message';
+      return 'Add speech bubbles or captions, or convert images to GIF';
     case 'coins':
       return `Earn ${coins(daily.base)}+ a day, check your balance and the leaderboard`;
     case 'gamba':
@@ -105,7 +105,11 @@ function images(prefix: string): Page {
         `Same sources as the bubble, e.g. \`${prefix}caption when the build passes\`, or **reply** to a message with it: text becomes a screenshot under the caption.`,
         'Or right-click a message, then **Apps**, then **Caption message** (it asks for the text), or use `/caption message:<link>`.',
       ].join('\n'),
-      '-# Links work from Discord, Tenor and Giphy. Results are re-encoded, so big GIFs may lose some frames.',
+      [
+        '### Convert to GIF',
+        `Use \`/gif\` with an attachment or link, or \`${prefix}gif\` with an attachment, link or reply to an image. Save the returned \`image.gif\` attachment.`,
+      ].join('\n'),
+      '-# Links work from Discord, Tenor and Giphy. Large images may be resized and large animations may lose frames.',
     ],
   };
 }

@@ -4,8 +4,10 @@ export {
   bubbleUsage,
   captionUsage,
   commandRemainder,
+  gifUsage,
   parseBubbleArgs,
   parseCaptionArgs,
+  parseGifArgs,
   type TailSide,
 } from './args.js';
 export { applyBubble, type BubbleGeometry, bubbleGeometry, bubbleSvg } from './bubble.js';

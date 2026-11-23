@@ -26,6 +26,8 @@ Type `/help` (or `?help`) in Discord for a paged guide with the live numbers.
   its link, or right-click > Apps > Bubble message)
 - `/caption`: add a white caption bar above an image, GIF, avatar or a whole message (reply to it,
   paste its link, or right-click > Apps > Caption message)
+- `/gif` or `?gif`: convert an uploaded or linked image to a downloadable GIF. You can also
+  reply to an image with `?gif`.
 
 **Economy**
 

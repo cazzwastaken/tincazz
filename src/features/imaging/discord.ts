@@ -251,7 +251,7 @@ async function renderJob(
     );
     return {
       file: new AttachmentBuilder(rendered.gif, {
-        name: op.kind === 'bubble' ? 'bubble.gif' : 'caption.gif',
+        name: op.kind === 'gif' ? 'image.gif' : `${op.kind}.gif`,
       }),
     };
   } catch (error) {
@@ -261,7 +261,7 @@ async function renderJob(
 }
 
 /**
- * The shared flow of /bubble and /caption: pick the source, then download and render it as one
+ * Pick the source, then download and render it as one
  * queued job. `{ error: null }` means nothing was given (show usage); other errors carry a
  * user-safe message.
  */
@@ -441,6 +441,7 @@ export function commandPrefix(client: Client): string {
 export async function replyWithImage(
   interaction: CommandInteraction | ModalSubmitInteraction,
   run: () => Promise<Produced>,
+  usage = slashUsage,
 ): Promise<void> {
   let result: Awaited<ReturnType<typeof run>>;
   try {
@@ -454,5 +455,5 @@ export async function replyWithImage(
     return;
   }
   await interaction.deleteReply().catch(() => undefined);
-  await interaction.followUp(errorReply(result.error ?? slashUsage));
+  await interaction.followUp(errorReply(result.error ?? usage));
 }

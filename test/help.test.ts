@@ -88,6 +88,8 @@ describe('help pages', () => {
     expect(text).toContain('!dice =12 50');
     expect(text).toContain('!bubble');
     expect(text).toContain('!caption');
+    expect(text).toContain('!gif');
+    expect(parseTopic('gif')).toBe('images');
     expect(text).not.toContain('?cf');
   });
 
