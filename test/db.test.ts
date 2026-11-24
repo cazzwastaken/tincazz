@@ -123,6 +123,8 @@ describe('database', () => {
       flipWins: 0,
       flipWagered: 0,
       flipWon: 0,
+      botFlipWagered: 0,
+      botFlipWon: 0,
       rolls: 0,
       rollWins: 0,
       rollWagered: 0,

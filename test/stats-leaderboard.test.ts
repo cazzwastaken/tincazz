@@ -85,9 +85,9 @@ describe('leaderboardPage', () => {
   });
 
   it('ranks coinflip as won minus wagered and hides zero or negative', () => {
-    addStats('1', { flipWon: 194, flipWagered: 100 });
-    addStats('2', { flipWon: 0, flipWagered: 100 });
-    addStats('3', { flipWon: 0, flipWagered: 0 });
+    addStats('1', { botFlipWon: 194, botFlipWagered: 100 });
+    addStats('2', { botFlipWon: 0, botFlipWagered: 100 });
+    addStats('3', { botFlipWon: 0, botFlipWagered: 0 });
     expect(leaderboardPage(db, '2', 'coinflip', 0).rows).toEqual([
       { userId: '1', value: 94, rank: 1 },
     ]);
@@ -152,8 +152,8 @@ describe('departed members', () => {
         jackpots: top,
         won: top,
         wagered: 0,
-        flipWon: top,
-        flipWagered: 0,
+        botFlipWon: top,
+        botFlipWagered: 0,
         rollWon: top,
         rollWagered: 0,
         spins: top,

@@ -2,6 +2,7 @@ import { InteractionHandler, InteractionHandlerTypes } from '@sapphire/framework
 import { type ButtonInteraction, ComponentType, type Message } from 'discord.js';
 import { end, play, stillRolling, tryBegin, updateDisplay } from '../features/animation/index.js';
 import {
+  assertChallengeCapacity,
   botFlipCard,
   botFlipFrames,
   type ChallengeId,
@@ -109,6 +110,8 @@ export class CoinflipButtonsHandler extends InteractionHandler {
     if (clickerId !== id.challengerId && clickerId !== id.acceptorId) {
       return interaction.reply(errorReply(notYourChallenge));
     }
+    // Before the key is claimed, so a refused rematch can be pressed again once a slot is free.
+    assertChallengeCapacity(interaction.guildId as string, clickerId);
     const key = `rematch:${interaction.message.id}`;
     if (!tryClose(key)) {
       return interaction.reply(errorReply(rematchTaken));
@@ -152,8 +155,12 @@ export class CoinflipButtonsHandler extends InteractionHandler {
       );
       return;
     }
-    trackChallengeCard(interaction.channelId, sent.id, view, (closed) =>
-      sent.edit(cardReply(closed)),
+    trackChallengeCard(
+      interaction.guildId as string,
+      interaction.channelId,
+      sent.id,
+      view,
+      (closed) => sent.edit(cardReply(closed)),
     );
   }
 

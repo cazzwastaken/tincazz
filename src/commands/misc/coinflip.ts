@@ -17,6 +17,7 @@ import {
   tryBegin,
 } from '../../features/animation/index.js';
 import {
+  assertChallengeCapacity,
   botFlipCard,
   botFlipFrames,
   type ChallengeView,
@@ -249,6 +250,8 @@ export class CoinflipCommand extends Command {
       return surface.error(cannotChallengeBot);
     }
 
+    assertChallengeCapacity(surface.guildId, challengerId);
+
     // Nothing is escrowed: the stake is only checked here and debited when someone accepts.
     const now = Date.now();
     const wallet = getOrCreateWallet(this.container.db, surface.guildId, challengerId, now);
@@ -263,6 +266,6 @@ export class CoinflipCommand extends Command {
 
     // Only a named opponent is pinged; an open challenge pings nobody.
     const sent = await surface.reply(challengeCard(view), opponent ? [opponent.id] : undefined);
-    trackChallengeCard(surface.channelId, sent.id, view, surface.edit);
+    trackChallengeCard(surface.guildId, surface.channelId, sent.id, view, surface.edit);
   }
 }

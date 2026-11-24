@@ -17,6 +17,8 @@ import {
 import {
   challengeResultCard,
   clearChallenges,
+  closeChallengeCard,
+  coinflip,
   encodeChallengeId,
   encodeFlipAgainId,
   encodeRematchId,
@@ -424,6 +426,7 @@ describe('coinflip buttons', () => {
     it('restores a failed cancellation without letting anyone accept it after restart', async () => {
       const expiresAt = Date.now() + 60_000;
       trackChallengeCard(
+        '2',
         '3',
         'm1',
         { challengerId: '1', opponentId: '3', bet: 100, side: 'heads', expiresAt },
@@ -458,6 +461,7 @@ describe('coinflip buttons', () => {
       const now = Date.now();
       for (const messageId of ['stale', 'result']) {
         trackChallengeCard(
+          '2',
           '3',
           messageId,
           { challengerId: '1', opponentId: '3', bet: 100, side: 'heads', expiresAt: now + 60_000 },
@@ -594,6 +598,41 @@ describe('coinflip buttons', () => {
 
     const buttonIds = (value: unknown) =>
       [...json(value).matchAll(/"custom_id":"([^"]+)"/g)].map((match) => match[1] as string);
+
+    it('refuses a rematch while the presser has the maximum live challenges, keeping the button', async () => {
+      for (let index = 0; index < coinflip.maxLiveChallenges; index++) {
+        trackChallengeCard(
+          '2',
+          '3',
+          `live-${index}`,
+          {
+            challengerId: '1',
+            opponentId: undefined,
+            bet: 10,
+            side: 'heads',
+            expiresAt: Date.now() + 60_000,
+          },
+          async () => undefined,
+        );
+      }
+      const { interaction, sent } = press('1');
+      await answered(interaction);
+
+      expect(json(interaction.reply.mock.calls[0])).toContain('open challenges');
+      expect(interaction.update).not.toHaveBeenCalled();
+      expect(interaction.announce).not.toHaveBeenCalled();
+      expect(sent.edit).not.toHaveBeenCalled();
+
+      // The key was not spent: once a slot frees up the same button works.
+      await closeChallengeCard(
+        'live-0',
+        { challengerId: '1', opponentId: undefined, bet: 10, side: 'heads', expiresAt: 0 },
+        'cancelled',
+        async () => undefined,
+      );
+      const retry = press('1');
+      await vi.waitFor(() => expect(retry.interaction.announce).toHaveBeenCalledTimes(1));
+    });
 
     it('a stranger pressing Rematch gets notYourChallenge', async () => {
       const { interaction } = press('4');

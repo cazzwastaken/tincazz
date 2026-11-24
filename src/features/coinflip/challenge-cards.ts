@@ -1,11 +1,13 @@
 import { container } from '@sapphire/framework';
 import { type Client, ComponentType, type ContainerBuilder, RESTJSONErrorCodes } from 'discord.js';
-import { and, eq, isNotNull } from 'drizzle-orm';
+import { and, eq, isNotNull, isNull, sql } from 'drizzle-orm';
 import { pendingCoinflipChallenges } from '../../db/schema.js';
 import { accents, card, cardReply } from '../ui/index.js';
 import { type ChallengeClosedReason, type ChallengeView, challengeClosedCard } from './cards.js';
 import { scheduleExpiry } from './challenges.js';
+import { coinflip } from './config.js';
 import { decodeCoinflipId } from './custom-ids.js';
+import { ChallengeLimitError } from './errors.js';
 import { isChallengeSettled } from './play.js';
 
 type EditCard = (card: ContainerBuilder) => Promise<unknown>;
@@ -55,7 +57,32 @@ async function discardIfGone(messageId: string, sync: () => Promise<unknown>): P
   }
 }
 
+/** How many challenges a player has live (not yet closed) in a guild. */
+export function liveChallengeCount(guildId: string, challengerId: string): number {
+  return (
+    container.db
+      .select({ count: sql<number>`count(*)` })
+      .from(pendingCoinflipChallenges)
+      .where(
+        and(
+          eq(pendingCoinflipChallenges.guildId, guildId),
+          eq(pendingCoinflipChallenges.challengerId, challengerId),
+          isNull(pendingCoinflipChallenges.closedReason),
+        ),
+      )
+      .get()?.count ?? 0
+  );
+}
+
+/** Throws a `ChallengeLimitError` when the player cannot post another challenge in the guild. */
+export function assertChallengeCapacity(guildId: string, challengerId: string): void {
+  if (liveChallengeCount(guildId, challengerId) >= coinflip.maxLiveChallenges) {
+    throw new ChallengeLimitError(coinflip.maxLiveChallenges);
+  }
+}
+
 export function trackChallengeCard(
+  guildId: string,
   channelId: string,
   messageId: string,
   view: ChallengeView,
@@ -63,7 +90,7 @@ export function trackChallengeCard(
 ): void {
   container.db
     .insert(pendingCoinflipChallenges)
-    .values({ ...view, channelId, messageId })
+    .values({ ...view, guildId, channelId, messageId })
     .run();
   scheduleExpiry(messageId, Math.max(0, view.expiresAt - Date.now()), () =>
     discardIfGone(messageId, () => closeChallengeCard(messageId, view, 'expired', edit)),
@@ -73,7 +100,7 @@ export function trackChallengeCard(
 /** Re-arm live cards; queue an immediate edit for cards that closed or expired while offline. */
 export function restoreChallengeCards(client: Client): void {
   for (const row of container.db.select().from(pendingCoinflipChallenges).all()) {
-    const { messageId, channelId, closedReason, opponentId, ...fields } = row;
+    const { messageId, guildId: _guildId, channelId, closedReason, opponentId, ...fields } = row;
     const view = { ...fields, opponentId: opponentId ?? undefined };
     const settled = isChallengeSettled(container.db, messageId);
     const delay = closedReason || settled ? 0 : Math.max(0, view.expiresAt - Date.now());

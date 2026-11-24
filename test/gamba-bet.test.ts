@@ -42,7 +42,24 @@ describe('parseBet', () => {
     for (const input of ['9', '0', '10001', '11k']) {
       expect(kindOf(input, 50_000)).toBe('range');
     }
-    expect(kindOf('half', 15)).toBe('range');
+    expect(kindOf('half', 30_000)).toBe('range');
+  });
+
+  it('treats half of a wallet below twice the minimum as a funds error, not a range error', () => {
+    for (const balance of [10, 15, 19]) {
+      expect(() => parseBet('half', balance, limits)).toThrow(InsufficientFundsError);
+    }
+    try {
+      parseBet('half', 15, limits);
+    } catch (error) {
+      expect(error).toMatchObject({ balance: 15, needed: 20 });
+    }
+    expect(parseBet('half', 20, limits)).toBe(10);
+  });
+
+  it('clamps all to the maximum bet and half above it is a range error', () => {
+    expect(parseBet('all', 10_001, limits)).toBe(10_000);
+    expect(parseBet('all', 1_000_000, limits)).toBe(10_000);
     expect(kindOf('half', 30_000)).toBe('range');
   });
 
@@ -64,7 +81,8 @@ describe('parseBet', () => {
   it('lets gamba take 1-coin bets while coinflip and dice keep a 10-coin minimum', () => {
     expect(parseBet('1', 1, gambaWager)).toBe(1);
     expect(parseBet('all', 1, gambaWager)).toBe(1);
-    expect(() => parseBet('half', 1, gambaWager)).toThrow(InvalidBetError);
+    expect(() => parseBet('half', 1, gambaWager)).toThrow(InsufficientFundsError);
+    expect(parseBet('half', 2, gambaWager)).toBe(1);
     expect(() => parseBet('0', 100, gambaWager)).toThrow(InvalidBetError);
     for (const limits of [flipWager, diceWager]) {
       expect(() => parseBet('9', 100, limits)).toThrow(InvalidBetError);

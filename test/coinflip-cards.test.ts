@@ -167,6 +167,12 @@ describe('result and closed cards', () => {
     expect(json(c)).toContain(`"style":${ButtonStyle.Secondary}`);
   });
 
+  it('leaves the rake out of the result when none was taken', () => {
+    const c = challengeResultCard(view(), { ...settled, rake: 0 });
+    expect(json(c)).not.toContain('rake');
+    expect(json(c)).toContain('-# pot 10,006');
+  });
+
   it('names the acceptor in the rematch id whoever won', () => {
     const c = challengeResultCard(view({ opponentId: undefined }), {
       ...settled,
