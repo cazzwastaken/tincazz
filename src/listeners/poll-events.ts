@@ -46,7 +46,9 @@ export class PollEventsListener extends Listener {
     switch (packet.t) {
       case GatewayDispatchEvents.MessageReactionAdd: {
         const { guild_id: guildId, message_id: messageId, user_id: userId } = packet.d;
-        if (!guildId || packet.d.member?.user.bot || userId === client.user?.id) return;
+        // Super (burst) reactions never vote.
+        if (!guildId || packet.d.burst) return;
+        if (packet.d.member?.user.bot || userId === client.user?.id) return;
         const emoji = unicode(packet.d.emoji);
         if (!emoji) return;
         // Only a poll's own option emoji reach the vote path.
@@ -67,7 +69,7 @@ export class PollEventsListener extends Listener {
       case GatewayDispatchEvents.MessageReactionRemove: {
         const { guild_id: guildId, message_id: messageId } = packet.d;
         const emoji = unicode(packet.d.emoji);
-        if (!guildId || !emoji) return;
+        if (!guildId || !emoji || packet.d.burst) return;
         const index = this.pollOption(guildId, messageId, (poll) => optionIndexOf(poll, emoji));
         if (index !== undefined) clearVote(db, guildId, messageId, packet.d.user_id, index, now);
         return;

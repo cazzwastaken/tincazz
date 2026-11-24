@@ -81,6 +81,17 @@ describe('poll events', () => {
     expect(votes()).toEqual([1, 0, 0]);
   });
 
+  it('ignores super (burst) reactions, added or removed', () => {
+    save();
+    reaction('MESSAGE_REACTION_ADD', one as string, { burst: true });
+    expect(votes()).toEqual([0, 0, 0]);
+    reaction('MESSAGE_REACTION_ADD', one as string, { burst: false });
+    reaction('MESSAGE_REACTION_REMOVE', one as string, { burst: true });
+    expect(votes()).toEqual([1, 0, 0]);
+    reaction('MESSAGE_REACTION_REMOVE', one as string, { burst: false });
+    expect(votes()).toEqual([0, 0, 0]);
+  });
+
   it('ignores reactions on messages that are not polls and DM events', () => {
     save();
     reaction('MESSAGE_REACTION_ADD', one as string, { message_id: '31' });

@@ -109,28 +109,25 @@ export async function fetchVoters(
     const route = Routes.channelMessageReaction(row.channelId, row.messageId, encode(name));
     const users = voters.get(index) ?? new Set<string>();
     voters.set(index, users);
-    for (const type of [ReactionType.Normal, ReactionType.Burst]) {
-      const count =
-        type === ReactionType.Normal ? reaction.count_details.normal : reaction.count_details.burst;
-      if (count === 0) continue;
-      let after: string | undefined;
-      for (;;) {
-        const query = new URLSearchParams({ type: String(type), limit: '100' });
-        if (after) query.set('after', after);
-        const page = (await client.rest.get(route, {
-          query,
-        })) as RESTGetAPIChannelMessageReactionUsersResult;
-        const cursor = BigInt(after ?? 0);
-        let highest = cursor;
-        for (const user of page) {
-          if (!user.bot) users.add(user.id);
-          const id = BigInt(user.id);
-          if (id > highest) highest = id;
-        }
-        if (page.length < 100) break;
-        if (highest === cursor) throw new Error('Reaction page did not advance its cursor');
-        after = highest.toString();
+    // Only normal reactions vote: super (burst) reactions are ignored, like their live events.
+    if (reaction.count_details.normal === 0) continue;
+    let after: string | undefined;
+    for (;;) {
+      const query = new URLSearchParams({ type: String(ReactionType.Normal), limit: '100' });
+      if (after) query.set('after', after);
+      const page = (await client.rest.get(route, {
+        query,
+      })) as RESTGetAPIChannelMessageReactionUsersResult;
+      const cursor = BigInt(after ?? 0);
+      let highest = cursor;
+      for (const user of page) {
+        if (!user.bot) users.add(user.id);
+        const id = BigInt(user.id);
+        if (id > highest) highest = id;
       }
+      if (page.length < 100) break;
+      if (highest === cursor) throw new Error('Reaction page did not advance its cursor');
+      after = highest.toString();
     }
   }
   return voters;

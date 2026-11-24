@@ -50,7 +50,7 @@ function discord(voters: Record<string, { id: string; bot: boolean }[]> = {}) {
       count_details: { normal: (voters[name] ?? []).length + 1, burst: 0 },
     })),
   };
-  const get = vi.fn(async (route: string) => {
+  const get = vi.fn(async (route: string, _options?: unknown) => {
     if (route === messagePath) return message;
     for (const name of emojis) {
       if (route === reactionPath(name)) return [bot, ...(voters[name] ?? [])];
@@ -310,6 +310,26 @@ describe('recount racing live votes', () => {
     const row = await recountWith(['603'], () => undefined);
     expect(tally(row)).toEqual([1, 0, 0]);
     expect(read()?.lastRecountAt).toBe(now);
+  });
+});
+
+describe('recount and super reactions', () => {
+  it('only reads normal reactions and ignores a burst-only emoji', async () => {
+    const row = save();
+    castVote(db, '10', '30', '700', 0, now - 1);
+    const api = discord({ [emojis[1] as string]: [{ id: '701', bot: false }] });
+    for (const reaction of api.message.reactions) {
+      if (reaction.emoji.name === emojis[0]) reaction.count_details = { normal: 0, burst: 2 };
+    }
+    await syncPoll(api.client, db, row, now);
+    const userCalls = api.get.mock.calls.filter(([route]) => route !== messagePath);
+    for (const call of userCalls) {
+      const options = call[1] as { query: URLSearchParams } | undefined;
+      expect(options?.query.get('type')).toBe('0');
+    }
+    expect(userCalls.some(([route]) => route === reactionPath(emojis[0] as string))).toBe(false);
+    // The burst-only option has no normal reactors, so its stored vote goes; the other is added.
+    expect(tallyPoll(db, row)).toEqual([0, 1, 0]);
   });
 });
 
