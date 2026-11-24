@@ -25,7 +25,15 @@ export {
   restoreChallengeCards,
   trackChallengeCard,
 } from './challenge-cards.js';
-export { clearChallenges, reopen, scheduleExpiry, tryClose } from './challenges.js';
+export {
+  clearChallenges,
+  closedCount,
+  closedMax,
+  closedTtlMs,
+  reopen,
+  scheduleExpiry,
+  tryClose,
+} from './challenges.js';
 export { coinflip, type FlipStage, flipAnimation, wager } from './config.js';
 export {
   type ChallengeAction,
