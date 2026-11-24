@@ -152,8 +152,8 @@ describe('poll runner', () => {
 
   it('reconciles votes with Discord reactions and ignores bots', async () => {
     const row = save();
-    castVote(db, '10', '30', '501', 0, now);
-    castVote(db, '10', '30', '502', 1, now);
+    castVote(db, '10', '30', '501', 0, now - 1);
+    castVote(db, '10', '30', '502', 1, now - 1);
     const api = discord({
       [emojis[1] ?? '']: [
         { id: '502', bot: false },
@@ -185,10 +185,10 @@ describe('poll runner', () => {
 
   it('keeps a switched vote when the bot removes the old reaction', () => {
     const row = save();
-    castVote(db, '10', '30', 'u', 0, now);
-    const moved = castVote(db, '10', '30', 'u', 1, now + 1);
+    castVote(db, '10', '30', '602', 0, now);
+    const moved = castVote(db, '10', '30', '602', 1, now + 1);
     expect(moved?.previous).toBe(0);
-    expect(clearVote(db, '10', '30', 'u', 0, now + 2)).toBe(false);
+    expect(clearVote(db, '10', '30', '602', 0, now + 2)).toBe(false);
     expect(tallyPoll(db, row)).toEqual([0, 1, 0]);
   });
 
@@ -248,6 +248,68 @@ describe('poll runner', () => {
     api.patch.mockRejectedValueOnce(new Error('boom'));
     await expect(syncPoll(api.client, db, row, now)).rejects.toThrow('boom');
     expect(read()).toMatchObject({ accessFailures: 0, nextSyncAt: now + poll.retryMs });
+  });
+});
+
+describe('recount racing live votes', () => {
+  /** Discord's snapshot lists `listed` for option 0 while `during` runs mid-fetch. */
+  async function recountWith(listed: string[], during: () => void) {
+    const row = save();
+    const api = discord({ [emojis[0] as string]: listed.map((id) => ({ id, bot: false })) });
+    const fetchUsers = api.get.getMockImplementation() as (route: string) => Promise<unknown>;
+    api.get.mockImplementation((async (route: string) => {
+      const result = await fetchUsers(route);
+      if (route === reactionPath(emojis[0] as string)) during();
+      return result;
+    }) as never);
+    await syncPoll(api.client, db, row, now);
+    return row;
+  }
+  const tally = (row: { guildId: string; id: number; options: string[] }) => tallyPoll(db, row);
+
+  it('keeps a vote added during the fetch and retries soon', async () => {
+    const row = await recountWith([], () => castVote(db, '10', '30', '601', 1, now + 1));
+    expect(tally(row)).toEqual([0, 1, 0]);
+    expect(read()).toMatchObject({
+      lastRecountAt: null,
+      nextSyncAt: now + poll.racedRecountRetryMs,
+    });
+  });
+
+  it('does not resurrect a vote removed during the fetch', async () => {
+    const row = save();
+    castVote(db, '10', '30', '600', 0, now - 10);
+    const api = discord({ [emojis[0] as string]: [{ id: '600', bot: false }] });
+    const fetchUsers = api.get.getMockImplementation() as (route: string) => Promise<unknown>;
+    api.get.mockImplementation((async (route: string) => {
+      const result = await fetchUsers(route);
+      if (route === reactionPath(emojis[0] as string)) {
+        clearVote(db, '10', '30', '600', 0, now + 1);
+      }
+      return result;
+    }) as never);
+    await syncPoll(api.client, db, row, now);
+    expect(tally(row)).toEqual([0, 0, 0]);
+  });
+
+  it('does not undo a switch made during the fetch', async () => {
+    const row = save();
+    castVote(db, '10', '30', '602', 0, now - 10);
+    const api = discord({ [emojis[0] as string]: [{ id: '602', bot: false }] });
+    const fetchUsers = api.get.getMockImplementation() as (route: string) => Promise<unknown>;
+    api.get.mockImplementation((async (route: string) => {
+      const result = await fetchUsers(route);
+      if (route === reactionPath(emojis[0] as string)) castVote(db, '10', '30', '602', 2, now + 1);
+      return result;
+    }) as never);
+    await syncPoll(api.client, db, row, now);
+    expect(tally(row)).toEqual([0, 0, 1]);
+  });
+
+  it('recounts normally when nothing happened during the fetch', async () => {
+    const row = await recountWith(['603'], () => undefined);
+    expect(tally(row)).toEqual([1, 0, 0]);
+    expect(read()?.lastRecountAt).toBe(now);
   });
 });
 

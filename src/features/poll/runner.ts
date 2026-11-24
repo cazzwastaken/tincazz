@@ -18,6 +18,7 @@ import {
   closeDuePoll,
   duePolls,
   type Poll,
+  recountRaced,
   refreshPendingPolls,
   tallyPoll,
   updatePoll,
@@ -84,6 +85,7 @@ export async function syncPoll(client: Client<true>, db: Db, row: Poll, now: num
         if (!closed) return;
         row = closed;
       } else {
+        let raced = false;
         const recounting =
           row.lastRecountAt === null || now - row.lastRecountAt >= config.recountMs;
         if (recounting) {
@@ -95,7 +97,9 @@ export async function syncPoll(client: Client<true>, db: Db, row: Poll, now: num
           const missing = missingSeeds(row, message.reactions);
           if (missing.size > 0) await seedPollReactions(client, { ...row, ...location }, missing);
           const voters = await fetchVoters(client, { ...row, ...location }, message.reactions);
-          applyRecount(db, row, voters, now);
+          // The snapshot began at `now`; a live vote event since then makes it stale.
+          raced = recountRaced(row, now);
+          if (!raced) applyRecount(db, row, voters, now, now);
         }
         const counts = tallyPoll(db, row);
         const hash = pollCardHash(row, counts);
@@ -105,8 +109,9 @@ export async function syncPoll(client: Client<true>, db: Db, row: Poll, now: num
         updatePoll(db, row, {
           lastRenderedHash: hash,
           accessFailures: 0,
-          ...(recounting ? { lastRecountAt: now } : {}),
+          ...(recounting && !raced ? { lastRecountAt: now } : {}),
           ...(row.accessFailures > 0 ? { nextSyncAt: nextRefresh(row, now) } : {}),
+          ...(raced ? { nextSyncAt: now + config.racedRecountRetryMs } : {}),
         });
         return;
       }

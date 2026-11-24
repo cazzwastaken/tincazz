@@ -25,6 +25,20 @@ export type QueuedPoll =
 
 const slotStatuses = ['publishing', 'open'] as const;
 
+/**
+ * When a live vote event last touched each poll (in memory). A recount reads Discord's reactions
+ * over several requests, so any event that lands meanwhile makes that snapshot stale.
+ */
+const lastVoteEvent = new Map<string, number>();
+const eventKey = (guildId: string, pollId: number) => `${guildId}:${pollId}`;
+const noteVoteEvent = (guildId: string, pollId: number, now: number) =>
+  lastVoteEvent.set(eventKey(guildId, pollId), now);
+
+/** Whether a vote event arrived at or after `startedAt`, which makes a recount from then stale. */
+export function recountRaced(row: Pick<Poll, 'guildId' | 'id'>, startedAt: number): boolean {
+  return (lastVoteEvent.get(eventKey(row.guildId, row.id)) ?? -Infinity) >= startedAt;
+}
+
 /** The polls that count against a host's cap, soonest to expire first. */
 export function openPollsByHost(db: Db, guildId: string, hostId: string): Poll[] {
   return db
@@ -82,6 +96,7 @@ export function queuePoll(db: Db, details: PollCreation, now: number): QueuedPol
       })
       .returning()
       .get();
+    lastVoteEvent.delete(eventKey(saved.guildId, saved.id));
     return { kind: 'queued', poll: saved };
   });
 }
@@ -179,6 +194,7 @@ export function castVote(
         set: { optionIndex, votedAt: now },
       })
       .run();
+    noteVoteEvent(guildId, found.id, now);
     return { poll: found, previous };
   });
   if (result) requestPollRefresh(db, guildId, messageId, now);
@@ -199,6 +215,7 @@ export function clearVote(
 ): boolean {
   const found = openPollForMessage(db, guildId, messageId, now);
   if (!found) return false;
+  noteVoteEvent(guildId, found.id, now);
   const removed = db
     .delete(pollVotes)
     .where(
@@ -225,6 +242,7 @@ export function clearOptionVotes(
 ): number {
   const found = openPollForMessage(db, guildId, messageId, now);
   if (!found) return 0;
+  noteVoteEvent(guildId, found.id, now);
   const removed = db
     .delete(pollVotes)
     .where(
@@ -244,6 +262,7 @@ export function clearOptionVotes(
 export function clearAllVotes(db: Db, guildId: string, messageId: string, now: number): number {
   const found = openPollForMessage(db, guildId, messageId, now);
   if (!found) return 0;
+  noteVoteEvent(guildId, found.id, now);
   const removed = db
     .delete(pollVotes)
     .where(and(eq(pollVotes.guildId, guildId), eq(pollVotes.pollId, found.id)))
@@ -303,6 +322,7 @@ export function duePolls(db: Db, now: number, limit: number): Poll[] {
 
 /** Closes a poll at its end time. Atomic: only an open poll that is actually due closes. */
 export function closeDuePoll(db: Db, row: Poll, now: number): Poll | undefined {
+  lastVoteEvent.delete(eventKey(row.guildId, row.id));
   return db
     .update(polls)
     .set({
@@ -325,6 +345,7 @@ export function closePollEarly(
   closedBy: string,
   now: number,
 ): Poll | undefined {
+  lastVoteEvent.delete(eventKey(guildId, id));
   return db
     .update(polls)
     .set({
@@ -399,17 +420,24 @@ export function refreshPendingPolls(db: Db, now: number): void {
 /**
  * Reconciles stored votes with who reacted on Discord (bots already excluded). A voter whose
  * reaction is gone loses the vote; a voter still reacting elsewhere is moved there; a reactor
- * without a vote gets one. Returns whether anything changed.
+ * with exactly one option reaction gets that vote (several reactions and no stored vote leave
+ * them unvoted: the latest cannot be known). Returns whether anything changed.
+ *
+ * `startedAt` is when the reaction snapshot began. The snapshot is stale for anything a live
+ * event touched since, so the whole apply is skipped if any event arrived, and a voter whose
+ * stored vote changed at or after it is left alone. A stale snapshot never moves or deletes votes.
  */
 export function applyRecount(
   db: Db,
   row: Poll,
   reactions: ReadonlyMap<number, ReadonlySet<string>>,
   now: number,
+  startedAt?: number,
 ): boolean {
   return db.transaction((tx) => {
     const current = tx.select({ status: polls.status }).from(polls).where(identity(row)).get();
     if (current?.status !== 'open') return false;
+    if (startedAt !== undefined && recountRaced(row, startedAt)) return false;
 
     const choices = new Map<string, number[]>();
     for (const [index, users] of [...reactions].sort(([a], [b]) => a - b)) {
@@ -421,6 +449,7 @@ export function applyRecount(
     const stored = tx.select().from(pollVotes).where(where).all();
     let changed = false;
     for (const vote of stored) {
+      if (startedAt !== undefined && vote.votedAt >= startedAt) continue;
       const picks = choices.get(vote.userId);
       if (!picks) {
         tx.delete(pollVotes)
@@ -437,7 +466,7 @@ export function applyRecount(
     }
     const known = new Set(stored.map((vote) => vote.userId));
     for (const [userId, picks] of choices) {
-      if (known.has(userId)) continue;
+      if (known.has(userId) || picks.length !== 1) continue;
       tx.insert(pollVotes)
         .values({
           guildId: row.guildId,

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { closeDatabase, type Db, openDatabase } from '../src/db/index.js';
+import { pollVotes } from '../src/db/schema.js';
 import { poll } from '../src/features/poll/config.js';
 import {
   applyRecount,
@@ -17,6 +18,7 @@ import {
   openPollsByHost,
   type PollCreation,
   queuePoll,
+  recountRaced,
   refreshPendingPolls,
   requestPollRefresh,
   tallyPoll,
@@ -305,6 +307,43 @@ describe('applyRecount', () => {
       ),
     ).toBe(false);
     expect(tallyPoll(db, row)).toEqual([0, 0, 1]);
+  });
+
+  it('leaves a reactor with several options and no stored vote unvoted', () => {
+    const row = pollWithOptions();
+    const changed = applyRecount(
+      db,
+      row,
+      new Map([
+        [0, set('multi', 'single')],
+        [2, set('multi')],
+      ]),
+      now,
+    );
+    expect(changed).toBe(true);
+    expect(tallyPoll(db, row)).toEqual([1, 0, 0]);
+  });
+
+  it('skips the whole apply when a vote event arrived since the snapshot began', () => {
+    const row = pollWithOptions();
+    castVote(db, '10', '30', 'kept', 1, now - 5);
+    castVote(db, '10', '30', 'late', 2, now + 1);
+    expect(recountRaced(row, now)).toBe(true);
+    expect(applyRecount(db, row, new Map(), now + 2, now)).toBe(false);
+    expect(tallyPoll(db, row)).toEqual([0, 1, 1]);
+  });
+
+  it('leaves voters whose vote changed since the snapshot began', () => {
+    const row = pollWithOptions();
+    db.insert(pollVotes)
+      .values([
+        { guildId: '10', pollId: row.id, userId: 'old', optionIndex: 0, votedAt: now - 10 },
+        { guildId: '10', pollId: row.id, userId: 'fresh', optionIndex: 1, votedAt: now + 1 },
+      ])
+      .run();
+    expect(recountRaced(row, now)).toBe(false);
+    applyRecount(db, row, new Map(), now + 2, now);
+    expect(tallyPoll(db, row)).toEqual([0, 1, 0]);
   });
 
   it('does nothing for a closed poll', () => {

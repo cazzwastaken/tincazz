@@ -15,6 +15,8 @@ export const poll = {
   debounceMs: 3000,
   recountMs: 15 * minute,
   retryMs: minute,
+  /** Wait before recounting again after a vote event made a recount's snapshot stale. */
+  racedRecountRetryMs: 5_000,
   publishRetryMs: 5_000,
   accessRetryMs: 5 * minute,
   maxAccessRetryMs: 60 * minute,

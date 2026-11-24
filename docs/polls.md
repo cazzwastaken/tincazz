@@ -41,8 +41,12 @@ Tincazz needs these permissions in the channel:
   the card, add the option reactions and recount votes.
 - **Manage Messages** (optional): lets Tincazz remove your old reaction when you switch your vote.
   Without it only your latest vote counts, but the older reactions stay visible on the message.
+  Without it, a withdrawn vote can also come back: the periodic recount restores your vote only if
+  exactly one option reaction of yours remains. With several left, the latest cannot be known and
+  you stay unvoted.
 
 Polls are stored in the database and survive restarts. While the bot is offline, votes are
 not lost: on startup, and every 15 minutes, Tincazz reads the reactions Discord returns and brings
-the stored votes in line with them. Edits that fail because of missing access are retried with a
+the stored votes in line with them. A recount that overlaps live votes is thrown away and retried
+a few seconds later, so it never overrides a newer vote. Edits that fail because of missing access are retried with a
 backoff, starting after five minutes and growing to an hour.
