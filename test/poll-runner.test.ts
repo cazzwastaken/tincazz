@@ -9,6 +9,7 @@ import {
   castVote,
   clearVote,
   closePollEarly,
+  discardPoll,
   getPoll,
   openPollsByHost,
   queuePoll,
@@ -352,6 +353,21 @@ describe('publishPoll', () => {
     if (result.kind === 'cap') throw new Error('cap');
     return result.poll;
   }
+
+  it('deletes the message it just posted when the row was discarded mid-post', async () => {
+    const api = discord();
+    const row = queued();
+    api.post.mockImplementation((async () => {
+      discardPoll(db, row);
+      return { id: '30' };
+    }) as never);
+    const del = vi.fn(async (_route: string) => undefined);
+    (api.client.rest as unknown as { delete: typeof del }).delete = del;
+    await expect(publishPoll(api.client, db, row, now)).rejects.toThrow(
+      'while it was being posted',
+    );
+    expect(del).toHaveBeenCalledWith(messagePath);
+  });
 
   it('posts, seeds the reactions in order and opens the poll', async () => {
     const api = discord();

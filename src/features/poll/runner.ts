@@ -49,7 +49,11 @@ export async function publishPoll(
   if (row.messageId === null) {
     const messageId = await postPollMessage(client, row, counts);
     const saved = updatePoll(db, row, { messageId });
-    if (!saved) throw new Error('The poll changed while it was being posted');
+    if (!saved) {
+      // Discarded mid-post: nothing records this message, so remove it here.
+      await deletePollMessage(client, { channelId: row.channelId, messageId });
+      throw new Error('The poll changed while it was being posted');
+    }
     row = saved;
   }
   const location = { channelId: row.channelId, messageId: row.messageId as string };
