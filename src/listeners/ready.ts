@@ -5,6 +5,7 @@ import { restoreChallengeCards } from '../features/coinflip/index.js';
 import { startGiveaways } from '../features/giveaways/index.js';
 import { ensureAllCards } from '../features/honeypot/index.js';
 import { createMemberReconcileJob } from '../features/members/job.js';
+import { startPolls } from '../features/poll/index.js';
 import { startPresence } from '../features/presence/index.js';
 import { startJobs } from '../features/scheduler/index.js';
 import { screeningJob } from '../features/settings/screening.js';
@@ -23,6 +24,7 @@ export class ReadyListener extends Listener {
     startJobs(client, [createMemberReconcileJob(env.GUILD_ID), screeningJob]);
     restoreChallengeCards(client);
     startGiveaways(client);
+    startPolls(client);
     void ensureAllCards();
   }
 }
