@@ -3,7 +3,6 @@ import { evaluate } from '../src/features/gamba/evaluate.js';
 import {
   formatGambaFollowUp,
   formatGambaReply,
-  gambaJackpotRoleId,
   type Reels,
   type Spin,
 } from '../src/features/gamba/index.js';
@@ -50,9 +49,20 @@ describe('formatGambaFollowUp', () => {
     expect(formatGambaFollowUp('<@1>', wager(['python', 'python', 'python'], 10_000))).toContain(
       'klipy.com',
     );
-    const text = formatGambaFollowUp('<@1>', wager(['cpp', 'cpp', 'cpp'], 30_000, 10_000), false);
+    const text = formatGambaFollowUp(
+      '<@1>',
+      wager(['cpp', 'cpp', 'cpp'], 30_000, 10_000),
+      false,
+      '77',
+    );
     expect(text).toContain('+10,000 from the pot');
-    expect(text).toContain(`You are a pro! You just won <@&${gambaJackpotRoleId}>`);
+    expect(text).toContain(`You are a pro! You just won <@&77>`);
     expect(text).toContain("couldn't assign the role");
+  });
+
+  it('leaves out the role line when the guild has no jackpot role', () => {
+    const text = formatGambaFollowUp('<@1>', wager(['cpp', 'cpp', 'cpp'], 30_000, 10_000));
+    expect(text).toContain('<@1> won!');
+    expect(text).not.toContain('You are a pro');
   });
 });

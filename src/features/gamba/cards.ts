@@ -6,7 +6,7 @@ import { InvalidBetError } from './bet.js';
 import { type PayoutTier, wager } from './config.js';
 import { encodeSpinId } from './custom-ids.js';
 import { type Spin, threeOfAKindOdds, type WagerSpin } from './index.js';
-import { gambaJackpotRoleId, outcomeEmoji } from './outcomes.js';
+import { outcomeEmoji } from './outcomes.js';
 
 export const tierLabels: Record<PayoutTier, string> = {
   none: 'No match',
@@ -73,6 +73,7 @@ export function announcementCard(
   userId: string,
   spin: Spin,
   roleAssigned?: boolean,
+  jackpotRoleId?: string,
 ): ContainerBuilder {
   const emoji = outcomeEmoji(spin.reels[0]);
   const texts = [`## <@${userId}> hit ${emoji} x3!`];
@@ -80,9 +81,9 @@ export function announcementCard(
   if (spin.potWon > 0) {
     texts.push(`+${coins(spin.potWon)} from the pot`);
   }
-  if (spin.evaluation.result === 'jackpot') {
+  if (spin.evaluation.result === 'jackpot' && jackpotRoleId !== undefined) {
     const note = roleAssigned === false ? " (couldn't assign the role, tell a mod)" : '';
-    texts.push(`You are a pro! You just won <@&${gambaJackpotRoleId}>${note}`);
+    texts.push(`You are a pro! You just won <@&${jackpotRoleId}>${note}`);
   }
   const odds = threeOfAKindOdds(spin.reels);
   if (odds !== undefined) {

@@ -1,0 +1,1 @@
+ALTER TABLE `guild_settings` ADD `gamba_jackpot_role_id` text;

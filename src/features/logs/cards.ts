@@ -11,6 +11,7 @@ const mention = (id: string) => `<@${id}>`;
 
 const clearedSettingLabels = {
   autorole: (id: string) => `Auto-role <@&${id}>`,
+  jackpot_role: (id: string) => `Jackpot role <@&${id}>`,
   log_channel: (id: string) => `Log channel <#${id}>`,
   honeypot: (id: string) => `Honeypot channel <#${id}>`,
   game_channel: (id: string) => `Game channel <#${id}>`,

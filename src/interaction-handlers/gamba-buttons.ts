@@ -53,8 +53,12 @@ export class GambaButtonsHandler extends InteractionHandler {
         },
         Date.now(),
         {
-          assignJackpotRole: () =>
-            assignJackpotRole(interaction.inCachedGuild() ? interaction.member : null, userId),
+          assignJackpotRole: (roleId) =>
+            assignJackpotRole(
+              interaction.inCachedGuild() ? interaction.member : null,
+              userId,
+              roleId,
+            ),
         },
       );
     } catch (error) {

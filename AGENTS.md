@@ -60,7 +60,7 @@ src/
   config/env.ts   zod schema for environment variables
   db/             SQLite schema (Drizzle) and `openDatabase`, exposed as `container.db`
   commands/       one file per command, grouped in folders by category
-    admin/        `/settings` (log channels, join auto-roles, game channels and the honeypot channel;
+    admin/        `/settings` (log channels, join auto-roles, the gamba jackpot role, game channels and the honeypot channel;
                   Manage Server); `/giveaway create` (server-level and channel Manage Messages)
                   and `/giveaway cancel` (same staff checks), plus `/giveaway list`
     economy/      `/balance` (also `?bal` / `?balance`), `/daily`, `/collect`, `/bailout`, `/eco`

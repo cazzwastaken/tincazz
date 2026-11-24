@@ -54,11 +54,11 @@ export class GambaCommand extends Command {
     const bet = (await args.restResult('string')).unwrapOr(undefined);
     const userId = message.author.id;
     try {
-      const { played, roleAssigned } = await settleSpin(
+      const { played, roleAssigned, jackpotRoleId } = await settleSpin(
         this.container.db,
         { guildId: message.guildId as string, userId, bet },
         Date.now(),
-        { assignJackpotRole: () => assignJackpotRole(message.member, userId) },
+        { assignJackpotRole: (roleId) => assignJackpotRole(message.member, userId, roleId) },
       );
       const sent = await message.reply({
         content: formatGambaReply(played),
@@ -66,7 +66,12 @@ export class GambaCommand extends Command {
       });
       const event = spinLogEvent(userId, played, roleAssigned);
       if (event) void logEconomy(message.guildId as string, event);
-      const followUp = formatGambaFollowUp(message.author.toString(), played, roleAssigned);
+      const followUp = formatGambaFollowUp(
+        message.author.toString(),
+        played,
+        roleAssigned,
+        jackpotRoleId,
+      );
       await this.announce(userId, followUp !== undefined, () =>
         sent.reply({ content: followUp, allowedMentions: { users: [userId] } }),
       );
@@ -96,7 +101,7 @@ export class GambaCommand extends Command {
         this.container.db,
         { guildId: interaction.guildId as string, userId, bet },
         Date.now(),
-        { assignJackpotRole: () => assignJackpotRole(member, userId) },
+        { assignJackpotRole: (roleId) => assignJackpotRole(member, userId, roleId) },
       );
     } catch (error) {
       const text = spinErrorText(error);

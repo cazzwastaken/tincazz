@@ -8,6 +8,7 @@ import { openDatabase } from '../src/db/index.js';
 import { spins } from '../src/db/schema.js';
 import { findWallet } from '../src/features/economy/index.js';
 import { clearActiveCards, isActiveCard } from '../src/features/gamba/index.js';
+import { setJackpotRole } from '../src/features/settings/store.js';
 import { testEnv } from './support/env.js';
 import { makeChatInput } from './support/interaction.js';
 
@@ -174,20 +175,31 @@ describe('gamba', () => {
     });
 
     it('jackpot assigns the role', async () => {
+      setJackpotRole(container.db, '2', '77', 1);
       mockRandomInt(20);
       const message = await run('?gamba');
       await vi.waitFor(() => expect(message.spinReply).toHaveBeenCalledTimes(1), {
         timeout: 2000,
       });
 
-      expect(message.member?.roles.add).toHaveBeenCalledWith(
-        '1561827731400822845',
-        'gamba jackpot',
-      );
+      expect(message.member?.roles.add).toHaveBeenCalledWith('77', 'gamba jackpot');
       expect(json(message.spinReply.mock.calls[0])).toContain('You are a pro!');
     });
 
+    it('jackpot without a configured role skips the assignment and the role line', async () => {
+      mockRandomInt(20);
+      const message = await run('?gamba');
+      await vi.waitFor(() => expect(message.spinReply).toHaveBeenCalledTimes(1), {
+        timeout: 2000,
+      });
+
+      expect(message.member?.roles.add).not.toHaveBeenCalled();
+      expect(json(message.spinReply.mock.calls[0])).not.toContain('You are a pro');
+      expect(json(message.spinReply.mock.calls[0])).toContain('won!');
+    });
+
     it('jackpot announces a failed role assignment', async () => {
+      setJackpotRole(container.db, '2', '77', 1);
       mockRandomInt(20);
       const message = await run('?gamba', {
         member: {
@@ -203,6 +215,7 @@ describe('gamba', () => {
     });
 
     it('jackpot with no cached member', async () => {
+      setJackpotRole(container.db, '2', '77', 1);
       mockRandomInt(20);
       const message = await run('?gamba', { member: null });
       await vi.waitFor(() => expect(message.spinReply).toHaveBeenCalledTimes(1), {

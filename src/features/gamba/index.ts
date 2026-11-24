@@ -1,4 +1,4 @@
-import { gambaJackpotRoleId, gambaOutcomes, type OutcomeKey } from './outcomes.js';
+import { gambaOutcomes, type OutcomeKey } from './outcomes.js';
 import type { WagerSpin } from './play.js';
 import { type RandomInt, rollOutcome } from './roll.js';
 
@@ -33,7 +33,6 @@ export {
 } from './spin.js';
 export { formatGambaFollowUp, formatGambaReply } from './text.js';
 export type Spin = WagerSpin;
-export { gambaJackpotRoleId };
 
 export type Reels = readonly [OutcomeKey, OutcomeKey, OutcomeKey];
 

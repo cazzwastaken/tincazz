@@ -13,7 +13,7 @@ import {
 } from '../src/features/economy/index.js';
 import { InvalidBetError } from '../src/features/gamba/index.js';
 import { settleSpin, spin } from '../src/features/gamba/spin.js';
-import { setLogChannel } from '../src/features/settings/store.js';
+import { setJackpotRole, setLogChannel } from '../src/features/settings/store.js';
 import { testEnv } from './support/env.js';
 
 function draws(...values: number[]) {
@@ -65,18 +65,33 @@ describe('spin', () => {
     expect(result.announcement).toBeUndefined();
   });
 
-  it('assigns the role once on a wagered jackpot', async () => {
-    const assignJackpotRole = vi.fn(async () => true);
+  it('assigns the guild role once on a wagered jackpot', async () => {
+    setJackpotRole(db, '2', '77', 1);
+    const assignJackpotRole = vi.fn(async (_roleId: string) => true);
     const result = await spin(db, { ...request, bet: '500' }, 1000, {
       assignJackpotRole,
       randomInt: draws(20, 20, 20),
     });
 
-    expect(assignJackpotRole).toHaveBeenCalledTimes(1);
-    expect(json(result.announcement)).toContain('You are a pro!');
+    expect(assignJackpotRole).toHaveBeenCalledExactlyOnceWith('77');
+    expect(json(result.announcement)).toContain('You are a pro! You just won <@&77>');
+  });
+
+  it('skips the role without calling the assigner when the guild has none', async () => {
+    const assignJackpotRole = vi.fn(async (_roleId: string) => true);
+    const result = await spin(db, { ...request, bet: '500' }, 1000, {
+      assignJackpotRole,
+      randomInt: draws(20, 20, 20),
+    });
+
+    expect(assignJackpotRole).not.toHaveBeenCalled();
+    expect(json(result.card)).toContain('Bet 500');
+    expect(json(result.announcement)).toContain('Won 50,000 on a 500 bet');
+    expect(json(result.announcement)).not.toContain('You are a pro');
   });
 
   it('notes a failed role assignment in the announcement', async () => {
+    setJackpotRole(db, '2', '77', 1);
     const result = await spin(db, { ...request, bet: '500' }, 1000, {
       assignJackpotRole: async () => false,
       randomInt: draws(20, 20, 20),
@@ -104,6 +119,7 @@ describe('spin', () => {
 describe('settleSpin', () => {
   it('returns the settled spin and the role result on a jackpot', async () => {
     const db = openDatabase(':memory:');
+    setJackpotRole(db, 'g', '77', 1);
     const settled = await settleSpin(db, { guildId: 'g', userId: 'u' }, 1000, {
       assignJackpotRole: async () => false,
       randomInt: () => 20,

@@ -4,9 +4,12 @@ import {
   addAutoRole,
   autoRoles,
   clearChannelEverywhere,
+  clearJackpotRoleIf,
+  jackpotRoleId,
   logChannelId,
   removeAutoRole,
   removeRoleEverywhere,
+  setJackpotRole,
   setLogChannel,
 } from '../src/features/settings/store.js';
 
@@ -102,5 +105,36 @@ describe('settings store: auto-roles', () => {
     expect(removeRoleEverywhere(db, '1', '5').sort()).toEqual(['bot', 'member']);
     expect(autoRoles(db, '1', 'member')).toEqual([]);
     expect(autoRoles(db, '1', 'bot')).toEqual([]);
+  });
+});
+
+describe('settings store: jackpot role', () => {
+  let db: Db;
+
+  beforeEach(() => {
+    db = openDatabase(':memory:');
+  });
+
+  it('is unset by default and reads back what was set', () => {
+    expect(jackpotRoleId(db, '1')).toBeUndefined();
+    expect(setJackpotRole(db, '1', '5', 1)).toBeUndefined();
+    expect(jackpotRoleId(db, '1')).toBe('5');
+    expect(setJackpotRole(db, '1', '6', 2)).toBe('5');
+  });
+
+  it('clears with null without touching the log channels', () => {
+    setLogChannel(db, '1', 'mod', '50', 1);
+    setJackpotRole(db, '1', '5', 1);
+    expect(setJackpotRole(db, '1', null, 2)).toBe('5');
+    expect(jackpotRoleId(db, '1')).toBeUndefined();
+    expect(logChannelId(db, '1', 'mod')).toBe('50');
+  });
+
+  it('clears only when the deleted role is the jackpot role', () => {
+    setJackpotRole(db, '1', '5', 1);
+    expect(clearJackpotRoleIf(db, '1', '6', 2)).toBe(false);
+    expect(jackpotRoleId(db, '1')).toBe('5');
+    expect(clearJackpotRoleIf(db, '1', '5', 2)).toBe(true);
+    expect(jackpotRoleId(db, '1')).toBeUndefined();
   });
 });
