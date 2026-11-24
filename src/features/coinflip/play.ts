@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm';
 import type { Db, DbOrTx } from '../../db/index.js';
 import { type FlipMode, type FlipSide, flips } from '../../db/schema.js';
-import { credit, debit } from '../economy/ledger.js';
+import { credit, debit, settleStake } from '../economy/ledger.js';
 import { getOrCreateWallet } from '../economy/wallets.js';
 import { parseBet } from '../gamba/bet.js';
 import { addToPot } from '../gamba/pot.js';
@@ -70,17 +70,15 @@ export function settleBotFlip(
       })
       .returning({ id: flips.id })
       .get();
-    let balance = debit(tx, { guildId, userId, amount: bet, reason: 'flip_bet', now, ref: flipId });
-    if (won) {
-      balance = credit(tx, {
-        guildId,
-        userId,
-        amount: credited,
-        reason: 'flip_win',
-        now,
-        ref: flipId,
-      });
-    }
+    const balance = settleStake(tx, {
+      guildId,
+      userId,
+      now,
+      ref: flipId,
+      bet,
+      betReason: 'flip_bet',
+      payouts: [{ amount: credited, reason: 'flip_win' }],
+    });
     const pot = addToPot(tx, guildId, rake);
     recordFlipStats(tx, guildId, userId, { bet, won, credited, vsBot: true });
     return { bet, side, result, won, rake, credited, balance, pot, flipId };

@@ -1,6 +1,6 @@
 import type { Db } from '../../db/index.js';
 import { rolls } from '../../db/schema.js';
-import { credit, debit } from '../economy/ledger.js';
+import { settleStake } from '../economy/ledger.js';
 import { getOrCreateWallet } from '../economy/wallets.js';
 import { parseBet } from '../gamba/bet.js';
 import { addToPot } from '../gamba/pot.js';
@@ -65,17 +65,15 @@ export function settleRoll(db: Db, request: RollRequest, now: number, randomInt?
       })
       .returning({ id: rolls.id })
       .get();
-    let balance = debit(tx, { guildId, userId, amount: bet, reason: 'dice_bet', now, ref: rollId });
-    if (won) {
-      balance = credit(tx, {
-        guildId,
-        userId,
-        amount: payout,
-        reason: 'dice_win',
-        now,
-        ref: rollId,
-      });
-    }
+    const balance = settleStake(tx, {
+      guildId,
+      userId,
+      now,
+      ref: rollId,
+      bet,
+      betReason: 'dice_bet',
+      payouts: [{ amount: payout, reason: 'dice_win' }],
+    });
     const pot = addToPot(tx, guildId, edge);
     recordRollStats(tx, guildId, userId, { bet, won, payout });
     return { bet, call, die1, die2, total: die1 + die2, won, payout, edge, balance, pot, rollId };
