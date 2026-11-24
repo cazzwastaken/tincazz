@@ -1,8 +1,15 @@
 import { container } from '@sapphire/framework';
 import { Events } from 'discord.js';
-import { beforeAll, beforeEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createClient } from '../src/client.js';
 import { openDatabase } from '../src/db/index.js';
+import {
+  addHallExempt,
+  hallExemptChannels,
+  hallSettings,
+  setHallChannel,
+  setHallThreshold,
+} from '../src/features/halloffame/index.js';
 import { honeypot, incrementKicks, setHoneypot } from '../src/features/honeypot/index.js';
 import {
   addGameChannel,
@@ -11,6 +18,7 @@ import {
 } from '../src/features/settings/game-channels.js';
 import { logChannelId, setLogChannel } from '../src/features/settings/store.js';
 import { testEnv } from './support/env.js';
+import { installNativeHallRunner, stubHallRunner } from './support/hall-runner-stub.js';
 
 let client: ReturnType<typeof createClient>;
 let send: ReturnType<typeof vi.fn>;
@@ -90,4 +98,65 @@ it('clears a deleted honeypot channel, keeps the kicks and logs it', async () =>
     kicks: 1,
   });
   expect(JSON.stringify(send.mock.calls[0])).toContain('Honeypot channel <#70> was removed');
+});
+
+describe('hall of fame channel deletes', () => {
+  let runner: ReturnType<typeof stubHallRunner>;
+  let uninstall: () => void;
+  beforeEach(() => {
+    setLogChannel(container.db, '2', 'mod', '50', 1);
+    runner = stubHallRunner();
+    uninstall = installNativeHallRunner(runner);
+  });
+  afterEach(() => uninstall());
+
+  const notices = () => send.mock.calls.map((args) => JSON.stringify(args));
+
+  it('clears a deleted hall channel once, keeps the threshold and logs it', async () => {
+    setHallChannel(container.db, '2', '70', 1);
+    setHallThreshold(container.db, '2', 9, 1);
+    // Discord sends the cached event and the raw packet for the same deletion.
+    client.emit(Events.ChannelDelete, { id: '70', guildId: '2' } as never);
+    client.emit(Events.Raw, { t: 'CHANNEL_DELETE', d: { id: '70', guild_id: '2' } } as never);
+    await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(1));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(hallSettings(container.db, '2')).toEqual({ channelId: undefined, threshold: 9 });
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(notices()[0]).toContain('Hall of Fame channel <#70> was removed');
+    // The runner drops the entries that lived there; the setting is not its business.
+    expect(runner.onHallChannelDeleted).toHaveBeenCalledExactlyOnceWith('70');
+    expect(runner.onSourceChannelDeleted).toHaveBeenCalledExactlyOnceWith('70');
+  });
+
+  it('removes a deleted channel or category from the exempt list and logs it', async () => {
+    addHallExempt(container.db, '2', '71', 1);
+    addHallExempt(container.db, '2', '72', 2);
+    setHallChannel(container.db, '2', '73', 1);
+    client.emit(Events.ChannelDelete, { id: '71', guildId: '2' } as never);
+
+    await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(1));
+    expect(hallExemptChannels(container.db, '2')).toEqual(['72']);
+    expect(hallSettings(container.db, '2').channelId).toBe('73');
+    expect(notices()[0]).toContain('Hall of Fame exempt channel <#71> was removed');
+  });
+
+  it('does nothing for a channel the hall does not know', async () => {
+    setHallChannel(container.db, '2', '73', 1);
+    addHallExempt(container.db, '2', '72', 1);
+    client.emit(Events.ChannelDelete, { id: '99', guildId: '2' } as never);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(send).not.toHaveBeenCalled();
+    expect(hallSettings(container.db, '2').channelId).toBe('73');
+    expect(hallExemptChannels(container.db, '2')).toEqual(['72']);
+  });
+
+  it('clears the hall channel in every guild that used it, in one transaction', async () => {
+    setHallChannel(container.db, '2', '70', 1);
+    setHallChannel(container.db, '3', '70', 1);
+    client.emit(Events.ChannelDelete, { id: '70', guildId: '2' } as never);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(hallSettings(container.db, '2').channelId).toBeUndefined();
+    expect(hallSettings(container.db, '3').channelId).toBeUndefined();
+  });
 });
