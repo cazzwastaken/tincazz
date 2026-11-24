@@ -40,6 +40,8 @@ export async function publishPoll(
   row: Poll,
   now: number = Date.now(),
 ): Promise<Poll> {
+  if (row.status !== 'publishing')
+    throw new Error(`Poll #${row.id} is ${row.status}, not publishing`);
   const counts = row.options.map(() => 0);
   if (row.messageId === null) {
     const messageId = await postPollMessage(client, row, counts);

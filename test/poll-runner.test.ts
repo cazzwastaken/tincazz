@@ -282,6 +282,13 @@ describe('publishPoll', () => {
     expect(openPollsByHost(db, '10', '2')).toHaveLength(1);
   });
 
+  it('refuses to publish a poll that is not publishing', async () => {
+    const api = discord();
+    const opened = await publishPoll(api.client, db, queued(), now);
+    await expect(publishPoll(api.client, db, opened, now)).rejects.toThrow('not publishing');
+    expect(api.post).toHaveBeenCalledTimes(1);
+  });
+
   it('resumes a publishing poll that already has a message without posting again', async () => {
     const api = discord();
     const row = queued();

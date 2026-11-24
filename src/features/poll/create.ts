@@ -38,6 +38,17 @@ export function pollCapText(guildId: string, open: readonly Poll[]): string {
   ].join('\n');
 }
 
+export const pollStillPosting = 'That poll is still being posted. Give it a moment.';
+
+/** A repeated creation never republishes: it only points at what the first one made. */
+function existingResult(guildId: string, row: Poll): CreatedPoll {
+  if (row.status === 'publishing') return { ok: false, error: pollStillPosting };
+  if (row.status === 'deleted' || row.messageId === null) {
+    return { ok: false, error: pollPostFailed };
+  }
+  return { ok: true, url: messageLinkUrl(guildId, row.channelId, row.messageId) };
+}
+
 /** Reserves a slot, posts the poll and opens it. A failed post gives the slot back. */
 export async function createPoll(
   client: Client<true>,
@@ -61,6 +72,7 @@ export async function createPoll(
     now,
   );
   if (queued.kind === 'cap') return { ok: false, error: pollCapText(request.guildId, queued.open) };
+  if (queued.kind === 'existing') return existingResult(request.guildId, queued.poll);
   try {
     const opened = await publishPoll(client, db, queued.poll, now);
     return {
