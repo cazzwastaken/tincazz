@@ -26,19 +26,20 @@ sharp for images, pnpm, [Biome](https://biomejs.dev), [Vitest](https://vitest.de
 
 ## Where to change things
 
-| Task                      | Touch                                                                                                                                                                                                                                                                                                                     |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Add a slash command       | `src/commands/<category>/<name>.ts` (`registerApplicationCommands` + `chatInputRun`), logic in `src/features/<name>/`, a test in `test/`                                                                                                                                                                                  |
-| Add a prefix alias        | `aliases` in the command's constructor options                                                                                                                                                                                                                                                                            |
-| Add a game                | `src/features/<game>/` (`config.ts`, rules, `custom-ids.ts`, cards, one transactional settle using `settleStake`), a command and button handler in `src/interaction-handlers/` running through `runAnimatedGame`, game-channel gate (`gameChannelDenied`), `test/<game>-evaluate.test.ts`, `/help` topic, `docs/games.md` |
-| Change gamba or dice odds | `src/features/gamba/config.ts` / `src/features/dice/config.ts`, then the `*-evaluate` tests, `docs/games.md`, the help cards                                                                                                                                                                                              |
-| Add a coin faucet         | `src/features/economy/` (config, claim function, ledger reason), `test/fuzz-economy.test.ts` (op and `expectCooldownsHeld`), help `coins` page                                                                                                                                                                            |
-| Add an image source or op | `src/features/imaging/` (`source.ts`, `render.ts`, `frames.ts`...), keep `urls.ts` allowlist intact, `test/imaging-*.test.ts` and `fuzz-imaging-*.test.ts`                                                                                                                                                                |
-| Add a help topic          | `src/features/help/topics.ts` (page, `topicInfo`, aliases), page in `cards.ts`, `test/help.test.ts`                                                                                                                                                                                                                       |
-| Add an env variable       | zod schema in `src/config/env.ts`, `.env.example`, `test/env.test.ts`                                                                                                                                                                                                                                                     |
-| Add a DB column or table  | `src/db/schema.ts`, then `pnpm db:generate --name <change>`, commit `drizzle/` with it                                                                                                                                                                                                                                    |
-| Add a log event           | event type in `src/features/logs/events.ts`, card in `cards.ts`, emit through `sendLog` after the transaction                                                                                                                                                                                                             |
-| Add a listener or handler | one file in `src/listeners/` or `src/interaction-handlers/` (auto-loaded)                                                                                                                                                                                                                                                 |
+| Task                       | Touch                                                                                                                                                                                                                                                                                                                     |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Add a slash command        | `src/commands/<category>/<name>.ts` (`registerApplicationCommands` + `chatInputRun`), logic in `src/features/<name>/`, a test in `test/`                                                                                                                                                                                  |
+| Add a prefix alias         | `aliases` in the command's constructor options                                                                                                                                                                                                                                                                            |
+| Add a game                 | `src/features/<game>/` (`config.ts`, rules, `custom-ids.ts`, cards, one transactional settle using `settleStake`), a command and button handler in `src/interaction-handlers/` running through `runAnimatedGame`, game-channel gate (`gameChannelDenied`), `test/<game>-evaluate.test.ts`, `/help` topic, `docs/games.md` |
+| Change gamba or dice odds  | `src/features/gamba/config.ts` / `src/features/dice/config.ts`, then the `*-evaluate` tests, `docs/games.md`, the help cards                                                                                                                                                                                              |
+| Add a coin faucet          | `src/features/economy/` (config, claim function, ledger reason), `test/fuzz-economy.test.ts` (op and `expectCooldownsHeld`), help `coins` page                                                                                                                                                                            |
+| Add an image source or op  | `src/features/imaging/` (`source.ts`, `render.ts`, `frames.ts`...), keep `urls.ts` allowlist intact, `test/imaging-*.test.ts` and `fuzz-imaging-*.test.ts`                                                                                                                                                                |
+| Add a help topic           | `src/features/help/topics.ts` (page, `topicInfo`, aliases), page in `cards.ts`, `test/help.test.ts`                                                                                                                                                                                                                       |
+| Add an env variable        | zod schema in `src/config/env.ts`, `.env.example`, `test/env.test.ts`                                                                                                                                                                                                                                                     |
+| Add a DB column or table   | `src/db/schema.ts`, then `pnpm db:generate --name <change>`, commit `drizzle/` with it                                                                                                                                                                                                                                    |
+| Add a poll option or limit | `src/features/poll/config.ts` (limits, emoji), `args.ts` for parsing, `cards.ts`/`bars.ts` for the card, then `test/poll-*.test.ts`, the `/help` page, `docs/polls.md`                                                                                                                                                    |
+| Add a log event            | event type in `src/features/logs/events.ts`, card in `cards.ts`, emit through `sendLog` after the transaction                                                                                                                                                                                                             |
+| Add a listener or handler  | one file in `src/listeners/` or `src/interaction-handlers/` (auto-loaded)                                                                                                                                                                                                                                                 |
 
 ## Before you finish
 
@@ -70,7 +71,8 @@ src/
                   the text in a modal); `?gif` / `/gif` converts an image to a downloadable GIF.
                   All image processing is in `features/imaging/`
     misc/         games: `?gamba` / `/gamba`, `?coinflip` / `/coinflip` (aliases `?cf`, `?flip`),
-                  `?dice` / `/dice` (alias `?roll`)
+                  `?dice` / `/dice` (alias `?roll`); also `?poll` / `/poll` (not a game: no coins,
+                  no `gameChannelDenied`)
     stats/        `/stats`, `/leaderboard`
   features/       plain feature logic, one folder per feature (not auto-loaded)
     animation/    shared frame playback: per-channel frame budget, per-user busy lock, display
@@ -88,8 +90,12 @@ src/
                   result cards, reel frames and the shared `spin()` flow used by commands and buttons
                   (every spin is a wager, default 1; settled first, then animated under the shared
                   per-user busy lock)
+    poll/         reaction polls: argument parsing, bar and card rendering, the vote store (one vote
+                  per person, three open polls per host), the runner (debounced edits, expiry,
+                  recounts, restart recovery), `poll:close:*` custom IDs and `createPoll`, which
+                  posts and seeds a poll and frees the slot when that fails
     giveaways/    guild-scoped reaction giveaways, live entry counts, durable draw and result edits
-    help/         the paged help card (home, games, images, coins, gamba, coinflip and dice, giveaways), the
+    help/         the paged help card (home, games, images, coins, gamba, coinflip and dice, giveaways, polls), the
                   topic menu and aliases, built from the economy and wager config so it cannot
                   drift; `hp:*` custom IDs
     honeypot/     per-guild honeypot channel: the softban trigger with its in-memory guard, the
@@ -115,17 +121,19 @@ src/
     stats/        read-only profile, recent plays and leaderboard queries, `lb:*` custom IDs, cards
     ui/           shared Components V2 card helpers
   interaction-handlers/  one file per component or modal handler (gamba, coinflip, dice and help
-                  buttons and menu, the dice Change call menu, leaderboard paging and category select, the caption modal)
+                  buttons and menu, the dice Change call menu, leaderboard paging and category select, the caption modal,
+                  the poll Close poll button)
   listeners/      one file per Discord/Sapphire event listener (member join, leave and screening,
                   channel and role delete cleanup, chat rewards, the honeypot trigger and card re-post
                   after a single or bulk delete (`honeypot.ts`, `honeypot-card-delete.ts`,
                   `honeypot-card-bulk-delete.ts`), ready, a generic ephemeral reply
-                  when a command or handler throws, giveaway reaction refreshes and deletion handling,
+                  when a command or handler throws, giveaway reaction refreshes and deletion handling, poll votes from raw reaction and
+                  delete events (`poll-events.ts`),
                   and replies when a precondition denies a command, such as a cooldown)
 assets/fonts/     the OFL fonts used for image captions, each with its licence file
 drizzle/          generated SQL migrations, committed and shipped in the image
 test/             Vitest tests (`test/support/` has shared helpers)
-docs/             `games.md` (player-facing rules), `giveaways.md` and `deploy.md` (operator guide)
+docs/             `games.md` (player-facing rules), `giveaways.md`, `polls.md` and `deploy.md` (operator guide)
 .github/          CI, image publishing, Dependabot, issue forms, PR template and CODEOWNERS
 ```
 
@@ -165,6 +173,10 @@ ID (see `features/gamba/custom-ids.ts`), so handlers must ignore IDs they cannot
 - **Ban Members** is required for the honeypot (`/settings honeypot`), together with View
   Channel, Send Messages and Manage Messages in the honeypot channel. It softbans with `deleteMessageSeconds: 3600` and cannot ban
   members whose highest role is at or above the bot's.
+- **Polls** need View Channel, Send Messages, Add Reactions and Read Message History in the
+  channel; Manage Messages is optional and only lets the bot remove a voter's old reaction when they
+  switch (without it the latest vote still wins). Votes come from raw gateway events
+  (`poll-events.ts`), so they work for uncached messages.
 - **`Partials.Message`** (`src/client.ts`) lets `messageDelete` and `messageDeleteBulk` include an
   uncached honeypot card so it can be re-posted. Do not remove it.
 - Pending screening joins persist until role assignment or departure. The hourly job recovers completions missed while offline.
