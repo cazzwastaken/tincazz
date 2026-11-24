@@ -21,6 +21,7 @@ export {
 } from './custom-ids.js';
 export type { Evaluation } from './evaluate.js';
 export { evaluate } from './evaluate.js';
+export { spinFrames } from './frames.js';
 export { assignJackpotRole, type JackpotMember } from './jackpot.js';
 export { playWager, type WagerSpin } from './play.js';
 export { addToPot } from './pot.js';

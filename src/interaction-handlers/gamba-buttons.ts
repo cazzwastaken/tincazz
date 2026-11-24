@@ -1,5 +1,6 @@
 import { InteractionHandler, InteractionHandlerTypes } from '@sapphire/framework';
 import type { ButtonInteraction, ContainerBuilder } from 'discord.js';
+import { end, play, stillRolling, tryBegin, updateDisplay } from '../features/animation/index.js';
 import {
   assignJackpotRole,
   decodeSpinId,
@@ -9,6 +10,7 @@ import {
   type SpinButtonId,
   spin,
   spinErrorText,
+  spinFrames,
 } from '../features/gamba/index.js';
 import { gameChannelDenied } from '../features/settings/index.js';
 import { cardReply, errorReply } from '../features/ui/index.js';
@@ -42,43 +44,60 @@ export class GambaButtonsHandler extends InteractionHandler {
       return interaction.reply(errorReply(expiredSpin));
     }
 
-    let messages: Awaited<ReturnType<typeof spin>>;
-    try {
-      messages = await spin(
-        this.container.db,
-        {
-          guildId: interaction.guildId as string,
-          userId,
-          bet: String(id.bet),
-        },
-        Date.now(),
-        {
-          assignJackpotRole: (roleId) =>
-            assignJackpotRole(
-              interaction.inCachedGuild() ? interaction.member : null,
-              userId,
-              roleId,
-            ),
-        },
-      );
-    } catch (error) {
-      const text = spinErrorText(error);
-      if (text === undefined) {
-        throw error;
-      }
-      // The card stays as it was: a stale button only gets a private explanation.
-      return interaction.reply(errorReply(text));
+    if (!tryBegin(userId)) {
+      return interaction.reply(errorReply(stillRolling));
     }
+    try {
+      let messages: Awaited<ReturnType<typeof spin>>;
+      try {
+        messages = await spin(
+          this.container.db,
+          {
+            guildId: interaction.guildId as string,
+            userId,
+            bet: String(id.bet),
+          },
+          Date.now(),
+          {
+            assignJackpotRole: (roleId) =>
+              assignJackpotRole(
+                interaction.inCachedGuild() ? interaction.member : null,
+                userId,
+                roleId,
+              ),
+          },
+        );
+      } catch (error) {
+        const text = spinErrorText(error);
+        if (text === undefined) {
+          throw error;
+        }
+        // The card stays as it was: a stale button only gets a private explanation.
+        return interaction.reply(errorReply(text));
+      }
 
-    await interaction.update(cardReply(messages.card));
-    const { announcement } = messages;
+      // Settled above, so the frames only dress up a result already decided.
+      await play(updateDisplay(interaction), spinFrames(userId, messages.bet), messages.card, {
+        channelId: interaction.channelId,
+      });
+      await this.announce(userId, interaction, messages.announcement);
+    } finally {
+      end(userId);
+    }
+  }
+
+  private async announce(
+    userId: string,
+    interaction: ButtonInteraction,
+    announcement: ContainerBuilder | undefined,
+  ) {
     if (!announcement) {
       return;
     }
     // Its own try: a failed announcement is logged and never undoes the updated card.
     try {
       await interaction.message.reply({
-        ...cardReply(announcement as ContainerBuilder),
+        ...cardReply(announcement),
         allowedMentions: { users: [userId] },
       });
     } catch (error) {

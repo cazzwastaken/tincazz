@@ -19,6 +19,8 @@ export interface SpinRequest {
 }
 
 export interface SpinMessages {
+  /** The settled bet, for the reel frames shown before the card. */
+  bet: number;
   card: ContainerBuilder;
   announcement?: ContainerBuilder;
 }
@@ -86,6 +88,10 @@ export async function spin(
   const card = wagerCard(userId, played);
   const announced = result === 'triple' || result === 'jackpot';
   return announced
-    ? { card, announcement: announcementCard(userId, played, roleAssigned, roleId) }
-    : { card };
+    ? {
+        bet: played.bet,
+        card,
+        announcement: announcementCard(userId, played, roleAssigned, roleId),
+      }
+    : { bet: played.bet, card };
 }
