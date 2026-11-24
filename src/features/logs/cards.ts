@@ -15,6 +15,8 @@ const clearedSettingLabels = {
   log_channel: (id: string) => `Log channel <#${id}>`,
   honeypot: (id: string) => `Honeypot channel <#${id}>`,
   game_channel: (id: string) => `Game channel <#${id}>`,
+  hall_of_fame: (id: string) => `Hall of Fame channel <#${id}>`,
+  hall_exempt: (id: string) => `Hall of Fame exempt channel <#${id}>`,
 } as const;
 
 export function economyLogCard(event: EconomyEvent, now: number): ContainerBuilder {
@@ -162,6 +164,47 @@ export function modLogCard(event: ModEvent, now: number): ContainerBuilder {
         accents.brand,
         'Honeypot cleared',
         [`${mention(event.actorId)} cleared the honeypot (was <#${event.fromChannelId}>)`],
+        now,
+      );
+    case 'hall_set':
+      return build(
+        accents.brand,
+        'Hall of Fame set',
+        [
+          `${mention(event.actorId)} set the Hall of Fame to <#${event.toChannelId}> (${event.threshold} people)`,
+          ...(event.fromChannelId ? [`Previously <#${event.fromChannelId}>`] : []),
+        ],
+        now,
+      );
+    case 'hall_cleared':
+      return build(
+        accents.brand,
+        'Hall of Fame cleared',
+        [
+          `${mention(event.actorId)} cleared the Hall of Fame (was <#${event.fromChannelId}>)`,
+          'Existing posts stay where they are',
+        ],
+        now,
+      );
+    case 'hall_threshold':
+      return build(
+        accents.brand,
+        'Hall of Fame threshold changed',
+        [
+          `${mention(event.actorId)} changed the threshold from ${event.from} to ${event.to} people`,
+        ],
+        now,
+      );
+    case 'hall_exempt_added':
+    case 'hall_exempt_removed':
+      return build(
+        accents.brand,
+        event.type === 'hall_exempt_added'
+          ? 'Hall of Fame exemption added'
+          : 'Hall of Fame exemption removed',
+        [
+          `${mention(event.actorId)} ${event.type === 'hall_exempt_added' ? 'exempted' : 'stopped exempting'} <#${event.channelId}> ${event.type === 'hall_exempt_added' ? 'from' : 'for'} the Hall of Fame`,
+        ],
         now,
       );
   }

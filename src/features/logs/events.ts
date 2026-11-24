@@ -47,7 +47,14 @@ export type ModEvent =
   | { type: 'log_channel_cleared'; actorId: string; kind: LogKind; fromChannelId: string }
   | {
       type: 'setting_auto_cleared';
-      setting: 'autorole' | 'jackpot_role' | 'log_channel' | 'honeypot' | 'game_channel';
+      setting:
+        | 'autorole'
+        | 'jackpot_role'
+        | 'log_channel'
+        | 'honeypot'
+        | 'game_channel'
+        | 'hall_of_fame'
+        | 'hall_exempt';
       id: string;
       detail: string;
     }
@@ -69,4 +76,14 @@ export type ModEvent =
       messageDeleted: boolean;
     }
   | { type: 'honeypot_set'; actorId: string; fromChannelId?: string; toChannelId: string }
-  | { type: 'honeypot_cleared'; actorId: string; fromChannelId: string };
+  | { type: 'honeypot_cleared'; actorId: string; fromChannelId: string }
+  | {
+      type: 'hall_set';
+      actorId: string;
+      fromChannelId?: string;
+      toChannelId: string;
+      threshold: number;
+    }
+  | { type: 'hall_cleared'; actorId: string; fromChannelId: string }
+  | { type: 'hall_threshold'; actorId: string; from: number; to: number }
+  | { type: 'hall_exempt_added' | 'hall_exempt_removed'; actorId: string; channelId: string };
