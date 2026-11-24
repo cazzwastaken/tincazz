@@ -103,7 +103,7 @@ the new file too (the same `curl` as in the setup) before running `up -d`.
 
 **The gamba jackpot role is no longer hard-coded.** It is now a per-guild setting, so after
 deploying this version no jackpot role is awarded until staff run `/settings jackpot set` in each
-server (with a role the bot's highest role sits above, and Manage Roles granted). Run
+server (with a role the bot's highest role sits above, and Manage Roles granted).
 Jackpots still pay the pot; only the role is skipped until it is set.
 
 ## Backups
