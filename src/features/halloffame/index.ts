@@ -6,5 +6,6 @@ export * from './eligibility.js';
 export * from './port.js';
 export * from './runner.js';
 export * from './score.js';
+export * from './settings.js';
 export * from './store.js';
 export * from './tiers.js';

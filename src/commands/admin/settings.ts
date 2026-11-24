@@ -9,6 +9,19 @@ import {
 } from 'discord.js';
 import type { AutoRoleTarget } from '../../db/schema.js';
 import {
+  hallChannelProblem,
+  hallChannelTypes,
+  hallClearCommand,
+  hallExemptChannels,
+  hallExemptChannelTypes,
+  hallExemptCommand,
+  hallOfFame,
+  hallSetCommand,
+  hallSettings,
+  hallThresholdCommand,
+  hallUnexemptCommand,
+} from '../../features/halloffame/index.js';
+import {
   clearHoneypot,
   deleteCard,
   ensureCard,
@@ -88,6 +101,13 @@ export class SettingsCommand extends Command {
         .setName('target')
         .setDescription('Who gets it (default: members)')
         .addChoices({ name: 'members', value: 'member' }, { name: 'bots', value: 'bot' });
+
+    const hallChannelOption = (o: import('discord.js').SlashCommandChannelOption) =>
+      o
+        .setName('channel')
+        .setDescription('The channel')
+        .setRequired(true)
+        .addChannelTypes(...hallExemptChannelTypes);
 
     registry.registerChatInputCommand((builder) =>
       builder
@@ -183,6 +203,66 @@ export class SettingsCommand extends Command {
             .addSubcommand((sub) =>
               sub.setName('clear').setDescription('Stop using a honeypot channel'),
             ),
+        )
+        .addSubcommandGroup((group) =>
+          group
+            .setName('halloffame')
+            .setDescription('The channel that honours messages many people reacted to')
+            .addSubcommand((sub) =>
+              sub
+                .setName('set')
+                .setDescription('Post well-liked messages in a channel (posts an intro card there)')
+                .addChannelOption((o) =>
+                  o
+                    .setName('channel')
+                    .setDescription('The Hall of Fame channel')
+                    .setRequired(true)
+                    .addChannelTypes(...hallChannelTypes),
+                )
+                .addIntegerOption((o) =>
+                  o
+                    .setName('threshold')
+                    .setDescription(
+                      `Different people needed (${hallOfFame.minThreshold}-${hallOfFame.maxThreshold}, default ${hallOfFame.defaultThreshold})`,
+                    )
+                    .setMinValue(hallOfFame.minThreshold)
+                    .setMaxValue(hallOfFame.maxThreshold),
+                ),
+            )
+            .addSubcommand((sub) =>
+              sub
+                .setName('threshold')
+                .setDescription(
+                  'Change how many different people a message needs (not retroactive)',
+                )
+                .addIntegerOption((o) =>
+                  o
+                    .setName('count')
+                    .setDescription(
+                      `Different people needed (${hallOfFame.minThreshold}-${hallOfFame.maxThreshold})`,
+                    )
+                    .setRequired(true)
+                    .setMinValue(hallOfFame.minThreshold)
+                    .setMaxValue(hallOfFame.maxThreshold),
+                ),
+            )
+            .addSubcommand((sub) =>
+              sub
+                .setName('clear')
+                .setDescription('Stop posting to the Hall of Fame (existing posts stay)'),
+            )
+            .addSubcommand((sub) =>
+              sub
+                .setName('exempt')
+                .setDescription('Never post messages from a channel or category')
+                .addChannelOption(hallChannelOption),
+            )
+            .addSubcommand((sub) =>
+              sub
+                .setName('unexempt')
+                .setDescription('Allow messages from an exempt channel or category again')
+                .addChannelOption(hallChannelOption),
+            ),
         ),
     );
   }
@@ -205,6 +285,14 @@ export class SettingsCommand extends Command {
     if (group === 'games' && sub === 'reset') return this.gamesReset(interaction);
     if (group === 'honeypot' && sub === 'set') return this.honeypotSet(interaction);
     if (group === 'honeypot' && sub === 'clear') return this.honeypotClear(interaction);
+    if (group === 'halloffame') {
+      const deps = { db: this.container.db, logger: this.container.logger };
+      if (sub === 'set') return hallSetCommand(interaction, deps);
+      if (sub === 'threshold') return hallThresholdCommand(interaction, deps);
+      if (sub === 'clear') return hallClearCommand(interaction, deps);
+      if (sub === 'exempt') return hallExemptCommand(interaction, deps);
+      if (sub === 'unexempt') return hallUnexemptCommand(interaction, deps);
+    }
     if (!group && sub === 'show') return this.show(interaction);
     return interaction.reply(errorReply('Unknown subcommand.'));
   }
@@ -551,9 +639,23 @@ export class SettingsCommand extends Command {
         ? honeypotChannelProblem(channel as never, guild?.members.me as GuildMember)
         : 'channel no longer exists';
     }
+    const hall = hallSettings(this.container.db, guildId);
+    let hallProblem: string | undefined;
+    if (hall.channelId) {
+      const channel = guild?.channels.cache.get(hall.channelId);
+      hallProblem = channel
+        ? hallChannelProblem(channel as never, guild?.members.me as GuildMember)
+        : 'channel no longer exists';
+    }
     return interaction.reply(
       cardReply(
         settingsCard({
+          hallOfFame: {
+            channelId: hall.channelId,
+            threshold: hall.threshold,
+            exempt: hallExemptChannels(this.container.db, guildId),
+            problem: hallProblem,
+          },
           jackpotRole: {
             roleId: jackpotRole,
             problem: jackpotRole

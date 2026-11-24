@@ -5,6 +5,7 @@ import {
   type PermissionsBitField,
 } from 'discord.js';
 import type { DbOrTx } from '../../db/index.js';
+import { hallSettings } from '../halloffame/store.js';
 import { logKinds } from '../logs/config.js';
 import { gameChannels } from '../settings/game-channels.js';
 import { logChannelId } from '../settings/store.js';
@@ -37,7 +38,7 @@ export function honeypotChannelProblem(
   return undefined;
 }
 
-/** Why this channel can't become the honeypot (a log or game channel), or undefined. */
+/** Why this channel can't become the honeypot (a log, game or Hall of Fame channel), or undefined. */
 export function honeypotConflict(
   db: DbOrTx,
   guildId: string,
@@ -48,6 +49,9 @@ export function honeypotConflict(
   }
   if (gameChannels(db, guildId).includes(channelId)) {
     return `<#${channelId}> is a game channel, so it can't be the honeypot.`;
+  }
+  if (hallSettings(db, guildId).channelId === channelId) {
+    return `<#${channelId}> is the Hall of Fame channel, so it can't be the honeypot.`;
   }
   return undefined;
 }
