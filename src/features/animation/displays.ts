@@ -6,6 +6,11 @@ export function replyDisplay(interaction: RepliableInteraction): Display {
   return {
     first: (reply: CardReply) => interaction.reply(reply),
     next: (reply: CardReply) => interaction.editReply(reply),
+    // The game has settled, so the result must arrive even when the edits keep failing.
+    fallback: (reply: CardReply) =>
+      interaction.replied || interaction.deferred
+        ? interaction.followUp(reply)
+        : interaction.reply(reply),
   };
 }
 
@@ -34,6 +39,11 @@ export function messageDisplay(message: Message): Display & { sent(): Message | 
         throw new Error('no reply to edit');
       }
       return sent.edit(reply);
+    },
+    // A new reply: the original reply or its edits failed, and the command message may be gone.
+    fallback: async (reply: CardReply) => {
+      sent = await message.reply({ ...reply, failIfNotExists: false });
+      return sent;
     },
     sent: () => sent,
   };
