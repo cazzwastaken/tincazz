@@ -99,6 +99,13 @@ docker compose pull && docker compose up -d
 `docker compose pull` only updates the image. When a release changes `docker-compose.yml`, fetch
 the new file too (the same `curl` as in the setup) before running `up -d`.
 
+## Upgrade notes
+
+**The gamba jackpot role is no longer hard-coded.** It is now a per-guild setting, so after
+deploying this version no jackpot role is awarded until staff run `/settings jackpot set` in each
+server (with a role the bot's highest role sits above, and Manage Roles granted). Run
+Jackpots still pay the pot; only the role is skipped until it is set.
+
 ## Backups
 
 The SQLite database lives on the `tincazz-data` Docker volume, mounted at `/app/data` (the only
