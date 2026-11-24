@@ -261,6 +261,54 @@ export const giveaways = sqliteTable(
   ],
 );
 
+export const pollStatuses = ['publishing', 'open', 'closed', 'deleted'] as const;
+export type PollStatus = (typeof pollStatuses)[number];
+
+export const polls = sqliteTable(
+  'polls',
+  {
+    id: integer('id').notNull(),
+    guildId: text('guild_id').notNull(),
+    channelId: text('channel_id').notNull(),
+    messageId: text('message_id').unique(),
+    creationId: text('creation_id').notNull().unique(),
+    hostId: text('host_id').notNull(),
+    question: text('question').notNull(),
+    /** JSON array of 2-9 option labels. */
+    options: text('options', { mode: 'json' }).$type<string[]>().notNull(),
+    /** Yes/no polls vote with thumbs; others with numbered keycaps. */
+    yesNo: integer('yes_no', { mode: 'boolean' }).notNull().default(false),
+    anonymous: integer('anonymous', { mode: 'boolean' }).notNull().default(false),
+    endsAt: integer('ends_at').notNull(),
+    status: text('status', { enum: pollStatuses }).notNull().default('publishing'),
+    closedBy: text('closed_by'),
+    closedAt: integer('closed_at'),
+    /** Null when there is nothing left to sync. */
+    nextSyncAt: integer('next_sync_at'),
+    accessFailures: integer('access_failures').notNull().default(0),
+    lastRenderedHash: text('last_rendered_hash'),
+    /** When votes were last reconciled against Discord's reactions. */
+    lastRecountAt: integer('last_recount_at'),
+  },
+  (table) => [
+    primaryKey({ columns: [table.guildId, table.id] }),
+    index('polls_next_sync_idx').on(table.nextSyncAt),
+    index('polls_host_status_idx').on(table.guildId, table.hostId, table.status),
+  ],
+);
+
+export const pollVotes = sqliteTable(
+  'poll_votes',
+  {
+    guildId: text('guild_id').notNull(),
+    pollId: integer('poll_id').notNull(),
+    userId: text('user_id').notNull(),
+    optionIndex: integer('option_index').notNull(),
+    votedAt: integer('voted_at').notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.guildId, table.pollId, table.userId] })],
+);
+
 export const pendingScreenings = sqliteTable(
   'pending_screenings',
   {
