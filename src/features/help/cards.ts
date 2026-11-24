@@ -17,6 +17,7 @@ import { payoutBps, pot, wager } from '../gamba/config.js';
 import { threeOfAKindOdds } from '../gamba/index.js';
 import { outcomeEmoji } from '../gamba/outcomes.js';
 import { giveaway, giveawayDurationHint } from '../giveaways/config.js';
+import { poll, pollDurationHint } from '../poll/config.js';
 import { accents, coins } from '../ui/index.js';
 import { encodeHelpMenuId, encodeHelpPageId } from './custom-ids.js';
 import { type HelpPage, topicInfo, topicPages } from './topics.js';
@@ -65,6 +66,8 @@ function homeSummary(page: Exclude<HelpPage, 'home'>, prefix: string): string {
       return 'Flip against the bot or a member, or call the roll of two dice';
     case 'giveaways':
       return 'Find current prize draws in this server';
+    case 'polls':
+      return `Ask a question, people vote with reactions and a live bar chart tracks the result`;
   }
 }
 
@@ -231,6 +234,30 @@ function giveawaysPage(): Page {
   };
 }
 
+function pollsPage(prefix: string): Page {
+  const days = poll.maxDurationMs / 86_400_000;
+  return {
+    title: '# 📊 Polls',
+    body: [
+      [
+        '### Ask',
+        `\`/poll question [options] [duration] [anonymous]\` or \`${prefix}poll <question>\` for a yes/no poll (👍 / 👎).`,
+        `For your own choices, give ${poll.minOptions} to ${poll.maxOptions} options: \`${prefix}poll "Dinner?" | Tacos | Pizza | Sushi\`.`,
+        `Add \`--anon\` to hide who voted and \`--for 2h\` to set the length (default ${poll.defaultDurationMs / 3_600_000} hours, up to ${days} days). ${pollDurationHint}`,
+      ].join('\n'),
+      [
+        '### Vote',
+        'React with an option emoji. You get one vote: your latest reaction wins, and removing it withdraws your vote. The bar chart updates within a few seconds.',
+        'When the bot has Manage Messages in the channel it also removes your old reaction when you switch.',
+      ].join('\n'),
+      [
+        '### Close',
+        `The host or anyone with Manage Messages can press **Close poll**. Polls close on their own when time is up. You can have ${poll.maxOpenPerHost} open polls per server.`,
+      ].join('\n'),
+    ],
+  };
+}
+
 const builders: Record<HelpPage, (prefix: string) => Page> = {
   home,
   games,
@@ -239,6 +266,7 @@ const builders: Record<HelpPage, (prefix: string) => Page> = {
   gamba: gambaPage,
   flipdice: flipDice,
   giveaways: giveawaysPage,
+  polls: pollsPage,
 };
 
 /**

@@ -81,6 +81,7 @@ export function makeChatInput(
       getUser: (name: string) => (options[name] as never) ?? null,
       getInteger: (name: string) => (options[name] as number | undefined) ?? null,
       getString: (name: string) => (options[name] as string | undefined) ?? null,
+      getBoolean: (name: string) => (options[name] as boolean | undefined) ?? null,
       getSubcommand: () => subcommand ?? null,
       getSubcommandGroup: () => subcommandGroup ?? null,
       getChannel: (name: string) => (options[name] as never) ?? null,
@@ -94,7 +95,9 @@ export function makeChatInput(
     guild,
     inCachedGuild: () => true,
     member: { roles: { add: vi.fn(async () => undefined) } },
+    id: '42',
     reply: vi.fn(async () => ({ resource: { message: { id: 'card-1', reply: announce } } })),
+    deferReply: vi.fn(async () => undefined),
     editReply: vi.fn(),
   };
 }

@@ -13,6 +13,7 @@ import {
   topicInfo,
   topicPages,
 } from '../src/features/help/index.js';
+import { poll } from '../src/features/poll/config.js';
 import { testEnv } from './support/env.js';
 import { makeButton, makeChatInput, makeSelect } from './support/interaction.js';
 
@@ -91,6 +92,16 @@ describe('help pages', () => {
     expect(text).toContain('!gif');
     expect(parseTopic('gif')).toBe('images');
     expect(text).not.toContain('?cf');
+  });
+
+  it('documents polls from the poll config', () => {
+    const text = page('polls', '!');
+    expect(text).toContain('!poll');
+    expect(text).toContain('/poll');
+    expect(text).toContain('--anon');
+    expect(text).toContain('Close poll');
+    expect(text).toContain(`${poll.maxOpenPerHost} open polls`);
+    expect(text).toContain(`${poll.minOptions} to ${poll.maxOptions}`);
   });
 
   it('lists the games with aliases and examples', () => {
@@ -200,6 +211,8 @@ describe('parseTopic', () => {
       ['coinflip', 'flipdice'],
       ['dice', 'flipdice'],
       ['cf', 'flipdice'],
+      ['poll', 'polls'],
+      ['?polls', 'polls'],
       ['?gamba', 'gamba'],
       ['nope', 'home'],
       ['constructor', 'home'],

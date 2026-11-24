@@ -39,6 +39,7 @@ Type `/help` (or `?help`) in Discord for a paged guide with the live numbers.
 **Server tools**
 
 - Staff can host timed reaction giveaways with `/giveaway create`. Cancel a pending draw with `/giveaway cancel`. Use `/giveaway list` to find draws in channels you can read. See [giveaways](docs/giveaways.md).
+- `/poll` (or `?poll`): ask a question, members vote with reactions and a live bar chart shows the result. Yes/no or up to 9 options, optional anonymity and a timer up to 7 days. See [polls](docs/polls.md).
 - `/settings`: log channels, join roles, the jackpot role and which channels the games may be played in
 - Honeypot channel: `/settings honeypot set` catches compromised accounts spamming every channel. The bot attempts a DM embed before softbanning and wiping the last hour of messages server-wide. Staff (Manage Messages or Administrator) and the server owner get an embed explaining why they weren't kicked and a 🍯 reaction if Discord allows it. Bots are ignored.
 - Most commands also work with the `?` prefix, such as `?gamba 100` or `?caption hello`

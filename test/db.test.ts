@@ -64,6 +64,8 @@ describe('database', () => {
       'pending_coinflip_challenges',
       'pending_screenings',
       'player_stats',
+      'poll_votes',
+      'polls',
       'pots',
       'rolls',
       'spins',

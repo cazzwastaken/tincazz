@@ -106,6 +106,27 @@
       "when": 1795548780268,
       "tag": "0014_challenge_guild_bot_flip_stats",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "6",
+      "when": 1795551420102,
+      "tag": "0015_polls",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "6",
+      "when": 1795552715681,
+      "tag": "0016_poll_created_at",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "6",
+      "when": 1795552863957,
+      "tag": "0017_poll_status_ends_index",
+      "breakpoints": true
     }
   ]
 }

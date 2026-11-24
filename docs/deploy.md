@@ -25,6 +25,9 @@ Bot permissions:
 - **View Channel**, **Send Messages**, **Embed Links**, **Read Message History** and
   **Add Reactions** in giveaway channels.
 
+- **View Channel**, **Send Messages**, **Add Reactions** and **Read Message History** in poll
+  channels, plus optional **Manage Messages** to remove a voter's old reaction when they switch.
+
 A running server must grant **Ban Members** before anyone uses `/settings honeypot`.
 
 ## One-time VPS setup
