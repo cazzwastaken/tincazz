@@ -51,7 +51,14 @@ The SQLite database is created under `./data/` on first start.
    migration in `drizzle/` with it.
 6. If you add an environment variable, add it to the zod schema in `src/config/env.ts` **and** to
    `.env.example` in the same commit. Read config only through `parseEnv`.
-7. Keep the docs in step: the README feature list and the `/help` cards for user-visible behavior,
+7. Games run through the shared animation flow: `runAnimatedGame` (busy lock, settle, error text,
+   show) with a `GameSurface` for slash and prefix commands, and a single transactional settle in
+   the feature that uses `settleStake` (bet, then payouts) from `src/features/economy/`. Do not
+   hand-roll the bet and payout ledger steps.
+8. Guild specifics (log channels, auto-roles, the jackpot role, game channels) are per-guild
+   settings in `src/features/settings/`, set by staff with `/settings`. Never hard-code role,
+   channel or server IDs in the code.
+9. Keep the docs in step: the README feature list and the `/help` cards for user-visible behavior,
    [docs/games.md](docs/games.md) for rule or payout changes, and AGENTS.md (layout, conventions)
    plus this file when a convention changes.
 
