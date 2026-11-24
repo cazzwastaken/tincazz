@@ -51,8 +51,10 @@ import {
 import {
   addAutoRole,
   autoRoles,
+  jackpotRoleId,
   logChannelId,
   removeAutoRole,
+  setJackpotRole,
   setLogChannel,
 } from '../../features/settings/store.js';
 import { accents, card, cardReply, errorReply } from '../../features/ui/index.js';
@@ -136,6 +138,20 @@ export class SettingsCommand extends Command {
         )
         .addSubcommandGroup((group) =>
           group
+            .setName('jackpot')
+            .setDescription('The role a gamba jackpot gives')
+            .addSubcommand((sub) =>
+              sub
+                .setName('set')
+                .setDescription('Give this role to gamba jackpot winners')
+                .addRoleOption(roleOption),
+            )
+            .addSubcommand((sub) =>
+              sub.setName('clear').setDescription('Stop giving a role for gamba jackpots'),
+            ),
+        )
+        .addSubcommandGroup((group) =>
+          group
             .setName('games')
             .setDescription('Where gamba, coinflip and dice can be played (default: everywhere)')
             .addSubcommand((sub) =>
@@ -182,6 +198,8 @@ export class SettingsCommand extends Command {
     if (group === 'logs' && sub === 'clear') return this.logsClear(interaction);
     if (group === 'autorole' && sub === 'add') return this.autoroleAdd(interaction);
     if (group === 'autorole' && sub === 'remove') return this.autoroleRemove(interaction);
+    if (group === 'jackpot' && sub === 'set') return this.jackpotSet(interaction);
+    if (group === 'jackpot' && sub === 'clear') return this.jackpotClear(interaction);
     if (group === 'games' && sub === 'allow') return this.gamesAllow(interaction);
     if (group === 'games' && sub === 'remove') return this.gamesRemove(interaction);
     if (group === 'games' && sub === 'reset') return this.gamesReset(interaction);
@@ -319,6 +337,42 @@ export class SettingsCommand extends Command {
       guildId,
       { type: 'autorole_removed', actorId: interaction.user.id, roleId: role.id, target },
       Date.now(),
+    );
+  }
+
+  private async jackpotSet(interaction: ChatInputCommandInteraction) {
+    const role = interaction.options.getRole('role', true) as Role;
+    const guildId = interaction.guildId as string;
+    const guild = interaction.guild as NonNullable<typeof interaction.guild>;
+    const invoker = interaction.member as GuildMember;
+    const problem = validateAutoRole(roleFacts(role), botFacts(guild), {
+      highest: invoker.roles.highest.position,
+      isOwner: guild.ownerId === interaction.user.id,
+    });
+    if (problem) return interaction.reply(errorReply(problem));
+    if (jackpotRoleId(this.container.db, guildId) === role.id) {
+      return interaction.reply(errorReply(`<@&${role.id}> is already the jackpot role.`));
+    }
+    setJackpotRole(this.container.db, guildId, role.id, Date.now());
+    return interaction.reply(
+      cardReply(card(accents.brand, `Gamba jackpot winners will get <@&${role.id}>.`), {
+        ephemeral: true,
+      }),
+    );
+  }
+
+  private async jackpotClear(interaction: ChatInputCommandInteraction) {
+    const previous = setJackpotRole(
+      this.container.db,
+      interaction.guildId as string,
+      null,
+      Date.now(),
+    );
+    if (previous === undefined) {
+      return interaction.reply(errorReply("The jackpot role isn't set."));
+    }
+    return interaction.reply(
+      cardReply(card(accents.brand, 'Gamba jackpots no longer give a role.'), { ephemeral: true }),
     );
   }
 
@@ -487,6 +541,8 @@ export class SettingsCommand extends Command {
             : 'role no longer exists',
         };
       });
+    const jackpotRole = jackpotRoleId(this.container.db, guildId);
+    const jackpotRoleObject = jackpotRole ? guild?.roles.cache.get(jackpotRole) : undefined;
     const pot = honeypot(this.container.db, guildId);
     let potProblem: string | undefined;
     if (pot.channelId) {
@@ -498,6 +554,15 @@ export class SettingsCommand extends Command {
     return interaction.reply(
       cardReply(
         settingsCard({
+          jackpotRole: {
+            roleId: jackpotRole,
+            problem: jackpotRole
+              ? jackpotRoleObject
+                ? (botCannotAssign(roleFacts(jackpotRoleObject), bot) ??
+                  moderatorPermissionProblem(roleFacts(jackpotRoleObject)))
+                : 'role no longer exists'
+              : undefined,
+          },
           honeypot: { channelId: pot.channelId, kicks: pot.kicks, problem: potProblem },
           autoRoles: { member: roleView('member'), bot: roleView('bot') },
           logs,

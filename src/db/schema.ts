@@ -179,6 +179,7 @@ export const guildSettings = sqliteTable('guild_settings', {
   honeypotChannelId: text('honeypot_channel_id'),
   honeypotMessageId: text('honeypot_message_id'),
   honeypotKicks: integer('honeypot_kicks').notNull().default(0),
+  gambaJackpotRoleId: text('gamba_jackpot_role_id'),
   gameChannelsRestricted: integer('game_channels_restricted', { mode: 'boolean' })
     .notNull()
     .default(false),

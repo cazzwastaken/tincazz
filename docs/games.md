@@ -37,7 +37,8 @@ and no buttons.
 
 - The pot starts at 10,000 coins and never drops below that seed.
 - Bets of 100 or less add nothing to it. Bets over 100 add 3% of the whole bet, rounded down.
-- A **cpp triple** wins the pot and the jackpot role, plus the 100x payout.
+- A **cpp triple** wins the pot and the server's jackpot role (set by staff with `/settings jackpot set`; no role is
+  given until one is set), plus the 100x payout.
 - A **python triple** also takes 8% of the pot above the seed, on top of its 25x payout. Pairs and
   yt triples take nothing from the pot.
 - Pot prizes are full-sized at bets of 500 or more and scale by `bet / 500` below that.

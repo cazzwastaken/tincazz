@@ -17,7 +17,7 @@ enabled first: the bot always requests it and cannot log in without it.
 
 Bot permissions:
 
-- **Manage Roles**: gamba jackpot roles and `/settings autorole`.
+- **Manage Roles**: gamba jackpot roles (`/settings jackpot`) and `/settings autorole`.
 - **Ban Members**: honeypot softbans.
 - **View Channel**, **Send Messages** and **Manage Messages** in the honeypot channel: to post and
   re-post the warning card and delete what the guard blocks.

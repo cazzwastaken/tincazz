@@ -11,7 +11,6 @@ import {
   type WagerSpin,
   wagerCard,
 } from '../src/features/gamba/index.js';
-import { gambaJackpotRoleId } from '../src/features/gamba/outcomes.js';
 import { accents } from '../src/features/ui/index.js';
 
 const limits = { minBet: 10, maxBet: 10_000, defaultBet: 10 };
@@ -84,14 +83,21 @@ describe('announcementCard', () => {
 
   it('announces a wagered jackpot', () => {
     const spin = wagerSpin(['cpp', 'cpp', 'cpp'], 500, { potWon: 10_015 });
-    const text = json(announcementCard('1', spin, true));
+    const text = json(announcementCard('1', spin, true, '77'));
     expect(text).toContain('Won 50,000 on a 500 bet');
     expect(text).toContain('+10,015 from the pot');
-    expect(text).toContain(`You are a pro! You just won <@&${gambaJackpotRoleId}>`);
+    expect(text).toContain(`You are a pro! You just won <@&77>`);
     expect(text).not.toContain("couldn't assign");
-    expect(json(announcementCard('1', spin, false))).toContain(
+    expect(json(announcementCard('1', spin, false, '77'))).toContain(
       "(couldn't assign the role, tell a mod)",
     );
+  });
+
+  it('skips the role line without a jackpot role', () => {
+    const spin = wagerSpin(['cpp', 'cpp', 'cpp'], 500, { potWon: 10_015 });
+    const text = json(announcementCard('1', spin));
+    expect(text).toContain('Won 50,000 on a 500 bet');
+    expect(text).not.toContain('You are a pro');
   });
 });
 

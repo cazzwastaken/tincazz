@@ -15,7 +15,7 @@ import { bailout, cashback, chatReward, collect, daily } from '../economy/config
 import type { BetLimits } from '../gamba/bet.js';
 import { payoutBps, pot, wager } from '../gamba/config.js';
 import { threeOfAKindOdds } from '../gamba/index.js';
-import { gambaJackpotRoleId, outcomeEmoji } from '../gamba/outcomes.js';
+import { outcomeEmoji } from '../gamba/outcomes.js';
 import { giveaway, giveawayDurationHint } from '../giveaways/config.js';
 import { accents, coins } from '../ui/index.js';
 import { encodeHelpMenuId, encodeHelpPageId } from './custom-ids.js';
@@ -46,7 +46,7 @@ function home(prefix: string): Page {
         (page) =>
           `### ${topicInfo[page].emoji} ${topicInfo[page].label}\n${homeSummary(page, prefix)}`,
       ),
-      `-# Also: \`/ping\`, \`/help\`. Admins: \`/settings\` (log channels, auto-roles, game channels, honeypot) and \`/eco\`.`,
+      `-# Also: \`/ping\`, \`/help\`. Admins: \`/settings\` (log channels, auto-roles, jackpot role, game channels, honeypot) and \`/eco\`.`,
     ],
   };
 }
@@ -161,7 +161,7 @@ function gambaPage(prefix: string): Page {
         `${cpp}${cpp} cpp pair: **${times(payoutBps.cppPair)}**`,
         `${yt}${yt}${yt} any triple of the usual emotes: **${times(payoutBps.ytTriple)}**`,
         `${python}${python}${python} python triple (1 in ${coins(pythonOdds ?? 0)}): **${times(payoutBps.pythonTriple)}** + ${share}% of the pot above ${coins(pot.seed)}, up to ${pot.maxWinPerBet.pythonTriple}x your bet`,
-        `${cpp}${cpp}${cpp} **JACKPOT** (1 in ${coins(jackpotOdds ?? 0)}): **${times(payoutBps.cppTriple)}** + the pot, up to ${pot.maxWinPerBet.cppTriple}x your bet, and the <@&${gambaJackpotRoleId}> role`,
+        `${cpp}${cpp}${cpp} **JACKPOT** (1 in ${coins(jackpotOdds ?? 0)}): **${times(payoutBps.cppTriple)}** + the pot, up to ${pot.maxWinPerBet.cppTriple}x your bet, and the server's jackpot role if staff set one`,
       ].join('\n'),
       [
         '### The pot',

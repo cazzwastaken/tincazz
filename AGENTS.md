@@ -60,7 +60,7 @@ src/
   config/env.ts   zod schema for environment variables
   db/             SQLite schema (Drizzle) and `openDatabase`, exposed as `container.db`
   commands/       one file per command, grouped in folders by category
-    admin/        `/settings` (log channels, join auto-roles, game channels and the honeypot channel;
+    admin/        `/settings` (log channels, join auto-roles, the gamba jackpot role, game channels and the honeypot channel;
                   Manage Server); `/giveaway create` (server-level and channel Manage Messages)
                   and `/giveaway cancel` (same staff checks), plus `/giveaway list`
     economy/      `/balance` (also `?bal` / `?balance`), `/daily`, `/collect`, `/bailout`, `/eco`
@@ -83,8 +83,9 @@ src/
     economy/      wallets and ledger; the only code that changes balances. Faucets: daily (with
                   cashback on yesterday's gambling losses), hourly collect, bailout, chat
     gamba/        spin logic, odds and payouts (tuned to a ~1% house edge), the pot, bet parsing,
-                  result cards and the shared `spin()` flow used by commands and buttons (every
-                  spin is a wager, default 1)
+                  result cards, reel frames and the shared `spin()` flow used by commands and buttons
+                  (every spin is a wager, default 1; settled first, then animated under the shared
+                  per-user busy lock)
     giveaways/    guild-scoped reaction giveaways, live entry counts, durable draw and result edits
     help/         the paged help card (home, games, images, coins, gamba, coinflip and dice, giveaways), the
                   topic menu and aliases, built from the economy and wager config so it cannot

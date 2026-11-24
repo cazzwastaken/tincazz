@@ -5,6 +5,7 @@ import {
   InteractionContextType,
   type Message,
 } from 'discord.js';
+import { end, play, stillRolling, tryBegin } from '../../features/animation/index.js';
 import {
   assignJackpotRole,
   formatGambaFollowUp,
@@ -14,6 +15,7 @@ import {
   settleSpin,
   spin,
   spinErrorText,
+  spinFrames,
 } from '../../features/gamba/index.js';
 import { spinLogEvent } from '../../features/logs/economy.js';
 import { logEconomy } from '../../features/logs/send.js';
@@ -53,12 +55,13 @@ export class GambaCommand extends Command {
     if (denied) return message.reply(denied);
     const bet = (await args.restResult('string')).unwrapOr(undefined);
     const userId = message.author.id;
+    if (!tryBegin(userId)) return message.reply(stillRolling);
     try {
-      const { played, roleAssigned } = await settleSpin(
+      const { played, roleAssigned, jackpotRoleId } = await settleSpin(
         this.container.db,
         { guildId: message.guildId as string, userId, bet },
         Date.now(),
-        { assignJackpotRole: () => assignJackpotRole(message.member, userId) },
+        { assignJackpotRole: (roleId) => assignJackpotRole(message.member, userId, roleId) },
       );
       const sent = await message.reply({
         content: formatGambaReply(played),
@@ -66,7 +69,12 @@ export class GambaCommand extends Command {
       });
       const event = spinLogEvent(userId, played, roleAssigned);
       if (event) void logEconomy(message.guildId as string, event);
-      const followUp = formatGambaFollowUp(message.author.toString(), played, roleAssigned);
+      const followUp = formatGambaFollowUp(
+        message.author.toString(),
+        played,
+        roleAssigned,
+        jackpotRoleId,
+      );
       await this.announce(userId, followUp !== undefined, () =>
         sent.reply({ content: followUp, allowedMentions: { users: [userId] } }),
       );
@@ -76,6 +84,8 @@ export class GambaCommand extends Command {
         throw error;
       }
       await message.reply(text);
+    } finally {
+      end(userId);
     }
   }
 
@@ -90,36 +100,52 @@ export class GambaCommand extends Command {
     const bet = interaction.options.getString('bet') ?? undefined;
     const userId = interaction.user.id;
     const member: JackpotMember | null = interaction.inCachedGuild() ? interaction.member : null;
-    let messages: Awaited<ReturnType<typeof spin>>;
+    if (!tryBegin(userId)) return interaction.reply(errorReply(stillRolling));
     try {
-      messages = await spin(
-        this.container.db,
-        { guildId: interaction.guildId as string, userId, bet },
-        Date.now(),
-        { assignJackpotRole: () => assignJackpotRole(member, userId) },
-      );
-    } catch (error) {
-      const text = spinErrorText(error);
-      if (text === undefined) {
-        throw error;
+      let messages: Awaited<ReturnType<typeof spin>>;
+      try {
+        // Settled before the first frame: the reels below only dress up a result already decided.
+        messages = await spin(
+          this.container.db,
+          { guildId: interaction.guildId as string, userId, bet },
+          Date.now(),
+          { assignJackpotRole: (roleId) => assignJackpotRole(member, userId, roleId) },
+        );
+      } catch (error) {
+        const text = spinErrorText(error);
+        if (text === undefined) {
+          throw error;
+        }
+        return interaction.reply(errorReply(text));
       }
-      return interaction.reply(errorReply(text));
-    }
 
-    const { resource } = await interaction.reply({
-      ...cardReply(messages.card),
-      withResponse: true,
-    });
-    if (resource?.message) {
-      setActiveCard(userId, resource.message.id);
-    }
-    const { announcement } = messages;
-    await this.announce(userId, announcement !== undefined, async () => {
-      await resource?.message?.reply({
-        ...cardReply(announcement as ContainerBuilder),
-        allowedMentions: { users: [userId] },
+      let shown: Message | undefined;
+      await play(
+        {
+          first: async (reply) => {
+            const { resource } = await interaction.reply({ ...reply, withResponse: true });
+            shown = resource?.message ?? undefined;
+            if (shown) {
+              setActiveCard(userId, shown.id);
+            }
+            return resource;
+          },
+          next: (reply) => interaction.editReply(reply),
+        },
+        spinFrames(userId, messages.bet),
+        messages.card,
+        { channelId: interaction.channelId },
+      );
+      const { announcement } = messages;
+      await this.announce(userId, announcement !== undefined, async () => {
+        await shown?.reply({
+          ...cardReply(announcement as ContainerBuilder),
+          allowedMentions: { users: [userId] },
+        });
       });
-    });
+    } finally {
+      end(userId);
+    }
   }
 
   /** Sends the announcement on its own: a failure is logged and never undoes the sent card. */

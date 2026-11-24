@@ -1,6 +1,6 @@
 import { coins } from '../ui/index.js';
 import { type Spin, threeOfAKindOdds } from './index.js';
-import { gambaJackpotRoleId, outcomeEmoji } from './outcomes.js';
+import { outcomeEmoji } from './outcomes.js';
 
 const prizeGif = 'https://klipy.com/gifs/smol-smolcat-5';
 
@@ -16,6 +16,7 @@ export function formatGambaFollowUp(
   userMention: string,
   spin: Spin,
   roleAssigned?: boolean,
+  jackpotRoleId?: string,
 ): string | undefined {
   const { result } = spin.evaluation;
   if (result !== 'triple' && result !== 'jackpot') {
@@ -27,9 +28,9 @@ export function formatGambaFollowUp(
   if (spin.potWon > 0) {
     lines.push(`+${coins(spin.potWon)} from the pot`);
   }
-  if (result === 'jackpot') {
+  if (result === 'jackpot' && jackpotRoleId !== undefined) {
     const note = roleAssigned === false ? " (couldn't assign the role, tell a mod)" : '';
-    lines.push(`You are a pro! You just won <@&${gambaJackpotRoleId}>${note}`);
+    lines.push(`You are a pro! You just won <@&${jackpotRoleId}>${note}`);
   }
   const odds = threeOfAKindOdds(spin.reels);
   if (odds !== undefined) {

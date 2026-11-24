@@ -39,7 +39,7 @@ Type `/help` (or `?help`) in Discord for a paged guide with the live numbers.
 **Server tools**
 
 - Staff can host timed reaction giveaways with `/giveaway create`. Cancel a pending draw with `/giveaway cancel`. Use `/giveaway list` to find draws in channels you can read. See [giveaways](docs/giveaways.md).
-- `/settings`: log channels, join roles and which channels the games may be played in
+- `/settings`: log channels, join roles, the jackpot role and which channels the games may be played in
 - Honeypot channel: `/settings honeypot set` catches compromised accounts spamming every channel. The bot attempts a DM embed before softbanning and wiping the last hour of messages server-wide. Staff (Manage Messages or Administrator) and the server owner get an embed explaining why they weren't kicked and a 🍯 reaction if Discord allows it. Bots are ignored.
 - Most commands also work with the `?` prefix, such as `?gamba 100` or `?caption hello`
 
@@ -51,7 +51,7 @@ Type `/help` (or `?help`) in Discord for a paged guide with the live numbers.
 3. Invite it with the `bot` and `applications.commands` scopes and the **Manage Roles**, **Ban Members** and **Manage Messages** permissions.
    Keep its highest role above the jackpot and auto-roles.
 4. As someone with Manage Server, run `/settings show`, then `/settings logs set` and
-   `/settings autorole add` to taste.
+   `/settings autorole add` to taste, and `/settings jackpot set` to choose the gamba jackpot role.
 
 ## Run it yourself
 

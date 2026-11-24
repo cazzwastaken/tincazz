@@ -1,4 +1,4 @@
-import { gambaJackpotRoleId, gambaOutcomes, type OutcomeKey } from './outcomes.js';
+import { gambaOutcomes, type OutcomeKey } from './outcomes.js';
 import type { WagerSpin } from './play.js';
 import { type RandomInt, rollOutcome } from './roll.js';
 
@@ -21,6 +21,7 @@ export {
 } from './custom-ids.js';
 export type { Evaluation } from './evaluate.js';
 export { evaluate } from './evaluate.js';
+export { spinFrames } from './frames.js';
 export { assignJackpotRole, type JackpotMember } from './jackpot.js';
 export { playWager, type WagerSpin } from './play.js';
 export { addToPot } from './pot.js';
@@ -33,7 +34,6 @@ export {
 } from './spin.js';
 export { formatGambaFollowUp, formatGambaReply } from './text.js';
 export type Spin = WagerSpin;
-export { gambaJackpotRoleId };
 
 export type Reels = readonly [OutcomeKey, OutcomeKey, OutcomeKey];
 

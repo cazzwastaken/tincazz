@@ -5,7 +5,13 @@ import { createClient } from '../src/client.js';
 import { openDatabase } from '../src/db/index.js';
 import { wallets } from '../src/db/schema.js';
 import { screeningJob } from '../src/features/settings/screening.js';
-import { addAutoRole, autoRoles, setLogChannel } from '../src/features/settings/store.js';
+import {
+  addAutoRole,
+  autoRoles,
+  jackpotRoleId,
+  setJackpotRole,
+  setLogChannel,
+} from '../src/features/settings/store.js';
 import { testEnv } from './support/env.js';
 
 let client: ReturnType<typeof createClient>;
@@ -88,6 +94,23 @@ it('removes a deleted role from both lists and logs once', async () => {
   expect(autoRoles(container.db, '2', 'member')).toEqual(['10']);
   expect(autoRoles(container.db, '2', 'bot')).toEqual([]);
   expect(send).toHaveBeenCalledTimes(1);
+});
+
+it('clears a deleted jackpot role and logs it', async () => {
+  setJackpotRole(container.db, '2', '5', 1);
+  setJackpotRole(container.db, '3', '5', 1);
+  client.emit(Events.GuildRoleDelete, { id: '5', guild: { id: '2' } } as never);
+  await settle();
+  expect(jackpotRoleId(container.db, '2')).toBeUndefined();
+  expect(jackpotRoleId(container.db, '3')).toBe('5');
+  expect(send).toHaveBeenCalledTimes(1);
+});
+
+it('keeps the jackpot role when another role is deleted', async () => {
+  setJackpotRole(container.db, '2', '6', 1);
+  client.emit(Events.GuildRoleDelete, { id: '5', guild: { id: '2' } } as never);
+  await settle();
+  expect(jackpotRoleId(container.db, '2')).toBe('6');
 });
 
 describe('leave and rejoin', () => {
