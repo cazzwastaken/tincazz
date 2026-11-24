@@ -22,7 +22,11 @@ export class InvalidBetError extends Error {
   }
 }
 
-/** Parses "100", "2.5k", "all" or "half" into a whole coin amount within a game's bet limits. */
+/**
+ * Parses "100", "2.5k", "all" or "half" into a whole coin amount within a game's bet limits.
+ * `all` is the whole wallet up to the game's maximum (a bigger wallet bets the maximum), and `half`
+ * needs twice the minimum bet in the wallet.
+ */
 export function parseBet(input: string, balance: number, limits: BetLimits): number {
   const text = input.trim().toLowerCase();
 
@@ -50,6 +54,10 @@ export function parseBet(input: string, balance: number, limits: BetLimits): num
     value = Math.min(balance, limits.maxBet);
   } else {
     value = Math.floor(balance / 2);
+    if (value < limits.minBet) {
+      // Half the wallet is below the minimum: the wallet is short, the text is not a bad range.
+      throw new InsufficientFundsError(balance, limits.minBet * 2);
+    }
   }
 
   if (value < limits.minBet || value > limits.maxBet) {
