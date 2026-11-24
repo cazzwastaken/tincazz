@@ -19,6 +19,7 @@ import {
   closeDuePoll,
   discardPoll,
   duePolls,
+  getPoll,
   type Poll,
   recountRaced,
   refreshPendingPolls,
@@ -118,12 +119,17 @@ export async function syncPoll(client: Client<true>, db: Db, row: Poll, now: num
         if (hash !== row.lastRenderedHash) {
           await editPollMessage(client, { ...row, ...location }, counts);
         }
+        // A live vote may have scheduled a sooner refresh while the recount ran: keep it.
+        const retryAt = now + config.racedRecountRetryMs;
+        const scheduled = raced ? getPoll(db, row.guildId, row.id)?.nextSyncAt : null;
         updatePoll(db, row, {
           lastRenderedHash: hash,
           accessFailures: 0,
           ...(recounting && !raced ? { lastRecountAt: now } : {}),
           ...(row.accessFailures > 0 ? { nextSyncAt: nextRefresh(row, now) } : {}),
-          ...(raced ? { nextSyncAt: now + config.racedRecountRetryMs } : {}),
+          ...(raced
+            ? { nextSyncAt: scheduled == null ? retryAt : Math.min(scheduled, retryAt) }
+            : {}),
         });
         return;
       }

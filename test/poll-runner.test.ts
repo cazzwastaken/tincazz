@@ -256,6 +256,10 @@ describe('recount racing live votes', () => {
   /** Discord's snapshot lists `listed` for option 0 while `during` runs mid-fetch. */
   async function recountWith(listed: string[], during: () => void) {
     const row = save();
+    // The scan pushes the due time out before it starts a sync.
+    db.update(polls)
+      .set({ nextSyncAt: now + poll.recountMs })
+      .run();
     const api = discord({ [emojis[0] as string]: listed.map((id) => ({ id, bot: false })) });
     const fetchUsers = api.get.getMockImplementation() as (route: string) => Promise<unknown>;
     api.get.mockImplementation((async (route: string) => {
@@ -273,8 +277,19 @@ describe('recount racing live votes', () => {
     expect(tally(row)).toEqual([0, 1, 0]);
     expect(read()).toMatchObject({
       lastRecountAt: null,
-      nextSyncAt: now + poll.racedRecountRetryMs,
+      // The vote's own debounce refresh (now + 1 + debounceMs) is sooner than the retry.
+      nextSyncAt: now + 1 + poll.debounceMs,
     });
+  });
+
+  it('keeps a sooner refresh scheduled by a live vote during the fetch', async () => {
+    const sooner = now + 500;
+    expect(sooner).toBeLessThan(now + poll.racedRecountRetryMs);
+    await recountWith([], () => {
+      castVote(db, '10', '30', '601', 1, now + 1);
+      db.update(polls).set({ nextSyncAt: sooner }).run();
+    });
+    expect(read()?.nextSyncAt).toBe(sooner);
   });
 
   it('does not resurrect a vote removed during the fetch', async () => {
