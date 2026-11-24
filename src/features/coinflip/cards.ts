@@ -129,7 +129,10 @@ export function challengeResultCard(
     accents.gold,
     `# 🪙 ${sideLabel(settled.result)}`,
     `<@${settled.winnerId}> wins **${coins(settled.credited)}**`,
-    `-# rake ${coins(settled.rake)} to the pot · pot ${coins(settled.pot)}`,
+    // A flip that raked nothing has no rake to report; the pot line still stands.
+    settled.rake > 0
+      ? `-# rake ${coins(settled.rake)} to the pot · pot ${coins(settled.pot)}`
+      : `-# pot ${coins(settled.pot)}`,
   ).addActionRowComponents(
     new ActionRowBuilder<ButtonBuilder>().addComponents(
       button('Rematch', rematch, ButtonStyle.Secondary),
