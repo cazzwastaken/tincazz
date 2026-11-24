@@ -23,6 +23,7 @@ import {
   encodeFlipAgainId,
   encodeRematchId,
   flipAnimation,
+  liveChallengeCount,
   notYourChallenge,
   notYourFlip,
   rematchTaken,
@@ -222,6 +223,43 @@ describe('coinflip buttons', () => {
       expect(balance('1')).toBe(startingBalance - 100);
       expect(balance('3')).toBe(startingBalance + 94);
       expect(potAmount()).toBe(pot.seed + 6);
+      expect(flipCount()).toBe(1);
+    });
+
+    it('forgets the card even when showing the result throws, freeing the challenger slot', async () => {
+      mockRandomInt(1);
+      vi.spyOn(container.logger, 'error').mockImplementation(() => undefined);
+      getOrCreateWallet(container.db, '2', '1', 1);
+      trackChallengeCard(
+        '2',
+        '3',
+        'm1',
+        {
+          challengerId: '1',
+          opponentId: '3',
+          bet: 100,
+          side: 'heads',
+          expiresAt: Date.now() + 60_000,
+        },
+        async () => undefined,
+      );
+      expect(liveChallengeCount('2', '1')).toBe(1);
+
+      const interaction = makeButton(client, {
+        customId: challengeId('accept'),
+        userId: '3',
+        messageId: 'm1',
+      });
+      // Neither the first frame nor the fallback edit can be shown.
+      interaction.update.mockRejectedValue(new Error('update failed'));
+      interaction.message.edit.mockRejectedValue(new Error('edit failed'));
+      client.emit(Events.InteractionCreate, interaction as never);
+      await vi.waitFor(() => expect(interaction.message.edit).toHaveBeenCalled(), {
+        timeout: 2000,
+      });
+
+      // The flip settled, so the challenge is over and no longer counts.
+      await vi.waitFor(() => expect(liveChallengeCount('2', '1')).toBe(0), { timeout: 2000 });
       expect(flipCount()).toBe(1);
     });
 

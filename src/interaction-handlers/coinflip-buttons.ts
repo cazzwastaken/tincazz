@@ -265,13 +265,16 @@ export class CoinflipButtonsHandler extends InteractionHandler {
       reopen(messageId, Math.max(0, id.expiresAt - Date.now()));
       throw error;
     }
-    const result = await play(
-      updateDisplay(interaction),
-      challengeFlipFrames(view, request.acceptorId, settled.result),
-      challengeResultCard(view, settled),
-      { channelId: interaction.channelId },
-    );
-    forgetChallengeCard(messageId);
-    return result;
+    try {
+      return await play(
+        updateDisplay(interaction),
+        challengeFlipFrames(view, request.acceptorId, settled.result),
+        challengeResultCard(view, settled),
+        { channelId: interaction.channelId },
+      );
+    } finally {
+      // Settled for good: a failed animation must not leave a live row counting against the cap.
+      forgetChallengeCard(messageId);
+    }
   }
 }
