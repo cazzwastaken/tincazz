@@ -40,6 +40,10 @@ export const hallOfFame = {
   failureMemoryMs: 10 * minute,
   /** A claim still `publishing` this long after it was made is recovered at startup and hourly. */
   publishStaleMs: 5 * minute,
+  /** How often abandoned claims are looked for, besides once at startup. */
+  recoveryIntervalMs: 60 * minute,
+  /** Pages of 100 hall messages scanned for the card of an abandoned claim. */
+  recoveryScanPages: 3,
 } as const;
 
 export interface HallTier {
