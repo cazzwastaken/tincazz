@@ -1,20 +1,28 @@
 import type { ButtonInteraction, Message, RepliableInteraction } from 'discord.js';
 import type { CardReply, Display } from './play.js';
 
+/**
+ * An edit that carries files replaces the message's attachments instead of piling new ones on
+ * top of the last frame's (a message holds at most 10).
+ */
+function replacing(reply: CardReply): CardReply & { attachments?: [] } {
+  return reply.files ? { ...reply, attachments: [] } : reply;
+}
+
 /** A command's reply, then edits of it. */
 export function replyDisplay(interaction: RepliableInteraction): Display {
   return {
     first: (reply: CardReply) => interaction.reply(reply),
-    next: (reply: CardReply) => interaction.editReply(reply),
+    next: (reply: CardReply) => interaction.editReply(replacing(reply)),
   };
 }
 
 /** A button press that updates the card it sits on, then edits it. */
 export function updateDisplay(interaction: ButtonInteraction): Display {
   return {
-    first: (reply: CardReply) => interaction.update(reply),
-    next: (reply: CardReply) => interaction.editReply(reply),
-    fallback: (reply: CardReply) => interaction.message.edit(reply),
+    first: (reply: CardReply) => interaction.update(replacing(reply)),
+    next: (reply: CardReply) => interaction.editReply(replacing(reply)),
+    fallback: (reply: CardReply) => interaction.message.edit(replacing(reply)),
   };
 }
 
@@ -33,7 +41,7 @@ export function messageDisplay(message: Message): Display & { sent(): Message | 
       if (!sent) {
         throw new Error('no reply to edit');
       }
-      return sent.edit(reply);
+      return sent.edit(replacing(reply));
     },
     sent: () => sent,
   };
