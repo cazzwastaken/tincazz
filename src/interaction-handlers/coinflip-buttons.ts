@@ -1,6 +1,13 @@
 import { InteractionHandler, InteractionHandlerTypes } from '@sapphire/framework';
 import { type ButtonInteraction, ComponentType, type Message } from 'discord.js';
-import { end, play, stillRolling, tryBegin, updateDisplay } from '../features/animation/index.js';
+import {
+  end,
+  play,
+  runAnimatedGame,
+  stillRolling,
+  tryBegin,
+  updateDisplay,
+} from '../features/animation/index.js';
 import {
   assertChallengeCapacity,
   botFlipCard,
@@ -81,24 +88,22 @@ export class CoinflipButtonsHandler extends InteractionHandler {
     if (userId !== id.userId) {
       return interaction.reply(errorReply(notYourFlip));
     }
-    if (!tryBegin(userId)) {
-      return interaction.reply(errorReply(stillRolling));
-    }
-    try {
-      const flip = settleBotFlip(
-        this.container.db,
-        { guildId: interaction.guildId as string, userId, bet: String(id.bet), side: id.side },
-        Date.now(),
-      );
-      return await play(
-        updateDisplay(interaction),
-        botFlipFrames(userId, flip),
-        botFlipCard(userId, flip),
-        { channelId: interaction.channelId },
-      );
-    } finally {
-      end(userId);
-    }
+    return runAnimatedGame({
+      userId,
+      busy: () => interaction.reply(errorReply(stillRolling)),
+      settle: () =>
+        settleBotFlip(
+          this.container.db,
+          { guildId: interaction.guildId as string, userId, bet: String(id.bet), side: id.side },
+          Date.now(),
+        ),
+      errorText: flipErrorText,
+      reject: (text) => interaction.reply(errorReply(text)),
+      show: (flip) =>
+        play(updateDisplay(interaction), botFlipFrames(userId, flip), botFlipCard(userId, flip), {
+          channelId: interaction.channelId,
+        }),
+    });
   }
 
   /**

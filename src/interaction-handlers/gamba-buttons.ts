@@ -1,6 +1,6 @@
 import { InteractionHandler, InteractionHandlerTypes } from '@sapphire/framework';
 import type { ButtonInteraction, ContainerBuilder } from 'discord.js';
-import { end, play, stillRolling, tryBegin, updateDisplay } from '../features/animation/index.js';
+import { play, runAnimatedGame, stillRolling, updateDisplay } from '../features/animation/index.js';
 import {
   assignJackpotRole,
   decodeSpinId,
@@ -44,19 +44,13 @@ export class GambaButtonsHandler extends InteractionHandler {
       return interaction.reply(errorReply(expiredSpin));
     }
 
-    if (!tryBegin(userId)) {
-      return interaction.reply(errorReply(stillRolling));
-    }
-    try {
-      let messages: Awaited<ReturnType<typeof spin>>;
-      try {
-        messages = await spin(
+    return runAnimatedGame({
+      userId,
+      busy: () => interaction.reply(errorReply(stillRolling)),
+      settle: () =>
+        spin(
           this.container.db,
-          {
-            guildId: interaction.guildId as string,
-            userId,
-            bet: String(id.bet),
-          },
+          { guildId: interaction.guildId as string, userId, bet: String(id.bet) },
           Date.now(),
           {
             assignJackpotRole: (roleId) =>
@@ -66,24 +60,18 @@ export class GambaButtonsHandler extends InteractionHandler {
                 roleId,
               ),
           },
-        );
-      } catch (error) {
-        const text = spinErrorText(error);
-        if (text === undefined) {
-          throw error;
-        }
-        // The card stays as it was: a stale button only gets a private explanation.
-        return interaction.reply(errorReply(text));
-      }
-
-      // Settled above, so the frames only dress up a result already decided.
-      await play(updateDisplay(interaction), spinFrames(userId, messages.bet), messages.card, {
-        channelId: interaction.channelId,
-      });
-      await this.announce(userId, interaction, messages.announcement);
-    } finally {
-      end(userId);
-    }
+        ),
+      errorText: spinErrorText,
+      // The card stays as it was: a stale button only gets a private explanation.
+      reject: (text) => interaction.reply(errorReply(text)),
+      show: async (messages) => {
+        // Settled above, so the frames only dress up a result already decided.
+        await play(updateDisplay(interaction), spinFrames(userId, messages.bet), messages.card, {
+          channelId: interaction.channelId,
+        });
+        await this.announce(userId, interaction, messages.announcement);
+      },
+    });
   }
 
   private async announce(

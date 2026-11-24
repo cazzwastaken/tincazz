@@ -8,13 +8,12 @@ import {
 } from 'discord.js';
 import { type FlipSide, flipSides } from '../../db/schema.js';
 import {
-  type Display,
-  end,
-  messageDisplay,
+  type GameSurface,
+  interactionSurface,
+  messageSurface,
   play,
-  replyDisplay,
+  runAnimatedGame,
   stillRolling,
-  tryBegin,
 } from '../../features/animation/index.js';
 import {
   assertChallengeCapacity,
@@ -38,21 +37,14 @@ import { parseBet } from '../../features/gamba/index.js';
 import { gameChannelDenied } from '../../features/settings/index.js';
 import { cardReply, errorReply } from '../../features/ui/index.js';
 
-/** Where a flip came from: a slash interaction or a prefix message. Both run the same bodies. */
-interface FlipSurface {
-  channelId: string;
-  userId: string;
-  guildId: string;
+/** A game surface that can also post and edit a challenge card. */
+interface FlipSurface extends GameSurface {
   /**
    * Posts a card. Mentions stay suppressed except for `mentions`, the only users it may ping.
    */
   reply(card: ContainerBuilder, mentions?: string[]): Promise<Message>;
   /** Replaces the card posted by `reply`. */
   edit(card: ContainerBuilder): Promise<unknown>;
-  /** Shows an animated game: the first card, then edits of it. */
-  display: Display;
-  /** Answers with an error: ephemeral for slash, plain text for prefix. */
-  error(text: string): Promise<unknown>;
 }
 
 type Opponent = { id: string; bot: boolean } | null;
@@ -182,9 +174,7 @@ export class CoinflipCommand extends Command {
 
   private interactionSurface(interaction: ChatInputCommandInteraction): FlipSurface {
     return {
-      channelId: interaction.channelId,
-      userId: interaction.user.id,
-      guildId: interaction.guildId as string,
+      ...interactionSurface(interaction),
       reply: async (card, mentions) => {
         const { resource } = await interaction.reply({
           ...cardReply(card),
@@ -194,17 +184,13 @@ export class CoinflipCommand extends Command {
         return resource?.message ?? interaction.fetchReply();
       },
       edit: (card) => interaction.editReply(cardReply(card)),
-      display: replyDisplay(interaction),
-      error: (text) => interaction.reply(errorReply(text)),
     };
   }
 
   private messageSurface(message: Message): FlipSurface {
     let sent: Message | undefined;
     return {
-      channelId: message.channel.id,
-      userId: message.author.id,
-      guildId: message.guildId as string,
+      ...messageSurface(message),
       reply: async (card, mentions) => {
         sent = await message.reply({ ...cardReply(card), ...mentionOnly(mentions) });
         return sent;
@@ -215,24 +201,22 @@ export class CoinflipCommand extends Command {
         }
         return sent.edit(cardReply(card));
       },
-      display: messageDisplay(message),
-      error: (text) => message.reply(text),
     };
   }
 
   private async flipBot(surface: FlipSurface, bet: string | undefined, side: FlipSide) {
     const { userId, guildId } = surface;
-    if (!tryBegin(userId)) {
-      return surface.error(stillRolling);
-    }
-    try {
-      const flip = settleBotFlip(this.container.db, { guildId, userId, bet, side }, Date.now());
-      return await play(surface.display, botFlipFrames(userId, flip), botFlipCard(userId, flip), {
-        channelId: surface.channelId,
-      });
-    } finally {
-      end(userId);
-    }
+    return runAnimatedGame({
+      userId,
+      busy: () => surface.error(stillRolling),
+      settle: () => settleBotFlip(this.container.db, { guildId, userId, bet, side }, Date.now()),
+      errorText: flipErrorText,
+      reject: (text) => surface.error(text),
+      show: (flip) =>
+        play(surface.display, botFlipFrames(userId, flip), botFlipCard(userId, flip), {
+          channelId: surface.channelId,
+        }),
+    });
   }
 
   private async challenge(

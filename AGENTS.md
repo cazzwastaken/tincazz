@@ -26,19 +26,19 @@ sharp for images, pnpm, [Biome](https://biomejs.dev), [Vitest](https://vitest.de
 
 ## Where to change things
 
-| Task                      | Touch                                                                                                                                                                                                                                                            |
-| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Add a slash command       | `src/commands/<category>/<name>.ts` (`registerApplicationCommands` + `chatInputRun`), logic in `src/features/<name>/`, a test in `test/`                                                                                                                         |
-| Add a prefix alias        | `aliases` in the command's constructor options                                                                                                                                                                                                                   |
-| Add a game                | `src/features/<game>/` (`config.ts`, rules, `custom-ids.ts`, cards, one transactional settle), a command, button handler in `src/interaction-handlers/`, game-channel gate (`gameChannelDenied`), `test/<game>-evaluate.test.ts`, `/help` topic, `docs/games.md` |
-| Change gamba or dice odds | `src/features/gamba/config.ts` / `src/features/dice/config.ts`, then the `*-evaluate` tests, `docs/games.md`, the help cards                                                                                                                                     |
-| Add a coin faucet         | `src/features/economy/` (config, claim function, ledger reason), `test/fuzz-economy.test.ts` (op and `expectCooldownsHeld`), help `coins` page                                                                                                                   |
-| Add an image source or op | `src/features/imaging/` (`source.ts`, `render.ts`, `frames.ts`...), keep `urls.ts` allowlist intact, `test/imaging-*.test.ts` and `fuzz-imaging-*.test.ts`                                                                                                       |
-| Add a help topic          | `src/features/help/topics.ts` (page, `topicInfo`, aliases), page in `cards.ts`, `test/help.test.ts`                                                                                                                                                              |
-| Add an env variable       | zod schema in `src/config/env.ts`, `.env.example`, `test/env.test.ts`                                                                                                                                                                                            |
-| Add a DB column or table  | `src/db/schema.ts`, then `pnpm db:generate --name <change>`, commit `drizzle/` with it                                                                                                                                                                           |
-| Add a log event           | event type in `src/features/logs/events.ts`, card in `cards.ts`, emit through `sendLog` after the transaction                                                                                                                                                    |
-| Add a listener or handler | one file in `src/listeners/` or `src/interaction-handlers/` (auto-loaded)                                                                                                                                                                                        |
+| Task                      | Touch                                                                                                                                                                                                                                                                                                                     |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Add a slash command       | `src/commands/<category>/<name>.ts` (`registerApplicationCommands` + `chatInputRun`), logic in `src/features/<name>/`, a test in `test/`                                                                                                                                                                                  |
+| Add a prefix alias        | `aliases` in the command's constructor options                                                                                                                                                                                                                                                                            |
+| Add a game                | `src/features/<game>/` (`config.ts`, rules, `custom-ids.ts`, cards, one transactional settle using `settleStake`), a command and button handler in `src/interaction-handlers/` running through `runAnimatedGame`, game-channel gate (`gameChannelDenied`), `test/<game>-evaluate.test.ts`, `/help` topic, `docs/games.md` |
+| Change gamba or dice odds | `src/features/gamba/config.ts` / `src/features/dice/config.ts`, then the `*-evaluate` tests, `docs/games.md`, the help cards                                                                                                                                                                                              |
+| Add a coin faucet         | `src/features/economy/` (config, claim function, ledger reason), `test/fuzz-economy.test.ts` (op and `expectCooldownsHeld`), help `coins` page                                                                                                                                                                            |
+| Add an image source or op | `src/features/imaging/` (`source.ts`, `render.ts`, `frames.ts`...), keep `urls.ts` allowlist intact, `test/imaging-*.test.ts` and `fuzz-imaging-*.test.ts`                                                                                                                                                                |
+| Add a help topic          | `src/features/help/topics.ts` (page, `topicInfo`, aliases), page in `cards.ts`, `test/help.test.ts`                                                                                                                                                                                                                       |
+| Add an env variable       | zod schema in `src/config/env.ts`, `.env.example`, `test/env.test.ts`                                                                                                                                                                                                                                                     |
+| Add a DB column or table  | `src/db/schema.ts`, then `pnpm db:generate --name <change>`, commit `drizzle/` with it                                                                                                                                                                                                                                    |
+| Add a log event           | event type in `src/features/logs/events.ts`, card in `cards.ts`, emit through `sendLog` after the transaction                                                                                                                                                                                                             |
+| Add a listener or handler | one file in `src/listeners/` or `src/interaction-handlers/` (auto-loaded)                                                                                                                                                                                                                                                 |
 
 ## Before you finish
 
@@ -74,14 +74,15 @@ src/
     stats/        `/stats`, `/leaderboard`
   features/       plain feature logic, one folder per feature (not auto-loaded)
     animation/    shared frame playback: per-channel frame budget, per-user busy lock, display
-                  adapters for slash, button and prefix
+                  adapters for slash, button and prefix, the `GameSurface` slash/prefix pair and
+                  `runAnimatedGame` (busy lock, settle, error text, show) used by every game
     coinflip/     rake, flips, `cf:*` custom IDs, transactional settlement, and challenge cards
                   persisted until closed so their original expiry survives restarts; result
                   cards have a single-use Rematch button
     dice/         2d6 calls and payouts (tuned to a 99% return), the edge into the pot, the
                   single-transaction settle, `dc:*` custom IDs (Roll again, Double, Change call), the prefix
                   parser, cards, frames and the sharp-drawn dice pictures (`render.ts`, glyph fallback)
-    economy/      wallets and ledger; the only code that changes balances. Faucets: daily (with
+    economy/      wallets and ledger (incl. `settleStake`: bet then payouts); the only code that changes balances. Faucets: daily (with
                   cashback on yesterday's gambling losses), hourly collect, bailout, chat
     gamba/        spin logic, odds and payouts (tuned to a ~1% house edge), the pot, bet parsing,
                   result cards, reel frames and the shared `spin()` flow used by commands and buttons

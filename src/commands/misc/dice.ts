@@ -1,13 +1,12 @@
 import { type Args, Command, CommandOptionsRunTypeEnum } from '@sapphire/framework';
 import { type ChatInputCommandInteraction, InteractionContextType, type Message } from 'discord.js';
 import {
-  type Display,
-  end,
-  messageDisplay,
+  type GameSurface,
+  interactionSurface,
+  messageSurface,
   play,
-  replyDisplay,
+  runAnimatedGame,
   stillRolling,
-  tryBegin,
 } from '../../features/animation/index.js';
 import {
   type DiceCall,
@@ -22,17 +21,6 @@ import {
 } from '../../features/dice/index.js';
 import { gameChannelDenied } from '../../features/settings/index.js';
 import { errorReply } from '../../features/ui/index.js';
-
-/** Where a roll came from: a slash interaction or a prefix message. Both run the same body. */
-interface RollSurface {
-  channelId: string;
-  userId: string;
-  guildId: string;
-  /** Shows the animated roll: the first frame, then edits of it. */
-  display: Display;
-  /** Answers with an error: ephemeral for slash, plain text for prefix. */
-  error(text: string): Promise<unknown>;
-}
 
 /** The `on` choices: the label and the call code it stands for. */
 const callChoices = [
@@ -85,13 +73,7 @@ export class DiceCommand extends Command {
     );
     if (denied) return message.reply(denied);
     const rest = (await args.restResult('string')).unwrapOr('');
-    const surface: RollSurface = {
-      channelId: message.channel.id,
-      userId: message.author.id,
-      guildId: message.guildId as string,
-      display: messageDisplay(message),
-      error: (text) => message.reply(text),
-    };
+    const surface = messageSurface(message);
     const parsed = parseDiceArgs(rest.split(/\s+/));
     if (parsed === undefined) {
       return surface.error(diceUsage);
@@ -110,41 +92,22 @@ export class DiceCommand extends Command {
     const bet = interaction.options.getString('bet') ?? undefined;
     const code = interaction.options.getString('on');
     const call = (code === null ? undefined : decodeCall(code)) ?? defaultCall;
-    return this.roll(
-      {
-        channelId: interaction.channelId,
-        userId: interaction.user.id,
-        guildId: interaction.guildId as string,
-        display: replyDisplay(interaction),
-        error: (text) => interaction.reply(errorReply(text)),
-      },
-      bet,
-      call,
-    );
+    return this.roll(interactionSurface(interaction), bet, call);
   }
 
   /** Settles the roll (coins move before the first frame), then animates to the result. */
-  private async roll(surface: RollSurface, bet: string | undefined, call: DiceCall) {
+  private async roll(surface: GameSurface, bet: string | undefined, call: DiceCall) {
     const { userId, guildId } = surface;
-    if (!tryBegin(userId)) {
-      return surface.error(stillRolling);
-    }
-    try {
-      const roll = settleRoll(this.container.db, { guildId, userId, bet, call }, Date.now());
-      return await play(
-        surface.display,
-        await rollFrames(userId, roll),
-        await rollResult(userId, roll),
-        { channelId: surface.channelId },
-      );
-    } catch (error) {
-      const text = diceErrorText(error);
-      if (text === undefined) {
-        throw error;
-      }
-      return surface.error(text);
-    } finally {
-      end(userId);
-    }
+    return runAnimatedGame({
+      userId,
+      busy: () => surface.error(stillRolling),
+      settle: () => settleRoll(this.container.db, { guildId, userId, bet, call }, Date.now()),
+      errorText: diceErrorText,
+      reject: (text) => surface.error(text),
+      show: async (roll) =>
+        play(surface.display, await rollFrames(userId, roll), await rollResult(userId, roll), {
+          channelId: surface.channelId,
+        }),
+    });
   }
 }

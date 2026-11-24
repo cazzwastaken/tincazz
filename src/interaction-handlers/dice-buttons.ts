@@ -1,6 +1,6 @@
 import { InteractionHandler, InteractionHandlerTypes } from '@sapphire/framework';
 import type { ButtonInteraction } from 'discord.js';
-import { end, play, stillRolling, tryBegin, updateDisplay } from '../features/animation/index.js';
+import { play, runAnimatedGame, stillRolling, updateDisplay } from '../features/animation/index.js';
 import {
   type DiceId,
   decodeDiceId,
@@ -39,31 +39,28 @@ export class DiceButtonsHandler extends InteractionHandler {
     if (userId !== id.userId) {
       return interaction.reply(errorReply(notYourRoll));
     }
-    if (!tryBegin(userId)) {
-      return interaction.reply(errorReply(stillRolling));
-    }
-    try {
-      const guildId = interaction.guildId as string;
-      const roll = settleRoll(
-        this.container.db,
-        { guildId, userId, bet: String(id.bet), call: id.call },
-        Date.now(),
-      );
-      return await play(
-        updateDisplay(interaction),
-        await rollFrames(userId, roll),
-        await rollResult(userId, roll),
-        { channelId: interaction.channelId },
-      );
-    } catch (error) {
+    const guildId = interaction.guildId as string;
+    return runAnimatedGame({
+      userId,
+      busy: () => interaction.reply(errorReply(stillRolling)),
+      settle: () =>
+        settleRoll(
+          this.container.db,
+          { guildId, userId, bet: String(id.bet), call: id.call },
+          Date.now(),
+        ),
+      errorText: diceErrorText,
       // A stale button keeps the card as it was and only gets a private explanation.
-      const text = diceErrorText(error);
-      if (text === undefined) {
-        throw error;
-      }
-      return interaction.reply(errorReply(text));
-    } finally {
-      end(userId);
-    }
+      reject: (text) => interaction.reply(errorReply(text)),
+      show: async (roll) =>
+        play(
+          updateDisplay(interaction),
+          await rollFrames(userId, roll),
+          await rollResult(userId, roll),
+          {
+            channelId: interaction.channelId,
+          },
+        ),
+    });
   }
 }
