@@ -18,7 +18,7 @@ Type `/help` (or `?help`) in Discord for a paged guide with the live numbers.
 
 - `/gamba`: slot-style spins with a progressive pot and a jackpot role
 - `/coinflip`: flip against the bot, challenge a member or open a flip anyone can take
-- `/dice`: call two dice for high, low, seven, doubles or an exact total
+- `/dice`: call two dice (drawn as pictures) for high, low, seven, doubles or an exact total, then Roll again, Double or Change call
 
 **Images**
 

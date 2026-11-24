@@ -4,6 +4,8 @@ import {
   type DiceCall,
   decodeDiceId,
   encodeCall,
+  encodeCallSelectId,
+  encodeDoubleId,
   encodeRollAgainId,
 } from '../src/features/dice/index.js';
 
@@ -17,6 +19,24 @@ const calls: DiceCall[] = [
 ];
 
 describe('dice custom ids', () => {
+  it('encodes Double and Change call with their own kind', () => {
+    const terms = { userId, bet: 200, call: { kind: 'low' } } as const;
+    expect(encodeDoubleId(terms)).toBe(`dc:double:${userId}:200:l`);
+    expect(encodeCallSelectId(terms)).toBe(`dc:call:${userId}:200:l`);
+    expect(decodeDiceId(encodeDoubleId(terms))).toEqual({ kind: 'double', ...terms });
+    expect(decodeDiceId(encodeCallSelectId(terms))).toEqual({ kind: 'call', ...terms });
+  });
+
+  it('holds the same bet limits and call rules for every kind', () => {
+    for (const kind of ['again', 'double', 'call']) {
+      expect(decodeDiceId(`dc:${kind}:${userId}:10001:h`)).toBeUndefined();
+      expect(decodeDiceId(`dc:${kind}:${userId}:9:h`)).toBeUndefined();
+      expect(decodeDiceId(`dc:${kind}:${userId}:10:e7`)).toBeUndefined();
+      expect(decodeDiceId(`dc:${kind}:x:10:h`)).toBeUndefined();
+    }
+    expect(decodeDiceId(`dc:Double:${userId}:10:h`)).toBeUndefined();
+  });
+
   it('encodes to dc:again:<userId>:<bet>:<callCode>', () => {
     expect(encodeRollAgainId({ userId, bet: 250, call: { kind: 'exact', target: 9 } })).toBe(
       `dc:again:${userId}:250:e9`,

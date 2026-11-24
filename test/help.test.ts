@@ -169,6 +169,9 @@ describe('help pages', () => {
     ] as const) {
       expect(text).toContain(`**${Number((dicePayoutBps(call) / 10_000).toFixed(2))}x**`);
     }
+    for (const control of ['Roll again', 'Double', 'Change call']) {
+      expect(text).toContain(control);
+    }
   });
 
   it('lists every command, so a new one cannot skip help', () => {

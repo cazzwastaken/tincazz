@@ -1,7 +1,7 @@
 import { randomInt as cryptoRandomInt } from 'node:crypto';
 import { roundUnbiased } from '../economy/rounding.js';
 import type { RandomInt } from '../gamba/roll.js';
-import { type DiceCall, dieFace } from './calls.js';
+import { allCalls, type DiceCall, dieFace } from './calls.js';
 import { dice } from './config.js';
 
 /** Rolls two fair dice. */
@@ -43,6 +43,22 @@ export function ways(call: DiceCall): number {
 /** Payout in basis points of the bet: 36 times the return, split across the winning ways. */
 export function payoutBps(call: DiceCall): number {
   return (36 * dice.returnBps) / ways(call);
+}
+
+/** The advertised multiplier of a call (the unrounded payout), e.g. `2.38x`. */
+export function multiplierText(call: DiceCall): string {
+  return `${Number((payoutBps(call) / 10_000).toFixed(2))}x`;
+}
+
+/** The odds of a call, e.g. `15/36 · 41.7% · pays 2.38x`. */
+export function oddsText(call: DiceCall): string {
+  const w = ways(call);
+  return `${w}/36 · ${((w / 36) * 100).toFixed(1)}% · pays ${multiplierText(call)}`;
+}
+
+/** Every call a roll of these dice would have won. */
+export function winningCalls(die1: number, die2: number): DiceCall[] {
+  return allCalls.filter((call) => wins(call, die1, die2));
 }
 
 /**

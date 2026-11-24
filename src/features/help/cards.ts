@@ -210,6 +210,7 @@ function flipDice(prefix: string): Page {
         `\`seven\`: **${times(seven)}** · \`doubles\`: **${times(doubles)}**`,
         `Exact total (\`=2\` to \`=12\`, not 7): ${exactLines().join(' · ')}`,
         `Payouts return ${dice.returnBps / 100}% on average. The ${dice.edgePercent}% edge feeds the gamba pot.`,
+        '**Roll again** repeats the roll, **Double** doubles the bet (up to the maximum) and **Change call** picks the call for the next roll (the card shows `Next:`). Only the player who rolled can use them.',
       ].join('\n'),
       `-# ${betNote}`,
     ],

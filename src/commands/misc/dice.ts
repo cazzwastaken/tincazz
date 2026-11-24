@@ -16,8 +16,8 @@ import {
   diceErrorText,
   diceUsage,
   parseDiceArgs,
-  rollCard,
   rollFrames,
+  rollResult,
   settleRoll,
 } from '../../features/dice/index.js';
 import { gameChannelDenied } from '../../features/settings/index.js';
@@ -131,9 +131,12 @@ export class DiceCommand extends Command {
     }
     try {
       const roll = settleRoll(this.container.db, { guildId, userId, bet, call }, Date.now());
-      return await play(surface.display, rollFrames(userId, roll), rollCard(userId, roll), {
-        channelId: surface.channelId,
-      });
+      return await play(
+        surface.display,
+        await rollFrames(userId, roll),
+        await rollResult(userId, roll),
+        { channelId: surface.channelId },
+      );
     } catch (error) {
       const text = diceErrorText(error);
       if (text === undefined) {
