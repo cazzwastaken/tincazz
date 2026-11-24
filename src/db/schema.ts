@@ -152,6 +152,9 @@ export const playerStats = sqliteTable(
     flipWins: integer('flip_wins').notNull().default(0),
     flipWagered: integer('flip_wagered').notNull().default(0),
     flipWon: integer('flip_won').notNull().default(0),
+    /** The part of `flipWagered` and `flipWon` from flips against the bot: what the board ranks. */
+    botFlipWagered: integer('bot_flip_wagered').notNull().default(0),
+    botFlipWon: integer('bot_flip_won').notNull().default(0),
     rolls: integer('rolls').notNull().default(0),
     rollWins: integer('roll_wins').notNull().default(0),
     rollWagered: integer('roll_wagered').notNull().default(0),
@@ -179,6 +182,7 @@ export const guildSettings = sqliteTable('guild_settings', {
   honeypotChannelId: text('honeypot_channel_id'),
   honeypotMessageId: text('honeypot_message_id'),
   honeypotKicks: integer('honeypot_kicks').notNull().default(0),
+  gambaJackpotRoleId: text('gamba_jackpot_role_id'),
   gameChannelsRestricted: integer('game_channels_restricted', { mode: 'boolean' })
     .notNull()
     .default(false),
@@ -210,6 +214,8 @@ export const guildGameChannels = sqliteTable(
 /** Challenge cards that still need their expiry or terminal display applied. */
 export const pendingCoinflipChallenges = sqliteTable('pending_coinflip_challenges', {
   messageId: text('message_id').primaryKey(),
+  /** Null on rows written before the live-challenge cap; they are short-lived. */
+  guildId: text('guild_id'),
   channelId: text('channel_id').notNull(),
   challengerId: text('challenger_id').notNull(),
   opponentId: text('opponent_id'),

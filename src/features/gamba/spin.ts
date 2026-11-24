@@ -3,6 +3,7 @@ import type { Db } from '../../db/index.js';
 import { getOrCreateWallet } from '../economy/wallets.js';
 import { spinLogEvent } from '../logs/economy.js';
 import { logEconomy } from '../logs/send.js';
+import { jackpotRoleId } from '../settings/store.js';
 import { parseBet } from './bet.js';
 import { announcementCard, wagerCard } from './cards.js';
 import { wager } from './config.js';
@@ -18,18 +19,23 @@ export interface SpinRequest {
 }
 
 export interface SpinMessages {
+  /** The settled bet, for the reel frames shown before the card. */
+  bet: number;
   card: ContainerBuilder;
   announcement?: ContainerBuilder;
 }
 
 export interface SpinOptions {
-  assignJackpotRole: () => Promise<boolean>;
+  /** Called only on a jackpot in a guild that has a jackpot role set. */
+  assignJackpotRole: (roleId: string) => Promise<boolean>;
   randomInt?: RandomInt;
 }
 
 export interface SettledSpin {
   played: Spin;
-  /** Set only on a jackpot: whether the role could be assigned. */
+  /** The guild's jackpot role, when one is set. */
+  jackpotRoleId?: string;
+  /** Set only on a jackpot with a role set: whether the role could be assigned. */
   roleAssigned?: boolean;
 }
 
@@ -55,9 +61,11 @@ export async function settleSpin(
     options.randomInt,
   );
 
+  const roleId = jackpotRoleId(db, guildId);
   const jackpot = played.evaluation.result === 'jackpot';
-  const roleAssigned = jackpot ? await options.assignJackpotRole() : undefined;
-  return { played, roleAssigned };
+  const roleAssigned =
+    jackpot && roleId !== undefined ? await options.assignJackpotRole(roleId) : undefined;
+  return { played, jackpotRoleId: roleId, roleAssigned };
 }
 
 /** Settles one spin and builds its v2 card messages. */
@@ -67,7 +75,11 @@ export async function spin(
   now: number,
   options: SpinOptions,
 ): Promise<SpinMessages> {
-  const { played, roleAssigned } = await settleSpin(db, request, now, options);
+  const {
+    played,
+    roleAssigned,
+    jackpotRoleId: roleId,
+  } = await settleSpin(db, request, now, options);
   const { userId } = request;
   // Fire and forget, after the commit: a slow or broken log channel never delays or fails a spin.
   const event = spinLogEvent(userId, played, roleAssigned);
@@ -76,6 +88,10 @@ export async function spin(
   const card = wagerCard(userId, played);
   const announced = result === 'triple' || result === 'jackpot';
   return announced
-    ? { card, announcement: announcementCard(userId, played, roleAssigned) }
-    : { card };
+    ? {
+        bet: played.bet,
+        card,
+        announcement: announcementCard(userId, played, roleAssigned, roleId),
+      }
+    : { bet: played.bet, card };
 }

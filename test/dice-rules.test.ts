@@ -55,18 +55,33 @@ describe('payoutBps', () => {
 });
 
 describe('payoutFor and diceEdge', () => {
-  it('floors the payout', () => {
-    expect(payoutFor({ kind: 'high' }, 100)).toBe(237);
-    expect(payoutFor({ kind: 'seven' }, 10)).toBe(59);
-    expect(payoutFor({ kind: 'exact', target: 2 }, 1)).toBe(35);
+  it('rounds the payout down or up with the fraction as the odds', () => {
+    // 100 on high pays 237.6: 6000 of 10000 draws round up.
+    expect(payoutFor({ kind: 'high' }, 100, () => 5_999)).toBe(238);
+    expect(payoutFor({ kind: 'high' }, 100, () => 6_000)).toBe(237);
+    // 10 on seven pays 59.4.
+    expect(payoutFor({ kind: 'seven' }, 10, () => 3_999)).toBe(60);
+    expect(payoutFor({ kind: 'seven' }, 10, () => 4_000)).toBe(59);
   });
 
-  it('takes at least 1 coin as the edge', () => {
-    expect(diceEdge(1)).toBe(1);
-    expect(diceEdge(99)).toBe(1);
-    expect(diceEdge(100)).toBe(1);
-    expect(diceEdge(250)).toBe(2);
-    expect(diceEdge(10_000)).toBe(100);
+  it('draws nothing when the payout is a whole number', () => {
+    const never = () => {
+      throw new Error('no draw expected');
+    };
+    expect(payoutFor({ kind: 'high' }, 25_000, never)).toBe(59_400);
+    expect(payoutFor({ kind: 'exact', target: 2 }, 100, never)).toBe(3_564);
+  });
+
+  it('takes the edge as a share of the bet, rounded with the fraction as the odds', () => {
+    const never = () => {
+      throw new Error('no draw expected');
+    };
+    expect(diceEdge(100, never)).toBe(1);
+    expect(diceEdge(10_000, never)).toBe(100);
+    expect(diceEdge(10, () => 9)).toBe(1);
+    expect(diceEdge(10, () => 10)).toBe(0);
+    expect(diceEdge(250, () => 49)).toBe(3);
+    expect(diceEdge(250, () => 50)).toBe(2);
   });
 });
 

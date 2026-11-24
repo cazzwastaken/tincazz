@@ -1,7 +1,16 @@
 import { container } from '@sapphire/framework';
 
+/**
+ * How long a closed key is remembered. Challenges live two minutes at most, so this only has to
+ * cover a late or doubled click; after it, the database (settled flips, closed rows) still answers.
+ */
+export const closedTtlMs = 60 * 60_000;
+/** Hard cap on remembered closed keys, so a burst cannot grow the map without bound. */
+export const closedMax = 5_000;
+
 interface ChallengeState {
-  closed: Set<string>;
+  /** Closed message IDs (and `rematch:<id>` keys) with when they closed, oldest first. */
+  closed: Map<string, number>;
   timers: Map<string, NodeJS.Timeout>;
   /** Expiry handlers of challenges whose timer is armed, by message ID. */
   handlers: Map<string, () => Promise<unknown>>;
@@ -18,7 +27,7 @@ declare module '@sapphire/pieces' {
 
 // Held on the container so every loaded copy of this module (pieces included) shares one state.
 const state = (): ChallengeState => {
-  container.coinflipChallenges ??= { closed: new Set(), timers: new Map(), handlers: new Map() };
+  container.coinflipChallenges ??= { closed: new Map(), timers: new Map(), handlers: new Map() };
   return container.coinflipChallenges;
 };
 
@@ -31,13 +40,26 @@ function clearTimer(messageId: string): void {
   }
 }
 
+/** Forgets closed keys past their TTL, then the oldest beyond the cap. Insertion order is age. */
+function pruneClosed(now: number): void {
+  const { closed } = state();
+  for (const [key, closedAt] of closed) {
+    if (now - closedAt < closedTtlMs && closed.size <= closedMax) {
+      break;
+    }
+    closed.delete(key);
+  }
+}
+
 /** Claims a challenge message: true only for the first caller. Also cancels its expiry timer. */
 export function tryClose(messageId: string): boolean {
   const { closed } = state();
+  const now = Date.now();
   if (closed.has(messageId)) {
     return false;
   }
-  closed.add(messageId);
+  closed.set(messageId, now);
+  pruneClosed(now);
   clearTimer(messageId);
   const { handlers } = state();
   const onExpire = handlers.get(messageId);
@@ -87,6 +109,11 @@ export function scheduleExpiry(
   }, delayMs);
   timer.unref();
   state().timers.set(messageId, timer);
+}
+
+/** How many closed keys are remembered (for tests). */
+export function closedCount(): number {
+  return state().closed.size;
 }
 
 export function clearChallenges(): void {

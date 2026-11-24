@@ -15,6 +15,7 @@ export interface SettingsView {
   /** Undefined means unrestricted; an empty allowlist means games are paused. */
   gameChannels: string[] | undefined;
   honeypot: { channelId?: string; kicks: number; problem?: string };
+  jackpotRole: { roleId?: string; problem?: string };
 }
 
 const warn = (problem?: string) => (problem ? ` ⚠️ ${problem}` : '');
@@ -31,6 +32,7 @@ export function settingsCard(view: SettingsView): ContainerBuilder {
     return channelId ? `<#${channelId}>${warn(problem)}` : 'not set';
   };
   const { channelId: pot, kicks, problem: potProblem } = view.honeypot;
+  const { roleId: jackpotRole, problem: jackpotProblem } = view.jackpotRole;
   const allowed = view.gameChannels;
   let games = 'all channels';
   if (allowed) {
@@ -47,6 +49,7 @@ export function settingsCard(view: SettingsView): ContainerBuilder {
       `**Auto-roles (bots):** ${roles('bot')}`,
       `**Economy log:** ${log('economy')}`,
       `**Mod log:** ${log('mod')}`,
+      `**Jackpot role:** ${jackpotRole ? `<@&${jackpotRole}>${warn(jackpotProblem)}` : 'not set (jackpots give no role)'}`,
       `**Game channels:** ${games}`,
       `**Honeypot:** ${pot ? `<#${pot}> · ${kicks.toLocaleString('en-US')} ${kicks === 1 ? 'kick' : 'kicks'}${warn(potProblem)}` : 'not set'}`,
     ].join('\n'),

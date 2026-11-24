@@ -67,6 +67,41 @@ export function clearChannelEverywhere(
   return cleared;
 }
 
+export function jackpotRoleId(db: DbOrTx, guildId: string): string | undefined {
+  const row = db.select().from(guildSettings).where(eq(guildSettings.guildId, guildId)).get();
+  return row?.gambaJackpotRoleId ?? undefined;
+}
+
+/** Sets (or, with null, clears) the gamba jackpot role and returns the previous one. */
+export function setJackpotRole(
+  db: DbOrTx,
+  guildId: string,
+  roleId: string | null,
+  now: number,
+): string | undefined {
+  const previous = jackpotRoleId(db, guildId);
+  db.insert(guildSettings)
+    .values({ guildId, gambaJackpotRoleId: roleId, updatedAt: now })
+    .onConflictDoUpdate({
+      target: guildSettings.guildId,
+      set: { gambaJackpotRoleId: roleId, updatedAt: now },
+    })
+    .run();
+  return previous;
+}
+
+/** Clears the jackpot role when it is the (deleted) role given, and says whether it was. */
+export function clearJackpotRoleIf(
+  db: DbOrTx,
+  guildId: string,
+  roleId: string,
+  now: number,
+): boolean {
+  if (jackpotRoleId(db, guildId) !== roleId) return false;
+  setJackpotRole(db, guildId, null, now);
+  return true;
+}
+
 export function autoRoles(db: DbOrTx, guildId: string, target: AutoRoleTarget): string[] {
   return db
     .select({ roleId: guildAutoRoles.roleId })

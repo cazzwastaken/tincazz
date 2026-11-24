@@ -61,7 +61,9 @@ function source(category: LeaderboardCategory): Source {
         table: playerStats,
         ...columns(playerStats),
         present: playerPresent,
-        value: sql<number>`(${playerStats.flipWon} - ${playerStats.flipWagered})`,
+        // Flips against the bot only: player-versus-player flips just trade coins, so they cannot be
+        // farmed between two accounts.
+        value: sql<number>`(${playerStats.botFlipWon} - ${playerStats.botFlipWagered})`,
       };
     case 'dice':
       return {

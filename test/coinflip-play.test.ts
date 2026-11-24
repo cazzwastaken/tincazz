@@ -73,7 +73,7 @@ describe('settleBotFlip', () => {
     expectLedgerConsistent(db);
   });
 
-  it('burns a lost flip except the rake', () => {
+  it('burns a lost flip and adds nothing to the pot', () => {
     const flip = settleBotFlip(
       db,
       { guildId: 'g', userId: 'u', bet: '100', side: 'heads' },
@@ -83,8 +83,9 @@ describe('settleBotFlip', () => {
     expect(flip).toMatchObject({
       won: false,
       credited: 0,
+      rake: 0,
       balance: startingBalance - 100,
-      pot: pot.seed + 6,
+      pot: pot.seed,
     });
     expect(flipRow(flip.flipId)).toMatchObject({
       mode: 'bot',

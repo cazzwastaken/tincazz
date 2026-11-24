@@ -1,6 +1,13 @@
 import { InteractionHandler, InteractionHandlerTypes } from '@sapphire/framework';
 import { type ButtonInteraction, ComponentType, type Message } from 'discord.js';
-import { end, play, stillRolling, tryBegin, updateDisplay } from '../features/animation/index.js';
+import {
+  end,
+  play,
+  runAnimatedGame,
+  stillRolling,
+  tryBegin,
+  updateDisplay,
+} from '../features/animation/index.js';
 import {
   botFlipCard,
   botFlipFrames,
@@ -27,6 +34,7 @@ import {
   type RematchId,
   rematchTaken,
   reopen,
+  reserveChallengeSlot,
   ShortStakeError,
   settleBotFlip,
   settleChallenge,
@@ -80,24 +88,22 @@ export class CoinflipButtonsHandler extends InteractionHandler {
     if (userId !== id.userId) {
       return interaction.reply(errorReply(notYourFlip));
     }
-    if (!tryBegin(userId)) {
-      return interaction.reply(errorReply(stillRolling));
-    }
-    try {
-      const flip = settleBotFlip(
-        this.container.db,
-        { guildId: interaction.guildId as string, userId, bet: String(id.bet), side: id.side },
-        Date.now(),
-      );
-      return await play(
-        updateDisplay(interaction),
-        botFlipFrames(userId, flip),
-        botFlipCard(userId, flip),
-        { channelId: interaction.channelId },
-      );
-    } finally {
-      end(userId);
-    }
+    return runAnimatedGame({
+      userId,
+      busy: () => interaction.reply(errorReply(stillRolling)),
+      settle: () =>
+        settleBotFlip(
+          this.container.db,
+          { guildId: interaction.guildId as string, userId, bet: String(id.bet), side: id.side },
+          Date.now(),
+        ),
+      errorText: flipErrorText,
+      reject: (text) => interaction.reply(errorReply(text)),
+      show: (flip) =>
+        play(updateDisplay(interaction), botFlipFrames(userId, flip), botFlipCard(userId, flip), {
+          channelId: interaction.channelId,
+        }),
+    });
   }
 
   /**
@@ -109,52 +115,63 @@ export class CoinflipButtonsHandler extends InteractionHandler {
     if (clickerId !== id.challengerId && clickerId !== id.acceptorId) {
       return interaction.reply(errorReply(notYourChallenge));
     }
-    const key = `rematch:${interaction.message.id}`;
-    if (!tryClose(key)) {
-      return interaction.reply(errorReply(rematchTaken));
-    }
-
-    // Retire the button first, so the result card cannot offer a rematch that is already on.
-    const shown = interaction.message.components[0]?.toJSON();
+    // Before the key is claimed, so a refused rematch can be pressed again once a slot is free.
+    // Held until the new challenge has its row, so the cap holds while the card is being sent.
+    const release = reserveChallengeSlot(interaction.guildId as string, clickerId);
     try {
-      if (shown?.type === ComponentType.Container) {
-        await interaction.update(cardReply(withoutActionRows(shown)));
-      } else {
-        await interaction.deferUpdate();
+      const key = `rematch:${interaction.message.id}`;
+      if (!tryClose(key)) {
+        return interaction.reply(errorReply(rematchTaken));
       }
-    } catch (error) {
-      // Nothing was sent, so the players can press again.
-      reopen(key);
-      throw error;
-    }
 
-    const isChallenger = clickerId === id.challengerId;
-    const otherId = isChallenger ? id.acceptorId : id.challengerId;
-    const now = Date.now();
-    const view: ChallengeView = {
-      challengerId: clickerId,
-      opponentId: otherId,
-      bet: id.bet,
-      side: isChallenger ? id.challengerSide : otherSide(id.challengerSide),
-      expiresAt: now + coinflip.expiryMs.challenge,
-    };
-    let sent: Message;
-    try {
-      sent = await interaction.message.reply({
-        ...cardReply(challengeCard(view)),
-        allowedMentions: { users: [otherId] },
-      });
-    } catch (error) {
-      this.container.logger.error(
-        `coinflip: could not send the rematch for ${interaction.message.id}: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
+      // Retire the button first, so the result card cannot offer a rematch that is already on.
+      const shown = interaction.message.components[0]?.toJSON();
+      try {
+        if (shown?.type === ComponentType.Container) {
+          await interaction.update(cardReply(withoutActionRows(shown)));
+        } else {
+          await interaction.deferUpdate();
+        }
+      } catch (error) {
+        // Nothing was sent, so the players can press again.
+        reopen(key);
+        throw error;
+      }
+
+      const isChallenger = clickerId === id.challengerId;
+      const otherId = isChallenger ? id.acceptorId : id.challengerId;
+      const now = Date.now();
+      const view: ChallengeView = {
+        challengerId: clickerId,
+        opponentId: otherId,
+        bet: id.bet,
+        side: isChallenger ? id.challengerSide : otherSide(id.challengerSide),
+        expiresAt: now + coinflip.expiryMs.challenge,
+      };
+      let sent: Message;
+      try {
+        sent = await interaction.message.reply({
+          ...cardReply(challengeCard(view)),
+          allowedMentions: { users: [otherId] },
+        });
+      } catch (error) {
+        this.container.logger.error(
+          `coinflip: could not send the rematch for ${interaction.message.id}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+        return;
+      }
+      trackChallengeCard(
+        interaction.guildId as string,
+        interaction.channelId,
+        sent.id,
+        view,
+        (closed) => sent.edit(cardReply(closed)),
       );
-      return;
+    } finally {
+      release();
     }
-    trackChallengeCard(interaction.channelId, sent.id, view, (closed) =>
-      sent.edit(cardReply(closed)),
-    );
   }
 
   private async answer(interaction: ButtonInteraction, id: ChallengeId) {
@@ -248,13 +265,16 @@ export class CoinflipButtonsHandler extends InteractionHandler {
       reopen(messageId, Math.max(0, id.expiresAt - Date.now()));
       throw error;
     }
-    const result = await play(
-      updateDisplay(interaction),
-      challengeFlipFrames(view, request.acceptorId, settled.result),
-      challengeResultCard(view, settled),
-      { channelId: interaction.channelId },
-    );
-    forgetChallengeCard(messageId);
-    return result;
+    try {
+      return await play(
+        updateDisplay(interaction),
+        challengeFlipFrames(view, request.acceptorId, settled.result),
+        challengeResultCard(view, settled),
+        { channelId: interaction.channelId },
+      );
+    } finally {
+      // Settled for good: a failed animation must not leave a live row counting against the cap.
+      forgetChallengeCard(messageId);
+    }
   }
 }

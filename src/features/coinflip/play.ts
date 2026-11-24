@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm';
 import type { Db, DbOrTx } from '../../db/index.js';
 import { type FlipMode, type FlipSide, flips } from '../../db/schema.js';
-import { credit, debit } from '../economy/ledger.js';
+import { credit, debit, settleStake } from '../economy/ledger.js';
 import { getOrCreateWallet } from '../economy/wallets.js';
 import { parseBet } from '../gamba/bet.js';
 import { addToPot } from '../gamba/pot.js';
@@ -9,7 +9,7 @@ import type { RandomInt } from '../gamba/roll.js';
 import { wager } from './config.js';
 import { ChallengeTakenError, ShortStakeError } from './errors.js';
 import { flipCoin } from './flip.js';
-import { flipRake } from './rake.js';
+import { botFlipRake, flipRake } from './rake.js';
 import { recordFlipStats } from './stats.js';
 
 export interface BotFlip {
@@ -34,7 +34,7 @@ export interface BotFlipRequest {
 }
 
 /**
- * Flips against the bot and settles it (stake, payout, rake into the pot, flip row, stats) in one
+ * Flips against the bot and settles it (stake, payout, rake from a win into the pot, flip row, stats) in one
  * transaction. Bet and funds errors propagate before anything but the wallet is written.
  */
 export function settleBotFlip(
@@ -50,7 +50,8 @@ export function settleBotFlip(
   return db.transaction((tx) => {
     const result = flipCoin(randomInt);
     const won = result === side;
-    const rake = flipRake(bet);
+    // The bot's rake comes off a win only: a loss costs the bet and adds nothing to the pot.
+    const rake = won ? botFlipRake(bet, randomInt) : 0;
     const credited = won ? 2 * bet - rake : 0;
     const { id: flipId } = tx
       .insert(flips)
@@ -69,19 +70,17 @@ export function settleBotFlip(
       })
       .returning({ id: flips.id })
       .get();
-    let balance = debit(tx, { guildId, userId, amount: bet, reason: 'flip_bet', now, ref: flipId });
-    if (won) {
-      balance = credit(tx, {
-        guildId,
-        userId,
-        amount: credited,
-        reason: 'flip_win',
-        now,
-        ref: flipId,
-      });
-    }
+    const balance = settleStake(tx, {
+      guildId,
+      userId,
+      now,
+      ref: flipId,
+      bet,
+      betReason: 'flip_bet',
+      payouts: [{ amount: credited, reason: 'flip_win' }],
+    });
     const pot = addToPot(tx, guildId, rake);
-    recordFlipStats(tx, guildId, userId, { bet, won, credited });
+    recordFlipStats(tx, guildId, userId, { bet, won, credited, vsBot: true });
     return { bet, side, result, won, rake, credited, balance, pot, flipId };
   });
 }
@@ -200,8 +199,8 @@ export function settleChallenge(
       acceptorBalance = winnings;
     }
     const pot = addToPot(tx, guildId, rake);
-    recordFlipStats(tx, guildId, winnerId, { bet, won: true, credited });
-    recordFlipStats(tx, guildId, loserId, { bet, won: false, credited: 0 });
+    recordFlipStats(tx, guildId, winnerId, { bet, won: true, credited, vsBot: false });
+    recordFlipStats(tx, guildId, loserId, { bet, won: false, credited: 0, vsBot: false });
     return {
       result,
       winnerId,

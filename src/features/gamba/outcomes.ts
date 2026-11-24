@@ -17,8 +17,6 @@ export interface GambaOutcome {
   weight: number;
 }
 
-export const gambaJackpotRoleId = '1561827731400822845';
-
 // Weights sum to 21: six yt emojis at 3 each, python at 2, cpp at 1.
 export const gambaOutcomes: readonly GambaOutcome[] = [
   { key: 'head', emoji: '<:gamba4Head:1202741378161840239>', weight: 3 },

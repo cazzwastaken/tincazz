@@ -57,3 +57,34 @@ function apply(tx: DbOrTx, entry: LedgerEntry, sign: 1 | -1): number {
     return balance;
   });
 }
+
+export interface StakeSettlement {
+  guildId: string;
+  userId: string;
+  now: number;
+  /** The game row the ledger entries point at. */
+  ref: number;
+  bet: number;
+  betReason: LedgerReason;
+  /** Paid in order after the bet; entries of 0 are skipped. */
+  payouts: readonly { amount: number; reason: LedgerReason }[];
+}
+
+/** Takes the bet, then credits each payout in order. Returns the balance after the last entry. */
+export function settleStake(tx: DbOrTx, settlement: StakeSettlement): number {
+  const { guildId, userId, now, ref } = settlement;
+  let balance = debit(tx, {
+    guildId,
+    userId,
+    amount: settlement.bet,
+    reason: settlement.betReason,
+    now,
+    ref,
+  });
+  for (const { amount, reason } of settlement.payouts) {
+    if (amount > 0) {
+      balance = credit(tx, { guildId, userId, amount, reason, now, ref });
+    }
+  }
+  return balance;
+}

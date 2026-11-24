@@ -1,13 +1,13 @@
 import { InteractionHandler, InteractionHandlerTypes } from '@sapphire/framework';
 import type { ButtonInteraction } from 'discord.js';
-import { end, play, stillRolling, tryBegin, updateDisplay } from '../features/animation/index.js';
+import { play, runAnimatedGame, stillRolling, updateDisplay } from '../features/animation/index.js';
 import {
+  type DiceId,
   decodeDiceId,
   diceErrorText,
   notYourRoll,
-  type RollAgainId,
-  rollCard,
   rollFrames,
+  rollResult,
   settleRoll,
 } from '../features/dice/index.js';
 import { gameChannelDenied } from '../features/settings/index.js';
@@ -23,11 +23,11 @@ export class DiceButtonsHandler extends InteractionHandler {
 
   public override parse(interaction: ButtonInteraction) {
     const id = decodeDiceId(interaction.customId);
-    return id ? this.some(id) : this.none();
+    return id && id.kind !== 'call' ? this.some(id) : this.none();
   }
 
-  /** Roll again: the owner rolls the same bet on the same call, on the same card. */
-  public override async run(interaction: ButtonInteraction, id: RollAgainId) {
+  /** Roll again and Double: the owner rolls the bet in the id (doubled for Double) on the same card. */
+  public override async run(interaction: ButtonInteraction, id: DiceId) {
     const denied = gameChannelDenied(
       this.container.db,
       interaction.guildId as string,
@@ -39,31 +39,28 @@ export class DiceButtonsHandler extends InteractionHandler {
     if (userId !== id.userId) {
       return interaction.reply(errorReply(notYourRoll));
     }
-    if (!tryBegin(userId)) {
-      return interaction.reply(errorReply(stillRolling));
-    }
-    try {
-      const guildId = interaction.guildId as string;
-      const roll = settleRoll(
-        this.container.db,
-        { guildId, userId, bet: String(id.bet), call: id.call },
-        Date.now(),
-      );
-      return await play(
-        updateDisplay(interaction),
-        rollFrames(userId, roll),
-        rollCard(userId, roll),
-        { channelId: interaction.channelId },
-      );
-    } catch (error) {
+    const guildId = interaction.guildId as string;
+    return runAnimatedGame({
+      userId,
+      busy: () => interaction.reply(errorReply(stillRolling)),
+      settle: () =>
+        settleRoll(
+          this.container.db,
+          { guildId, userId, bet: String(id.bet), call: id.call },
+          Date.now(),
+        ),
+      errorText: diceErrorText,
       // A stale button keeps the card as it was and only gets a private explanation.
-      const text = diceErrorText(error);
-      if (text === undefined) {
-        throw error;
-      }
-      return interaction.reply(errorReply(text));
-    } finally {
-      end(userId);
-    }
+      reject: (text) => interaction.reply(errorReply(text)),
+      show: async (roll) =>
+        play(
+          updateDisplay(interaction),
+          await rollFrames(userId, roll),
+          await rollResult(userId, roll),
+          {
+            channelId: interaction.channelId,
+          },
+        ),
+    });
   }
 }

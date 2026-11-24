@@ -86,6 +86,10 @@ function expected(input: string, balance: number): Outcome {
     return 'format';
   }
   if (balance < wager.minBet) return 'funds';
+  // Half of a wallet under twice the minimum is a funds problem, not a bad range.
+  if (fixed === undefined && text === 'half' && Math.floor(balance / 2) < wager.minBet) {
+    return 'funds';
+  }
   const value =
     fixed ?? BigInt(text === 'all' ? Math.min(balance, wager.maxBet) : Math.floor(balance / 2));
   if (value < BigInt(wager.minBet) || value > BigInt(wager.maxBet)) return 'range';

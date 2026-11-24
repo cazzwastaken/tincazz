@@ -15,7 +15,7 @@ import { bailout, cashback, chatReward, collect, daily } from '../economy/config
 import type { BetLimits } from '../gamba/bet.js';
 import { payoutBps, pot, wager } from '../gamba/config.js';
 import { threeOfAKindOdds } from '../gamba/index.js';
-import { gambaJackpotRoleId, outcomeEmoji } from '../gamba/outcomes.js';
+import { outcomeEmoji } from '../gamba/outcomes.js';
 import { giveaway, giveawayDurationHint } from '../giveaways/config.js';
 import { accents, coins } from '../ui/index.js';
 import { encodeHelpMenuId, encodeHelpPageId } from './custom-ids.js';
@@ -46,7 +46,7 @@ function home(prefix: string): Page {
         (page) =>
           `### ${topicInfo[page].emoji} ${topicInfo[page].label}\n${homeSummary(page, prefix)}`,
       ),
-      `-# Also: \`/ping\`, \`/help\`. Admins: \`/settings\` (log channels, auto-roles, game channels, honeypot) and \`/eco\`.`,
+      `-# Also: \`/ping\`, \`/help\`. Admins: \`/settings\` (log channels, auto-roles, jackpot role, game channels, honeypot) and \`/eco\`.`,
     ],
   };
 }
@@ -161,7 +161,7 @@ function gambaPage(prefix: string): Page {
         `${cpp}${cpp} cpp pair: **${times(payoutBps.cppPair)}**`,
         `${yt}${yt}${yt} any triple of the usual emotes: **${times(payoutBps.ytTriple)}**`,
         `${python}${python}${python} python triple (1 in ${coins(pythonOdds ?? 0)}): **${times(payoutBps.pythonTriple)}** + ${share}% of the pot above ${coins(pot.seed)}, up to ${pot.maxWinPerBet.pythonTriple}x your bet`,
-        `${cpp}${cpp}${cpp} **JACKPOT** (1 in ${coins(jackpotOdds ?? 0)}): **${times(payoutBps.cppTriple)}** + the pot, up to ${pot.maxWinPerBet.cppTriple}x your bet, and the <@&${gambaJackpotRoleId}> role`,
+        `${cpp}${cpp}${cpp} **JACKPOT** (1 in ${coins(jackpotOdds ?? 0)}): **${times(payoutBps.cppTriple)}** + the pot, up to ${pot.maxWinPerBet.cppTriple}x your bet, and the server's jackpot role if staff set one`,
       ].join('\n'),
       [
         '### The pot',
@@ -201,7 +201,7 @@ function flipDice(prefix: string): Page {
         `**bot**: flip against the bot, e.g. \`${prefix}cf 100 tails\``,
         `**challenge**: \`/coinflip challenge @member\` or \`${prefix}cf @member 100\`, open for ${seconds(coinflip.expiryMs.challenge)} seconds`,
         `**open**: \`${prefix}cf open 100\`, anyone can accept within ${seconds(coinflip.expiryMs.open)} seconds`,
-        `The winner takes both stakes minus a ${coinflip.rakePercent}% rake that goes to the gamba pot. Challenge results have a **Rematch** button.`,
+        `The winner takes both stakes minus a ${coinflip.rakePercent}% rake that goes to the gamba pot (against the bot the rake comes off a win only). Challenge results have a **Rematch** button. You can have up to ${coinflip.maxLiveChallenges} open challenges per server.`,
       ].join('\n'),
       [
         '### 🎲 Dice',
@@ -210,6 +210,7 @@ function flipDice(prefix: string): Page {
         `\`seven\`: **${times(seven)}** · \`doubles\`: **${times(doubles)}**`,
         `Exact total (\`=2\` to \`=12\`, not 7): ${exactLines().join(' · ')}`,
         `Payouts return ${dice.returnBps / 100}% on average. The ${dice.edgePercent}% edge feeds the gamba pot.`,
+        '**Roll again** repeats the roll, **Double** doubles the bet (up to the maximum) and **Change call** picks the call for the next roll (the card shows `Next:`). Only the player who rolled can use them.',
       ].join('\n'),
       `-# ${betNote}`,
     ],

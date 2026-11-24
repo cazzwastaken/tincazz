@@ -8,7 +8,7 @@ import { Events, MessageFlags } from 'discord.js';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createClient } from '../src/client.js';
 import { closeDatabase, openDatabase } from '../src/db/index.js';
-import { flips, ledger } from '../src/db/schema.js';
+import { flips, ledger, pendingCoinflipChallenges } from '../src/db/schema.js';
 import {
   clearBudgets,
   clearBusy,
@@ -20,8 +20,11 @@ import {
   cannotChallengeBot,
   cannotChallengeSelf,
   clearChallenges,
+  closeChallengeCard,
+  coinflip,
   flipAnimation,
   restoreChallengeCards,
+  trackChallengeCard,
 } from '../src/features/coinflip/index.js';
 import { adminAdjust, findWallet, startingBalance } from '../src/features/economy/index.js';
 import { setLogChannel } from '../src/features/settings/store.js';
@@ -184,6 +187,93 @@ describe('/coinflip', () => {
 
       expect(json(interaction.reply.mock.calls[0])).toContain('You have 1,000 coins');
       expect(json(interaction.reply.mock.calls[0])).not.toContain('Coinflip challenge');
+    });
+  });
+
+  describe('live challenge limit', () => {
+    const seed = (count: number, challengerId = '1', guildId = '2') => {
+      for (let index = 0; index < count; index++) {
+        trackChallengeCard(
+          guildId,
+          '3',
+          `${challengerId}-${guildId}-${index}`,
+          {
+            challengerId,
+            opponentId: undefined,
+            bet: 10,
+            side: 'heads',
+            expiresAt: Date.now() + 60_000,
+          },
+          async () => undefined,
+        );
+      }
+    };
+    const cards = () => container.db.select().from(pendingCoinflipChallenges).all().length;
+
+    it('refuses a fourth live challenge and posts nothing', async () => {
+      seed(coinflip.maxLiveChallenges);
+      const interaction = await run('open', { bet: '10' });
+
+      expect(json(interaction.reply.mock.calls[0])).toContain('already have 3 open challenges');
+      expect(json(interaction.reply.mock.calls[0])).not.toContain('Coinflip challenge');
+      expect(cards()).toBe(coinflip.maxLiveChallenges);
+    });
+
+    it('never exceeds the cap when challenges are started concurrently', async () => {
+      let nextCard = 0;
+      const starts = Array.from({ length: coinflip.maxLiveChallenges * 2 }, () => {
+        const interaction = makeChatInput(client, {
+          commandName: 'coinflip',
+          userId: '1',
+          subcommand: 'open',
+          options: { bet: '10' },
+        });
+        const id = `card-${nextCard++}`;
+        // The card goes out slowly, so every start has checked the cap before any row exists.
+        interaction.reply.mockImplementation((async (options: { withResponse?: boolean }) => {
+          if (!options.withResponse) return {};
+          await new Promise((resolve) => setTimeout(resolve, 30));
+          return { resource: { message: { id } } };
+        }) as never);
+        client.emit(Events.InteractionCreate, interaction as never);
+        return interaction;
+      });
+      await vi.waitFor(
+        () => {
+          for (const interaction of starts) {
+            expect(interaction.reply).toHaveBeenCalledTimes(1);
+          }
+          expect(cards()).toBe(coinflip.maxLiveChallenges);
+        },
+        { timeout: 3000 },
+      );
+
+      const refused = starts.filter((interaction) =>
+        json(interaction.reply.mock.calls[0]).includes('open challenges'),
+      );
+      expect(refused).toHaveLength(starts.length - coinflip.maxLiveChallenges);
+      expect(cards()).toBe(coinflip.maxLiveChallenges);
+    });
+
+    it('counts per challenger and per guild', async () => {
+      seed(coinflip.maxLiveChallenges, '7');
+      seed(coinflip.maxLiveChallenges, '1', '99');
+      const interaction = await run('challenge', { opponent: makeUser('3'), bet: '10' });
+
+      expect(json(interaction.reply.mock.calls[0])).toContain('Coinflip challenge');
+    });
+
+    it('frees a slot once a challenge is closed', async () => {
+      seed(coinflip.maxLiveChallenges);
+      await closeChallengeCard(
+        '1-2-0',
+        { challengerId: '1', opponentId: undefined, bet: 10, side: 'heads', expiresAt: 0 },
+        'cancelled',
+        async () => undefined,
+      );
+      const interaction = await run('open', { bet: '10' });
+
+      expect(json(interaction.reply.mock.calls[0])).toContain('Coinflip challenge');
     });
   });
 

@@ -37,7 +37,8 @@ and no buttons.
 
 - The pot starts at 10,000 coins and never drops below that seed.
 - Bets of 100 or less add nothing to it. Bets over 100 add 3% of the whole bet, rounded down.
-- A **cpp triple** wins the pot and the jackpot role, plus the 100x payout.
+- A **cpp triple** wins the pot and the server's jackpot role (set by staff with `/settings jackpot set`; no role is
+  given until one is set), plus the 100x payout.
 - A **python triple** also takes 8% of the pot above the seed, on top of its 25x payout. Pairs and
   yt triples take nothing from the pot.
 - Pot prizes are full-sized at bets of 500 or more and scale by `bet / 500` below that.
@@ -56,9 +57,17 @@ and no buttons.
 - **open**: anyone can accept within 120 seconds.
 - Pending challenges keep their original deadline across bot restarts. If they expire while the
   bot is offline, it updates the cards when it comes back.
-- The winner takes the pool minus a 3% rake (at least 1 coin) that goes into the gamba pot. Against
-  the bot a win nets your bet minus the rake and a loss costs the bet.
+- Against a member the winner takes the pool minus a 3% rake (at least 1 coin) that goes into the
+  gamba pot.
+- Against the bot a win pays both stakes minus the same 3% of the pool, so it nets your bet minus the
+  rake, and the rake goes into the pot. A loss costs the bet and adds nothing to the pot. Over many
+  flips you lose 3% of what you bet, and that is exactly what the pot gains. Small rakes are
+  rounded up or down at random in proportion to the fraction, so this holds at every bet.
+- `/stats` counts every flip. The **Coinflip net** leaderboard counts flips against the bot only,
+  because flips between members just move coins from one account to another.
 - The coin spins for a few seconds before the result shows.
+- You can have at most 3 open (not yet accepted or expired) challenges at once in a server, rematches
+  included; cancel one or wait for it to expire to post another.
 - A finished challenge has a **Rematch** button. Either player can press it: the first press
   challenges the other for the same bet and removes the button.
 - From a message, arguments go in any order: `?cf 100 t`, `?cf @member 50 heads`, `?cf open 100`.
@@ -80,6 +89,22 @@ result. Bets run from 10 to 10,000 coins (default 10).
 | exact 3 or 11    | that total      | 17.82x |
 | exact 2 or 12    | that total      | 35.64x |
 
-Payouts are 99% of fair odds, rounded down to whole coins. 1% of every bet (at least 1 coin) goes
-into the gamba pot. **Roll again** repeats the same bet and call. From a message:
-`?dice 50 seven`, `?dice =12 50`.
+Payouts are 99% of fair odds. Fractions of a coin are rounded up or down at random in proportion to
+the fraction (a 10-coin high pays 23 or 24, 24 six times in ten for an average of 23.76), so the
+return is 99% at every bet size. 1% of every bet goes into the gamba pot the same way (a 10-coin
+roll adds a coin one time in ten). From a message: `?dice 50 seven`, `?dice =12 50`.
+
+The roll is shown as two large dice that tumble, then the first die lands next to a `?` die, then the
+result: green dice with a gold edge on a win, dimmed red on a loss. If the dice cannot be drawn the
+card falls back to small dice glyphs. The result card shows the roll (`7 · HIGH ✗`), what you won or
+lost (a win shows its multiplier), the odds of your call (`15/36 · 41.7% · pays 2.38x`), on a loss
+the calls the roll would have won, and your balance and the pot. The shown multiplier is the
+nominal payout; the coins paid are rounded as described above.
+
+Under the result, only the player who rolled can use:
+
+- **Roll again** rolls the same bet on the card's `Next:` call.
+- **Double** rolls twice the bet (at most 10,000) on the `Next:` call. It is disabled when the
+  balance cannot cover it or the bet is already at the maximum.
+- **Change call** is a menu of the 14 calls with their odds. It only changes the `Next:` call on the
+  card; nothing is rolled or charged until Roll again or Double is pressed.

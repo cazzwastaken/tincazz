@@ -92,6 +92,20 @@
       "when": 1795442748624,
       "tag": "0012_pending_screenings",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1795547913956,
+      "tag": "0013_jackpot_role",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "6",
+      "when": 1795548780268,
+      "tag": "0014_challenge_guild_bot_flip_stats",
+      "breakpoints": true
     }
   ]
 }

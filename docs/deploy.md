@@ -17,7 +17,7 @@ enabled first: the bot always requests it and cannot log in without it.
 
 Bot permissions:
 
-- **Manage Roles**: gamba jackpot roles and `/settings autorole`.
+- **Manage Roles**: gamba jackpot roles (`/settings jackpot`) and `/settings autorole`.
 - **Ban Members**: honeypot softbans.
 - **View Channel**, **Send Messages** and **Manage Messages** in the honeypot channel: to post and
   re-post the warning card and delete what the guard blocks.
@@ -98,6 +98,13 @@ docker compose pull && docker compose up -d
 
 `docker compose pull` only updates the image. When a release changes `docker-compose.yml`, fetch
 the new file too (the same `curl` as in the setup) before running `up -d`.
+
+## Upgrade notes
+
+**The gamba jackpot role is no longer hard-coded.** It is now a per-guild setting, so after
+deploying this version no jackpot role is awarded until staff run `/settings jackpot set` in each
+server (with a role the bot's highest role sits above, and Manage Roles granted).
+Jackpots still pay the pot; only the role is skipped until it is set.
 
 ## Backups
 

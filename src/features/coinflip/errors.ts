@@ -24,6 +24,16 @@ export class ShortStakeError extends CoinflipError {
   }
 }
 
+/** The challenger already has the most live challenges allowed in the guild. */
+export class ChallengeLimitError extends CoinflipError {
+  public readonly limit: number;
+
+  public constructor(limit: number) {
+    super(`Challenger already has ${limit} live challenges`);
+    this.limit = limit;
+  }
+}
+
 /** A challenge message was already settled. */
 export class ChallengeTakenError extends CoinflipError {
   public constructor() {

@@ -19,6 +19,7 @@ import {
 import {
   addAutoRole,
   autoRoles,
+  jackpotRoleId,
   logChannelId,
   setLogChannel,
 } from '../src/features/settings/store.js';
@@ -190,6 +191,40 @@ function guildWithBot(botHighest = 8, roleIds: string[] = []) {
     },
   };
 }
+
+describe('/settings jackpot', () => {
+  it('sets the jackpot role', async () => {
+    const result = await run('jackpot', 'set', { role: fakeRole('5') }, { guild: guildWithBot() });
+    expect(result.text).toContain('Gamba jackpot winners will get <@&5>.');
+    expect(jackpotRoleId(container.db, '2')).toBe('5');
+  });
+
+  it('rejects a role the bot cannot hand out', async () => {
+    const result = await run(
+      'jackpot',
+      'set',
+      { role: fakeRole('5', 9) },
+      { guild: guildWithBot() },
+    );
+    expect(result.text).toContain('That role is at or above my highest role.');
+    expect(jackpotRoleId(container.db, '2')).toBeUndefined();
+  });
+
+  it('says so when the role is already set', async () => {
+    await run('jackpot', 'set', { role: fakeRole('5') }, { guild: guildWithBot() });
+    const result = await run('jackpot', 'set', { role: fakeRole('5') }, { guild: guildWithBot() });
+    expect(result.text).toContain('<@&5> is already the jackpot role.');
+  });
+
+  it('clears the role, and explains clearing an unset one', async () => {
+    const unset = await run('jackpot', 'clear');
+    expect(unset.text).toContain("The jackpot role isn't set.");
+    await run('jackpot', 'set', { role: fakeRole('5') }, { guild: guildWithBot() });
+    const result = await run('jackpot', 'clear');
+    expect(result.text).toContain('Gamba jackpots no longer give a role.');
+    expect(jackpotRoleId(container.db, '2')).toBeUndefined();
+  });
+});
 
 describe('/settings autorole', () => {
   it('adds a role and logs to the mod channel', async () => {

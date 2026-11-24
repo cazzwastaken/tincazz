@@ -1,6 +1,6 @@
 import type { Db } from '../../db/index.js';
 import { spins } from '../../db/schema.js';
-import { credit, debit } from '../economy/ledger.js';
+import { settleStake } from '../economy/ledger.js';
 import { getOrCreateWallet } from '../economy/wallets.js';
 import { type Evaluation, evaluate } from './evaluate.js';
 import { type Reels, spinGamba } from './index.js';
@@ -54,20 +54,18 @@ export function playWager(
       })
       .returning({ id: spins.id })
       .get();
-    let balance = debit(tx, { guildId, userId, amount: bet, reason: 'bet', now, ref: spinId });
-    if (payout > 0) {
-      balance = credit(tx, { guildId, userId, amount: payout, reason: 'payout', now, ref: spinId });
-    }
-    if (potWon > 0) {
-      balance = credit(tx, {
-        guildId,
-        userId,
-        amount: potWon,
-        reason: 'pot_win',
-        now,
-        ref: spinId,
-      });
-    }
+    const balance = settleStake(tx, {
+      guildId,
+      userId,
+      now,
+      ref: spinId,
+      bet,
+      betReason: 'bet',
+      payouts: [
+        { amount: payout, reason: 'payout' },
+        { amount: potWon, reason: 'pot_win' },
+      ],
+    });
     recordWagerSpinStats(tx, guildId, userId, { evaluation, bet, payout, potWon });
     return { mode: 'wager', reels, evaluation, bet, payout, potWon, balance, pot, spinId };
   });

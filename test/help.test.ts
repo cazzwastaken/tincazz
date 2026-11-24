@@ -161,6 +161,7 @@ describe('help pages', () => {
     const text = page('flipdice');
     expect(text).toContain(`${coinflip.rakePercent}% rake`);
     expect(text).toContain(`${coinflip.expiryMs.open / 1000} seconds`);
+    expect(text).toContain(`${coinflip.maxLiveChallenges} open challenges`);
     expect(text).toContain(`${dice.returnBps / 100}%`);
     for (const call of [
       { kind: 'high' },
@@ -168,6 +169,9 @@ describe('help pages', () => {
       { kind: 'exact', target: 2 },
     ] as const) {
       expect(text).toContain(`**${Number((dicePayoutBps(call) / 10_000).toFixed(2))}x**`);
+    }
+    for (const control of ['Roll again', 'Double', 'Change call']) {
+      expect(text).toContain(control);
     }
   });
 

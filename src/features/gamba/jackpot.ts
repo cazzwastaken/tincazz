@@ -1,20 +1,20 @@
 import { container } from '@sapphire/framework';
-import { gambaJackpotRoleId } from './outcomes.js';
 
 export interface JackpotMember {
   roles: { add(roleId: string, reason?: string): Promise<unknown> };
 }
 
-/** Gives the jackpot role to the winner. Never throws: a failure is logged and returns false. */
+/** Gives the guild's jackpot role to the winner. Never throws: a failure is logged and returns false. */
 export async function assignJackpotRole(
   member: JackpotMember | null | undefined,
   userId: string,
+  roleId: string,
 ): Promise<boolean> {
   try {
     if (!member) {
       throw new Error('member not cached');
     }
-    await member.roles.add(gambaJackpotRoleId, 'gamba jackpot');
+    await member.roles.add(roleId, 'gamba jackpot');
     return true;
   } catch (error) {
     container.logger.warn(

@@ -19,13 +19,24 @@ export {
   rematchTaken,
 } from './cards.js';
 export {
+  assertChallengeCapacity,
   closeChallengeCard,
   forgetChallengeCard,
   isChallengeCardClosed,
+  liveChallengeCount,
+  reserveChallengeSlot,
   restoreChallengeCards,
   trackChallengeCard,
 } from './challenge-cards.js';
-export { clearChallenges, reopen, scheduleExpiry, tryClose } from './challenges.js';
+export {
+  clearChallenges,
+  closedCount,
+  closedMax,
+  closedTtlMs,
+  reopen,
+  scheduleExpiry,
+  tryClose,
+} from './challenges.js';
 export { coinflip, type FlipStage, flipAnimation, wager } from './config.js';
 export {
   type ChallengeAction,
@@ -38,7 +49,12 @@ export {
   type FlipAgainId,
   type RematchId,
 } from './custom-ids.js';
-export { ChallengeTakenError, CoinflipError, ShortStakeError } from './errors.js';
+export {
+  ChallengeLimitError,
+  ChallengeTakenError,
+  CoinflipError,
+  ShortStakeError,
+} from './errors.js';
 export { flipCoin, otherSide } from './flip.js';
 export {
   type BotFlip,
@@ -49,5 +65,5 @@ export {
   settleBotFlip,
   settleChallenge,
 } from './play.js';
-export { flipRake } from './rake.js';
+export { botFlipRake, flipRake } from './rake.js';
 export { recordFlipStats } from './stats.js';

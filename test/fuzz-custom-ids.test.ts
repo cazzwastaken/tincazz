@@ -11,6 +11,8 @@ import { wager as diceWager } from '../src/features/dice/config.js';
 import {
   type DiceCall,
   decodeDiceId,
+  encodeCallSelectId,
+  encodeDoubleId,
   encodeRollAgainId,
   type RollAgainId,
 } from '../src/features/dice/index.js';
@@ -233,6 +235,11 @@ describe('coinflip rematch id fuzz', () => {
 });
 
 describe('dice roll again id fuzz', () => {
+  const encoders = {
+    again: encodeRollAgainId,
+    double: encodeDoubleId,
+    call: encodeCallSelectId,
+  } as const;
   const longSnowflake = fc.stringMatching(/^[1-9][0-9]{19}$/);
   const call: fc.Arbitrary<DiceCall> = fc.oneof(
     fc.constantFrom<DiceCall>(
@@ -271,6 +278,8 @@ describe('dice roll again id fuzz', () => {
     const anyRollAgainIdString = fc.oneof(
       fc.string({ unit: 'binary', maxLength: 100 }),
       mutated(rollAgain(snowflake).map(encodeRollAgainId)),
+      mutated(rollAgain(snowflake).map(encodeDoubleId)),
+      mutated(rollAgain(snowflake).map(encodeCallSelectId)),
     );
     fc.assert(
       fc.property(anyRollAgainIdString, (customId) => {
@@ -280,10 +289,40 @@ describe('dice roll again id fuzz', () => {
         expect(Number.isSafeInteger(id.bet)).toBe(true);
         expect(id.bet).toBeGreaterThanOrEqual(diceWager.minBet);
         expect(id.bet).toBeLessThanOrEqual(diceWager.maxBet);
-        const { kind: _kind, ...rest } = id;
-        expect(decodeDiceId(encodeRollAgainId(rest))).toEqual(id);
+        const { kind, ...rest } = id;
+        expect(decodeDiceId(encoders[kind](rest))).toEqual(id);
       }),
       { numRuns: 2000 },
+    );
+  });
+
+  it('round trips the Double and Change call ids and keeps the three kinds apart', () => {
+    fc.assert(
+      fc.property(fc.oneof(rollAgain(snowflake), rollAgain(longSnowflake)), (id) => {
+        for (const kind of ['again', 'double', 'call'] as const) {
+          const encoded = encoders[kind](id);
+          expect(encoded.length).toBeLessThanOrEqual(100);
+          expect(decodeDiceId(encoded)).toEqual({ kind, ...id });
+        }
+        expect(new Set(Object.values(encoders).map((encode) => encode(id))).size).toBe(3);
+      }),
+    );
+  });
+
+  it('rejects dice ids with an unknown kind or the wrong number of parts', () => {
+    fc.assert(
+      fc.property(
+        rollAgain(snowflake),
+        fc
+          .string({ unit: 'binary', maxLength: 8 })
+          .filter((kind) => !/^(again|double|call)$/.test(kind)),
+        (id, kind) => {
+          const valid = encodeDoubleId(id);
+          expect(decodeDiceId(valid.replace(':double:', `:${kind}:`))).toBeUndefined();
+          expect(decodeDiceId(`${valid}:x`)).toBeUndefined();
+          expect(decodeDiceId(valid.split(':').slice(0, 4).join(':'))).toBeUndefined();
+        },
+      ),
     );
   });
 
