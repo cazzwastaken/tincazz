@@ -4,11 +4,17 @@
 export class TtlLru<V> {
   private readonly items = new Map<string, { value: V; expires: number }>();
 
-  public constructor(
-    private readonly max: number,
-    private readonly ttlMs: number,
-    private readonly now: () => number = Date.now,
-  ) {}
+  // Plain fields, not parameter properties: Node's type stripping (used to load pieces in tests)
+  // does not support those.
+  private readonly max: number;
+  private readonly ttlMs: number;
+  private readonly now: () => number;
+
+  public constructor(max: number, ttlMs: number, now: () => number = Date.now) {
+    this.max = max;
+    this.ttlMs = ttlMs;
+    this.now = now;
+  }
 
   public get(key: string): V | undefined {
     const item = this.items.get(key);
@@ -88,7 +94,10 @@ export class Debouncer<T> {
   >();
   private readonly now: () => number;
 
-  public constructor(private readonly options: DebouncerOptions<T>) {
+  private readonly options: DebouncerOptions<T>;
+
+  public constructor(options: DebouncerOptions<T>) {
+    this.options = options;
     this.now = options.now ?? Date.now;
   }
 
@@ -153,7 +162,11 @@ export class JobQueue<T> {
   private active = 0;
   private waiters: Array<() => void> = [];
 
-  public constructor(private readonly options: JobQueueOptions<T>) {}
+  private readonly options: JobQueueOptions<T>;
+
+  public constructor(options: JobQueueOptions<T>) {
+    this.options = options;
+  }
 
   public push(job: T): PushResult {
     const key = this.options.key(job);

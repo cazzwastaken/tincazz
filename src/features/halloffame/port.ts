@@ -7,13 +7,13 @@ import type { ReactionCount, Reactor } from './score.js';
 export type HallErrorKind = 'unknown-message' | 'unknown-channel' | 'forbidden' | 'other';
 
 export class HallDiscordError extends Error {
-  public constructor(
-    public readonly kind: HallErrorKind,
-    message: string = kind,
-    options?: { cause?: unknown },
-  ) {
+  // Not a parameter property: Node's type stripping (used to load pieces in tests) rejects those.
+  public readonly kind: HallErrorKind;
+
+  public constructor(kind: HallErrorKind, message: string = kind, options?: { cause?: unknown }) {
     super(message, options);
     this.name = 'HallDiscordError';
+    this.kind = kind;
   }
 }
 

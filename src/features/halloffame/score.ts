@@ -33,7 +33,11 @@ export class ReactorTally {
   private readonly everyone = new Set<string>();
   private readonly byEmoji = new Map<string, Set<string>>();
 
-  constructor(private readonly authorId: string) {}
+  private readonly authorId: string;
+
+  constructor(authorId: string) {
+    this.authorId = authorId;
+  }
 
   add(emoji: string, users: readonly Reactor[]): void {
     let set = this.byEmoji.get(emoji);
