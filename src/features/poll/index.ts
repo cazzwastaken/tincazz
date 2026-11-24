@@ -10,6 +10,13 @@ export {
 } from './args.js';
 export { pollCard, pollCardHash } from './cards.js';
 export { poll, pollDurationHint, pollUsage } from './config.js';
+export {
+  type CreatedPoll,
+  createPoll,
+  type PollRequest,
+  pollCapText,
+  pollPostFailed,
+} from './create.js';
 export { decodePollCloseId, encodePollCloseId, type PollCloseId } from './custom-ids.js';
 export { isPollAccessError, isPollMessageGone } from './discord.js';
 export { optionIndexOf, pollEmojis } from './emojis.js';
