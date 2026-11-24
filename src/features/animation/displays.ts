@@ -15,11 +15,15 @@ export function replyDisplay(interaction: RepliableInteraction): Display {
     first: (reply: CardReply) => interaction.reply(reply),
     next: (reply: CardReply) => interaction.editReply(replacing(reply)),
     // The game has settled, so the result must arrive even when the edits keep failing.
-    fallback: (reply: CardReply) =>
-      interaction.replied || interaction.deferred
-        ? interaction.followUp(reply)
-        : interaction.reply(reply),
+    fallback: (reply: CardReply) => replyFallback(interaction, reply),
   };
+}
+
+/** Delivers a settled result after the edits failed: a follow-up once answered, else a reply. */
+export function replyFallback(interaction: RepliableInteraction, reply: CardReply) {
+  return interaction.replied || interaction.deferred
+    ? interaction.followUp(reply)
+    : interaction.reply(reply);
 }
 
 /** A button press that updates the card it sits on, then edits it. */

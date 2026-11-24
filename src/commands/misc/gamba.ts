@@ -5,7 +5,12 @@ import {
   InteractionContextType,
   type Message,
 } from 'discord.js';
-import { play, runAnimatedGame, stillRolling } from '../../features/animation/index.js';
+import {
+  play,
+  replyFallback,
+  runAnimatedGame,
+  stillRolling,
+} from '../../features/animation/index.js';
 import {
   assignJackpotRole,
   formatGambaFollowUp,
@@ -124,6 +129,8 @@ export class GambaCommand extends Command {
               return resource;
             },
             next: (reply) => interaction.editReply(reply),
+            // The spin has settled, so the result must arrive even when the edits keep failing.
+            fallback: (reply) => replyFallback(interaction, reply),
           },
           spinFrames(userId, messages.bet),
           messages.card,

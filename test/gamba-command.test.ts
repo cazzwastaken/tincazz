@@ -304,6 +304,29 @@ describe('gamba', () => {
       expect(findWallet(container.db, '2', '1')?.balance).toBe(0);
     });
 
+    it('delivers the settled result with a follow-up when the result edit fails', async () => {
+      mockRandomInt(0, 3, 6);
+      vi.spyOn(container.logger, 'error').mockImplementation(() => undefined);
+      vi.spyOn(container.logger, 'warn').mockImplementation(() => undefined);
+      vi.spyOn(client.channels, 'fetch').mockResolvedValue({
+        type: 0,
+        isDMBased: () => false,
+        isThread: () => false,
+      } as never);
+      const interaction = makeChatInput(client, {
+        commandName: 'gamba',
+        userId: '1',
+        options: { bet: '10' },
+      });
+      interaction.editReply.mockRejectedValue(new Error('edit failed'));
+      const followUp = vi.fn(async () => ({}));
+      Object.assign(interaction, { replied: true, followUp });
+      client.emit(Events.InteractionCreate, interaction as never);
+      await vi.waitFor(() => expect(followUp).toHaveBeenCalledTimes(1), { timeout: 2000 });
+
+      expect(json(followUp.mock.calls[0])).toContain('Bet 10');
+    });
+
     it('makes the newest card the only live one', async () => {
       clearActiveCards();
       mockRandomInt(0, 3, 6);
