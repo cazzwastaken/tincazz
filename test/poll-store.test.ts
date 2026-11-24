@@ -375,3 +375,30 @@ describe('applyRecount', () => {
     expect(tallyPoll(db, row)).toEqual([0, 0, 0]);
   });
 });
+
+describe('vote event bookkeeping', () => {
+  const voted = () => {
+    const row = pollWithOptions();
+    castVote(db, '10', '30', 'u', 0, now + 5);
+    expect(recountRaced(row, now)).toBe(true);
+    return row;
+  };
+
+  it('forgets the poll when its message is deleted', () => {
+    const row = voted();
+    markPollMessagesDeleted(db, '10', ['30']);
+    expect(recountRaced(row, now)).toBe(false);
+  });
+
+  it('forgets the poll when its channel is deleted', () => {
+    const row = voted();
+    markPollChannelDeleted(db, '10', '20');
+    expect(recountRaced(row, now)).toBe(false);
+  });
+
+  it('forgets the poll when the runner marks it deleted', () => {
+    const row = voted();
+    updatePoll(db, row, { status: 'deleted', nextSyncAt: null });
+    expect(recountRaced(row, now)).toBe(false);
+  });
+});

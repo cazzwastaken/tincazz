@@ -131,12 +131,14 @@ type Changes = Partial<
 
 /** Applies `changes` only while the row is still in the status the caller saw. */
 export function updatePoll(db: Db, row: Poll, changes: Changes): Poll | undefined {
-  return db
+  const updated = db
     .update(polls)
     .set(changes)
     .where(and(identity(row), eq(polls.status, row.status)))
     .returning()
     .get();
+  if (updated?.status === 'deleted') lastVoteEvent.delete(eventKey(row.guildId, row.id));
+  return updated;
 }
 
 /**
@@ -155,6 +157,7 @@ export function discardPoll(db: DbOrTx, row: Pick<Poll, 'guildId' | 'id'>): bool
       .returning({ id: polls.id })
       .get();
     if (!removed) return false;
+    lastVoteEvent.delete(eventKey(row.guildId, row.id));
     tx.delete(pollVotes)
       .where(and(eq(pollVotes.guildId, row.guildId), eq(pollVotes.pollId, row.id)))
       .run();
@@ -373,7 +376,8 @@ export function closePollEarly(
 /** Marks polls whose message was deleted, which frees their hosts' slots. */
 export function markPollMessagesDeleted(db: Db, guildId: string, messageIds: string[]): void {
   if (messageIds.length === 0) return;
-  db.update(polls)
+  const marked = db
+    .update(polls)
     .set({ status: 'deleted', nextSyncAt: null, accessFailures: 0 })
     .where(
       and(
@@ -382,12 +386,15 @@ export function markPollMessagesDeleted(db: Db, guildId: string, messageIds: str
         inArray(polls.status, slotStatuses),
       ),
     )
-    .run();
+    .returning({ id: polls.id })
+    .all();
+  for (const { id } of marked) lastVoteEvent.delete(eventKey(guildId, id));
 }
 
 /** Marks every poll in a deleted channel. */
 export function markPollChannelDeleted(db: Db, guildId: string, channelId: string): void {
-  db.update(polls)
+  const marked = db
+    .update(polls)
     .set({ status: 'deleted', nextSyncAt: null, accessFailures: 0 })
     .where(
       and(
@@ -396,7 +403,9 @@ export function markPollChannelDeleted(db: Db, guildId: string, channelId: strin
         inArray(polls.status, slotStatuses),
       ),
     )
-    .run();
+    .returning({ id: polls.id })
+    .all();
+  for (const { id } of marked) lastVoteEvent.delete(eventKey(guildId, id));
 }
 
 /**
