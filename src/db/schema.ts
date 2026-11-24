@@ -210,6 +210,8 @@ export const guildGameChannels = sqliteTable(
 /** Challenge cards that still need their expiry or terminal display applied. */
 export const pendingCoinflipChallenges = sqliteTable('pending_coinflip_challenges', {
   messageId: text('message_id').primaryKey(),
+  /** Null on rows written before the live-challenge cap; they are short-lived. */
+  guildId: text('guild_id'),
   channelId: text('channel_id').notNull(),
   challengerId: text('challenger_id').notNull(),
   opponentId: text('opponent_id'),

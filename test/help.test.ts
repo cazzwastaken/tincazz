@@ -161,6 +161,7 @@ describe('help pages', () => {
     const text = page('flipdice');
     expect(text).toContain(`${coinflip.rakePercent}% rake`);
     expect(text).toContain(`${coinflip.expiryMs.open / 1000} seconds`);
+    expect(text).toContain(`${coinflip.maxLiveChallenges} open challenges`);
     expect(text).toContain(`${dice.returnBps / 100}%`);
     for (const call of [
       { kind: 'high' },

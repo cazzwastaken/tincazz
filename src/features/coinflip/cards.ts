@@ -10,7 +10,7 @@ import {
   encodeFlipAgainId,
   encodeRematchId,
 } from './custom-ids.js';
-import { ChallengeTakenError, ShortStakeError } from './errors.js';
+import { ChallengeLimitError, ChallengeTakenError, ShortStakeError } from './errors.js';
 import { otherSide } from './flip.js';
 import type { BotFlip, SettledChallenge } from './play.js';
 
@@ -22,6 +22,8 @@ export const challengeTaken = 'Someone already took this challenge.';
 export const cannotChallengeSelf = "You can't challenge yourself.";
 export const cannotChallengeBot = "Bots don't flip coins. Use `/coinflip bot`.";
 export const memberNotFound = "I can't find that member here.";
+export const challengeLimitText = (limit: number) =>
+  `You already have ${limit} open challenges here. Cancel one or wait for it to expire.`;
 export const rematchTaken = 'A rematch is already on.';
 
 const sideLabel = (side: FlipSide) => (side === 'heads' ? 'Heads' : 'Tails');
@@ -160,6 +162,9 @@ export function challengeClosedCard(
 export function flipErrorText(error: unknown): string | undefined {
   if (error instanceof ShortStakeError) {
     return `You need ${coins(error.needed)} coins to accept. You have ${coins(error.balance)}.`;
+  }
+  if (error instanceof ChallengeLimitError) {
+    return challengeLimitText(error.limit);
   }
   if (error instanceof ChallengeTakenError) {
     return challengeTaken;

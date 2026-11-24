@@ -1,0 +1,1 @@
+ALTER TABLE `pending_coinflip_challenges` ADD `guild_id` text;

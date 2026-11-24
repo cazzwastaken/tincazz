@@ -63,6 +63,8 @@ and no buttons.
   flips you lose 3% of what you bet, and that is exactly what the pot gains. Small rakes are
   rounded up or down at random in proportion to the fraction, so this holds at every bet.
 - The coin spins for a few seconds before the result shows.
+- You can have at most 3 open (not yet accepted or expired) challenges at once in a server, rematches
+  included; cancel one or wait for it to expire to post another.
 - A finished challenge has a **Rematch** button. Either player can press it: the first press
   challenges the other for the same bet and removes the button.
 - From a message, arguments go in any order: `?cf 100 t`, `?cf @member 50 heads`, `?cf open 100`.
