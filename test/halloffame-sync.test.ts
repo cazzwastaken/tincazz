@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { closeDatabase, type Db, openDatabase } from '../src/db/index.js';
 import {
+  addHallExempt,
   bumpHallPeak,
   claimHallEntry,
   getHallEntry,
@@ -342,5 +343,105 @@ describe('hall of fame sync', () => {
       { hallMessageId: '1', peakCount: 5, renderedHash: 'x' },
       t0,
     );
+  });
+
+  describe('a source channel that became ineligible after the induction', () => {
+    const edited = async (h: Awaited<ReturnType<typeof posted>>) => {
+      const message = h.fake.messages.get(messageId);
+      if (!message) throw new Error('missing');
+      message.facts = { ...message.facts, content: 'a secret added later' };
+      h.fake.react(messageId, '⭐', people(0, 9));
+      h.runner.onMessageUpdate(guildId, messageId);
+      await h.settle();
+    };
+    const frozen = (h: Awaited<ReturnType<typeof posted>>, reason: string) => {
+      expect(h.fake.log.edit).toHaveLength(0);
+      expect(entry()?.peakCount).toBe(5);
+      expect(h.fake.log.deleted).toHaveLength(0);
+      expect(h.debug).toHaveBeenCalledWith(expect.stringContaining(reason));
+    };
+
+    it('stops copying edits once the channel is exempt', async () => {
+      const h = await posted();
+      addHallExempt(db, guildId, sourceChannelId, t0);
+      await edited(h);
+      frozen(h, 'exempt');
+    });
+
+    it('stops copying edits once the channel is exempt through its category', async () => {
+      const h = await posted();
+      h.fake.channels.set(
+        sourceChannelId,
+        channelInfo(sourceChannelId, 'memes', { categoryId: '77' }),
+      );
+      addHallExempt(db, guildId, '77', t0);
+      await edited(h);
+      frozen(h, 'exempt');
+    });
+
+    it('stops copying edits once the channel is private and the hall is public', async () => {
+      const h = await posted();
+      h.fake.channels.set(
+        sourceChannelId,
+        channelInfo(sourceChannelId, 'memes', { everyoneCanView: false }),
+      );
+      await edited(h);
+      frozen(h, 'private-to-public');
+    });
+
+    it('stops copying edits once the channel is age-restricted and the hall is not', async () => {
+      const h = await posted();
+      h.fake.channels.set(sourceChannelId, channelInfo(sourceChannelId, 'memes', { nsfw: true }));
+      await edited(h);
+      frozen(h, 'nsfw-to-sfw');
+    });
+
+    it('stops copying edits when the source turned out to be a private thread', async () => {
+      const h = await posted();
+      h.fake.channels.set(
+        sourceChannelId,
+        channelInfo(sourceChannelId, 'memes', { isThread: true, isPrivateThread: true }),
+      );
+      await edited(h);
+      frozen(h, 'private-thread');
+    });
+
+    it('stops copying edits when the hall channel cannot be resolved', async () => {
+      const h = await posted();
+      h.fake.channels.delete(hallChannelId);
+      await edited(h);
+      frozen(h, 'unavailable');
+    });
+
+    it('resumes once the channel is eligible again', async () => {
+      const h = await posted();
+      addHallExempt(db, guildId, sourceChannelId, t0);
+      await edited(h);
+      expect(h.fake.log.edit).toHaveLength(0);
+      db.$client.prepare('delete from guild_hall_exempt_channels').run();
+      h.runner.onMessageUpdate(guildId, messageId);
+      await h.settle();
+      expect(JSON.stringify(h.fake.log.edit.at(-1)?.post.card.toJSON())).toContain(
+        'a secret added later',
+      );
+    });
+
+    it('still deletes the hall post when the source is deleted', async () => {
+      const h = await posted();
+      const hallId = entry()?.hallMessageId as string;
+      addHallExempt(db, guildId, sourceChannelId, t0);
+      h.fake.messages.delete(messageId);
+      h.runner.onMessageUpdate(guildId, messageId);
+      await h.settle();
+      expect(entry()).toBeUndefined();
+      expect(h.fake.posted.has(hallId)).toBe(false);
+
+      const again = await posted();
+      addHallExempt(db, guildId, sourceChannelId, t0);
+      const row = entry()?.hallMessageId as string;
+      await again.runner.onSourceMessagesDeleted(guildId, [messageId]);
+      expect(entry()).toBeUndefined();
+      expect(again.fake.posted.has(row)).toBe(false);
+    });
   });
 });

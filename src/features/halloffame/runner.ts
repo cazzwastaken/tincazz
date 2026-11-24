@@ -497,6 +497,30 @@ export function createHallRunner(deps: HallRunnerDeps): HallRunner {
     }
     lastSync.set(key, now());
 
+    // The channel may have changed since the induction (made private, age-restricted or exempt,
+    // or the hall opened to the public): never copy a later edit out of it. The post stays as is.
+    const source = await channelInfo(guildId, entry.channelId);
+    const hall = await channelInfo(guildId, entry.hallChannelId);
+    const verdict =
+      source && hall
+        ? eligibility(
+            // The post lives where it was made, even when the hall channel changed since.
+            { channelId: entry.hallChannelId },
+            hallExemptChannels(db, guildId),
+            honeypot(db, guildId).channelId,
+            source.facts,
+            hall.facts,
+            { bot: message.author.bot, webhook: message.author.webhook },
+            message.type,
+          )
+        : undefined;
+    if (!source || !verdict?.ok) {
+      logger.debug(
+        `Hall of Fame leaves the post of ${messageId} as it is (${verdict && !verdict.ok ? verdict.reason : 'channel unavailable'})`,
+      );
+      return;
+    }
+
     let tallied: Tallied;
     try {
       tallied = await tallyReactors(message, undefined);
@@ -510,13 +534,12 @@ export function createHallRunner(deps: HallRunnerDeps): HallRunner {
     const row = bumpHallPeak(db, guildId, messageId, tallied.tally.distinct, now());
     if (!row?.hallMessageId) return;
 
-    const source = await channelInfo(guildId, entry.channelId);
     const input = await cardInput(message, {
       guildId,
       peak: row.peakCount,
       threshold: hallSettings(db, guildId).threshold,
       perEmoji: tallied.tally.score().perEmoji,
-      channelName: source?.name,
+      channelName: source.name,
     });
     // An unchanged card (an embed that resolved, a reaction that changed nothing) is not edited.
     if (hallRenderHash(input) === row.lastRenderedHash) return;
@@ -780,10 +803,9 @@ let current: HallRunner | undefined;
  * previous run are adopted or released at once, and again every hour. Returns a stop function.
  */
 export function startHallOfFame(client: Client<true>): () => void {
-  current?.stop();
   const { db, logger } = container;
   const runner = createHallRunner({ db, discord: createHallDiscord(client), logger });
-  current = runner;
+  const uninstall = installHallRunner(runner);
   const recover = (all: boolean) =>
     void runner
       .recover({ all })
@@ -793,6 +815,18 @@ export function startHallOfFame(client: Client<true>): () => void {
   timer.unref();
   return () => {
     clearInterval(timer);
+    uninstall();
+  };
+}
+
+/**
+ * Makes `runner` the one the listeners feed, stopping the previous one. Returns a function that
+ * stops it and uninstalls it. `startHallOfFame` uses this; tests install a stub.
+ */
+export function installHallRunner(runner: HallRunner): () => void {
+  current?.stop();
+  current = runner;
+  return () => {
     runner.stop();
     if (current === runner) current = undefined;
   };
