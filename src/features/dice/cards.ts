@@ -16,7 +16,12 @@ import { spinErrorText } from '../gamba/index.js';
 import { accents, coins, withFiles } from '../ui/index.js';
 import { allCalls, callLabel, type DiceCall, dieFace, encodeCall } from './calls.js';
 import { wager } from './config.js';
-import { encodeCallSelectId, encodeDoubleId, encodeRollAgainId } from './custom-ids.js';
+import {
+  decodeDiceId,
+  encodeCallSelectId,
+  encodeDoubleId,
+  encodeRollAgainId,
+} from './custom-ids.js';
 import type { Roll } from './play.js';
 import { type DiceTint, type DieFace, renderDice } from './render.js';
 import { multiplierText, needsText, oddsText, winningCalls } from './rules.js';
@@ -148,6 +153,25 @@ export async function rollResult(userId: string, roll: Roll): Promise<ContainerB
   }
 }
 
+/** Whether the card's Double button is disabled, read from the button itself. */
+function isDoubleDisabled(card: APIContainerComponent): boolean {
+  for (const row of card.components) {
+    if (row.type !== ComponentType.ActionRow) {
+      continue;
+    }
+    for (const button of row.components) {
+      if (
+        button.type === ComponentType.Button &&
+        'custom_id' in button &&
+        decodeDiceId(button.custom_id)?.kind === 'double'
+      ) {
+        return button.disabled === true;
+      }
+    }
+  }
+  return false;
+}
+
 /**
  * The same card with a different call for the next roll: the roll shown stays as it is, only the
  * `Next:` line and the controls (whose IDs carry the call) change.
@@ -158,7 +182,7 @@ export function retargetCard(
   bet: number,
   call: DiceCall,
 ): ContainerBuilder {
-  const doubleDisabled = JSON.stringify(card).includes('"disabled":true');
+  const doubleDisabled = isDoubleDisabled(card);
   const kept = card.components
     .filter((component) => component.type !== ComponentType.ActionRow)
     .map((component) => {

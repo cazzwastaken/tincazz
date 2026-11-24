@@ -175,6 +175,21 @@ describe('retargetCard', () => {
   });
 });
 
+describe('retargetCard Double flag', () => {
+  it('keeps an enabled Double enabled', () => {
+    const sent = JSON.parse(json(rollCard('1', roll({ balance: 10_000 }))));
+    expect(doubleDisabled(retargetCard(sent, '1', 100, { kind: 'low' }))).toBe(false);
+  });
+
+  it('reads only the Double button, not other disabled parts of the card', () => {
+    const sent = JSON.parse(json(rollCard('1', roll({ balance: 10_000 }))));
+    // Another control being disabled must not disable Double.
+    const menu = sent.components.find((c: { type: number }) => c.type === 1);
+    menu.components[0].disabled = true;
+    expect(doubleDisabled(retargetCard(sent, '1', 100, { kind: 'low' }))).toBe(false);
+  });
+});
+
 describe('rollFrames', () => {
   it('has four frames with the caption second in each and no controls', async () => {
     const frames = await rollFrames('1', roll());
