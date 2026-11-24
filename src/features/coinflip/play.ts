@@ -82,7 +82,7 @@ export function settleBotFlip(
       });
     }
     const pot = addToPot(tx, guildId, rake);
-    recordFlipStats(tx, guildId, userId, { bet, won, credited });
+    recordFlipStats(tx, guildId, userId, { bet, won, credited, vsBot: true });
     return { bet, side, result, won, rake, credited, balance, pot, flipId };
   });
 }
@@ -201,8 +201,8 @@ export function settleChallenge(
       acceptorBalance = winnings;
     }
     const pot = addToPot(tx, guildId, rake);
-    recordFlipStats(tx, guildId, winnerId, { bet, won: true, credited });
-    recordFlipStats(tx, guildId, loserId, { bet, won: false, credited: 0 });
+    recordFlipStats(tx, guildId, winnerId, { bet, won: true, credited, vsBot: false });
+    recordFlipStats(tx, guildId, loserId, { bet, won: false, credited: 0, vsBot: false });
     return {
       result,
       winnerId,

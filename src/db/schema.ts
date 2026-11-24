@@ -152,6 +152,9 @@ export const playerStats = sqliteTable(
     flipWins: integer('flip_wins').notNull().default(0),
     flipWagered: integer('flip_wagered').notNull().default(0),
     flipWon: integer('flip_won').notNull().default(0),
+    /** The part of `flipWagered` and `flipWon` from flips against the bot: what the board ranks. */
+    botFlipWagered: integer('bot_flip_wagered').notNull().default(0),
+    botFlipWon: integer('bot_flip_won').notNull().default(0),
     rolls: integer('rolls').notNull().default(0),
     rollWins: integer('roll_wins').notNull().default(0),
     rollWagered: integer('roll_wagered').notNull().default(0),

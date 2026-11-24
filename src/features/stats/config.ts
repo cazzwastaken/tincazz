@@ -16,7 +16,7 @@ export const categoryLabels: Record<LeaderboardCategory, string> = {
   jackpots: 'Jackpots',
   profit: 'Profit',
   spins: 'Spins',
-  coinflip: 'Coinflip net',
+  coinflip: 'Coinflip net (vs bot)',
   dice: 'Dice net',
 };
 
