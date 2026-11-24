@@ -10,6 +10,7 @@ import { errorReply } from '../features/ui/index.js';
 
 export const notYourPoll = 'Only the host or a moderator with Manage Messages can close this poll.';
 export const pollAlreadyOver = 'This poll is already closed.';
+export const pollWrongMessage = 'This button does not belong to a live poll.';
 export const pollGone = 'This poll no longer exists.';
 
 export class PollCloseHandler extends InteractionHandler {
@@ -29,6 +30,10 @@ export class PollCloseHandler extends InteractionHandler {
   public override async run(interaction: ButtonInteraction, id: PollCloseId) {
     const row = getPoll(this.container.db, id.guildId, id.pollId);
     if (!row || row.status === 'deleted') return interaction.reply(errorReply(pollGone));
+    // A button from a message that is not this poll's (such as an orphaned post) closes nothing.
+    if (interaction.message.id !== row.messageId) {
+      return interaction.reply(errorReply(pollWrongMessage));
+    }
     if (row.status !== 'open') return interaction.reply(errorReply(pollAlreadyOver));
 
     const allowed =

@@ -131,6 +131,15 @@ describe('queuePoll', () => {
     expect(queuePoll(db, details({ creationId: 'n8' }), now).kind).toBe('queued');
   });
 
+  it('never reuses the id of a discarded poll', () => {
+    const first = queuePoll(db, details({ creationId: 'r1' }), now);
+    if (first.kind !== 'queued') throw new Error('queue');
+    expect(discardPoll(db, first.poll)).toBe(true);
+    expect(getPoll(db, '10', first.poll.id)).toMatchObject({ status: 'deleted', messageId: null });
+    const second = queuePoll(db, details({ creationId: 'r2' }), now);
+    expect(second.kind === 'queued' && second.poll.id).toBeGreaterThan(first.poll.id);
+  });
+
   it('does not discard a poll that is already open', () => {
     const row = pollWithOptions();
     expect(discardPoll(db, row)).toBe(false);
@@ -261,7 +270,7 @@ describe('startup recovery', () => {
     updatePoll(db, open, { lastRecountAt: now - 1, nextSyncAt: now + hour });
 
     refreshPendingPolls(db, now);
-    expect(getPoll(db, '10', orphan.poll.id)).toBeUndefined();
+    expect(getPoll(db, '10', orphan.poll.id)).toMatchObject({ status: 'deleted', messageId: null });
     expect(getPoll(db, '10', posted.poll.id)).toMatchObject({
       status: 'publishing',
       nextSyncAt: now,

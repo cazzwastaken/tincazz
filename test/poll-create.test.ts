@@ -1,4 +1,4 @@
-import type { Client } from 'discord.js';
+import { type Client, Routes } from 'discord.js';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { closeDatabase, type Db, openDatabase } from '../src/db/index.js';
 import { createPoll, type PollRequest, pollStillPosting } from '../src/features/poll/create.js';
@@ -20,7 +20,7 @@ afterEach(() => closeDatabase(db));
 function stub() {
   const post = vi.fn(async () => ({ id: '30' }));
   const put = vi.fn(async () => undefined);
-  const del = vi.fn(async () => undefined);
+  const del = vi.fn(async (_route: string) => undefined);
   const client = {
     rest: { post, put, delete: del },
     logger: { warn: vi.fn() },
@@ -85,5 +85,18 @@ describe('createPoll idempotency', () => {
     expect(again).toEqual({ ok: false, error: pollStillPosting });
     expect(api.post).not.toHaveBeenCalled();
     expect(getPoll(db, '10', 1)?.status).toBe('publishing');
+  });
+
+  it('deletes the posted message and discards the row when seeding fails', async () => {
+    const api = stub();
+    api.put.mockRejectedValueOnce(new Error('no reactions'));
+    const result = await createPoll(api.client, db, request(), now);
+    expect(result.ok).toBe(false);
+    expect(api.del).toHaveBeenCalledTimes(1);
+    expect(api.del.mock.calls[0]?.[0]).toBe(Routes.channelMessage('20', '30'));
+    expect(getPoll(db, '10', 1)).toMatchObject({ status: 'deleted', messageId: null });
+    const next = await createPoll(api.client, db, request({ creationId: 'def' }), now);
+    expect(next.ok).toBe(true);
+    expect(getPoll(db, '10', 2)).toBeDefined();
   });
 });

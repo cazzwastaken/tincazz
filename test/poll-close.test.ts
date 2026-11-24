@@ -10,7 +10,12 @@ import {
   getPoll,
   markPollMessagesDeleted,
 } from '../src/features/poll/store.js';
-import { notYourPoll, pollAlreadyOver, pollGone } from '../src/interaction-handlers/poll-close.js';
+import {
+  notYourPoll,
+  pollAlreadyOver,
+  pollGone,
+  pollWrongMessage,
+} from '../src/interaction-handlers/poll-close.js';
 import { testEnv } from './support/env.js';
 import { makeButton } from './support/interaction.js';
 import { openPoll } from './support/polls.js';
@@ -37,11 +42,18 @@ describe('Close poll button', () => {
     closeDatabase(db);
   });
 
-  async function press(userId: string, permissions = 0n, customId?: string, guildId = '10') {
+  async function press(
+    userId: string,
+    permissions = 0n,
+    customId?: string,
+    guildId = '10',
+    messageId = '30',
+  ) {
     const button = makeButton(client, {
       customId: customId ?? encodePollCloseId({ guildId: '10', pollId: 1 }),
       userId,
       guildId,
+      messageId,
     });
     Object.assign(button, {
       memberPermissions: new PermissionsBitField(permissions),
@@ -101,6 +113,12 @@ describe('Close poll button', () => {
     const other = await press('2', PermissionsBitField.All, undefined, '11');
     expect(other.reply).not.toHaveBeenCalled();
     expect(other.deferUpdate).not.toHaveBeenCalled();
+    expect(getPoll(db, '10', 1)?.status).toBe('open');
+  });
+
+  it('ignores a button on a message that is not the poll message', async () => {
+    const button = await press('2', 0n, undefined, '10', '999');
+    expect(text(button)).toContain(pollWrongMessage);
     expect(getPoll(db, '10', 1)?.status).toBe('open');
   });
 });

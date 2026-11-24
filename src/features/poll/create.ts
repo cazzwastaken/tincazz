@@ -4,8 +4,9 @@ import { messageLinkUrl } from '../imaging/links.js';
 import { discordTime } from '../ui/index.js';
 import type { PollInput } from './args.js';
 import { poll as config } from './config.js';
+import { deletePollMessage } from './discord.js';
 import { publishPoll } from './runner.js';
-import { discardPoll, type Poll, queuePoll } from './store.js';
+import { discardPoll, getPoll, type Poll, queuePoll } from './store.js';
 
 export interface PollRequest {
   guildId: string;
@@ -80,6 +81,9 @@ export async function createPoll(
       url: messageLinkUrl(request.guildId, opened.channelId, opened.messageId as string),
     };
   } catch (error) {
+    // The message may have been posted before seeding or opening failed: do not leave it behind.
+    const posted = getPoll(db, request.guildId, queued.poll.id);
+    if (posted) await deletePollMessage(client, posted);
     discardPoll(db, queued.poll);
     client.logger.warn(`Poll in guild ${request.guildId} could not be posted`, error);
     return { ok: false, error: pollPostFailed };

@@ -136,15 +136,21 @@ export function updatePoll(db: Db, row: Poll, changes: Changes): Poll | undefine
     .get();
 }
 
-/** Removes a poll that never finished publishing, which frees the host's slot. */
+/**
+ * Gives up on a poll that never finished publishing, which frees the host's slot. The row stays
+ * as `deleted` (without its message), so poll IDs, which come from `max(id)`, are never reused:
+ * a stale Close poll button can never reach a newer poll.
+ */
 export function discardPoll(db: DbOrTx, row: Pick<Poll, 'guildId' | 'id'>): boolean {
   return db.transaction((tx) => {
-    const where = and(
-      eq(polls.guildId, row.guildId),
-      eq(polls.id, row.id),
-      eq(polls.status, 'publishing'),
-    );
-    const removed = tx.delete(polls).where(where).returning({ id: polls.id }).get();
+    const removed = tx
+      .update(polls)
+      .set({ status: 'deleted', messageId: null, nextSyncAt: null, accessFailures: 0 })
+      .where(
+        and(eq(polls.guildId, row.guildId), eq(polls.id, row.id), eq(polls.status, 'publishing')),
+      )
+      .returning({ id: polls.id })
+      .get();
     if (!removed) return false;
     tx.delete(pollVotes)
       .where(and(eq(pollVotes.guildId, row.guildId), eq(pollVotes.pollId, row.id)))

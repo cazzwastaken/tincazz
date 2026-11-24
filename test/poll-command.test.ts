@@ -155,7 +155,7 @@ describe('/poll and ?poll', () => {
     post.mockRejectedValueOnce(new Error('Missing Access'));
     const interaction = await slash({ question: 'Q?' });
     expect(json(interaction.editReply.mock.calls[0])).toContain('could not post the poll');
-    expect(rows()).toHaveLength(0);
+    expect(rows().map((row) => row.status)).toEqual(['deleted']);
     expect(openPollsByHost(container.db, '2', '1')).toHaveLength(0);
   });
 
@@ -163,7 +163,7 @@ describe('/poll and ?poll', () => {
     put.mockRejectedValueOnce(new Error('Missing Permissions'));
     const interaction = await slash({ question: 'Q?' });
     expect(json(interaction.editReply.mock.calls[0])).toContain('could not post the poll');
-    expect(rows()).toHaveLength(0);
+    expect(rows().map((row) => row.status)).toEqual(['deleted']);
   });
 
   it('a repeated interaction does not create a second poll', async () => {
@@ -211,6 +211,6 @@ describe('/poll and ?poll', () => {
     post.mockRejectedValueOnce(new Error('Missing Access'));
     const message = await prefix('?poll Q?');
     expect(message.reply.mock.calls[0]?.[0] as string).toContain('could not post the poll');
-    expect(rows()).toHaveLength(0);
+    expect(rows().map((row) => row.status)).toEqual(['deleted']);
   });
 });

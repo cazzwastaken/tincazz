@@ -48,6 +48,19 @@ export async function editPollMessage(
   });
 }
 
+/** Best-effort removal of a poll message that never opened; failures are ignored. */
+export async function deletePollMessage(
+  client: Client<true>,
+  row: Pick<Poll, 'channelId' | 'messageId'>,
+): Promise<void> {
+  if (row.messageId === null) return;
+  try {
+    await client.rest.delete(Routes.channelMessage(row.channelId, row.messageId));
+  } catch {
+    // Already gone or not ours to delete: nothing more to do.
+  }
+}
+
 /** Adds the bot's own option reactions in order (a no-op for ones already there). */
 export async function seedPollReactions(
   client: Client<true>,
