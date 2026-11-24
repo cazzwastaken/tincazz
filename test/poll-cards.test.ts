@@ -45,7 +45,7 @@ describe('poll cards', () => {
   });
 
   it('marks anonymous polls', () => {
-    expect(text({ ...base, anonymous: true }, [0, 0])).toContain('voter names are never shown');
+    expect(text({ ...base, anonymous: true }, [0, 0])).toContain('does not list voters');
     expect(text(base, [0, 0])).not.toContain('voter names');
   });
 

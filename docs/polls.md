@@ -24,8 +24,9 @@ React with an option emoji. You get one vote, and your latest reaction wins. Rem
 reaction withdraws your vote. Reactions that are not options, and reactions from bots, are
 ignored. The card updates a few seconds after the last vote.
 
-Anonymous polls (🔒) never show who voted. Tincazz still stores who voted what, so that
-each person only counts once, but nothing displays it.
+Anonymous polls (🔒) do not list voters on the card. They are not secret: Discord still shows
+who reacted with each emoji, and Tincazz stores who voted what, so that each person only counts
+once.
 
 ## Closing
 

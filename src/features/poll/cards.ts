@@ -27,7 +27,7 @@ type CardPoll = Pick<
   | 'closedAt'
 >;
 
-const anonymousNote = '🔒 Anonymous: voter names are never shown.';
+const anonymousNote = '🔒 Anonymous: this card does not list voters, but Discord still shows who reacted.';
 
 function banner(poll: CardPoll, counts: readonly number[]): string {
   const result = outcome(counts);
