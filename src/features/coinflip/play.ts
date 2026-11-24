@@ -9,7 +9,7 @@ import type { RandomInt } from '../gamba/roll.js';
 import { wager } from './config.js';
 import { ChallengeTakenError, ShortStakeError } from './errors.js';
 import { flipCoin } from './flip.js';
-import { flipRake } from './rake.js';
+import { botFlipRake, flipRake } from './rake.js';
 import { recordFlipStats } from './stats.js';
 
 export interface BotFlip {
@@ -34,7 +34,7 @@ export interface BotFlipRequest {
 }
 
 /**
- * Flips against the bot and settles it (stake, payout, rake into the pot, flip row, stats) in one
+ * Flips against the bot and settles it (stake, payout, rake from a win into the pot, flip row, stats) in one
  * transaction. Bet and funds errors propagate before anything but the wallet is written.
  */
 export function settleBotFlip(
@@ -50,7 +50,8 @@ export function settleBotFlip(
   return db.transaction((tx) => {
     const result = flipCoin(randomInt);
     const won = result === side;
-    const rake = flipRake(bet);
+    // The bot's rake comes off a win only: a loss costs the bet and adds nothing to the pot.
+    const rake = won ? botFlipRake(bet, randomInt) : 0;
     const credited = won ? 2 * bet - rake : 0;
     const { id: flipId } = tx
       .insert(flips)

@@ -189,6 +189,7 @@ async function apply(db: Db, step: Op, now: number): Promise<number> {
       return 0;
     }
     case 'diceRoll': {
+      const mark = ledgerMark(db);
       const potBefore = potAmount(db, guildId);
       const roll = settleRoll(
         db,
@@ -199,17 +200,34 @@ async function apply(db: Db, step: Op, now: number): Promise<number> {
       // Conservation counts the edge into the pot: the pot grows by exactly the roll's edge.
       expect(roll.pot, 'a roll adds its edge to the pot').toBe((potBefore ?? pot.seed) + roll.edge);
       expect(potAmount(db, guildId)).toBe(roll.pot);
+      // Only the edge enters the pot, however the roll went: the player's net is payout - bet.
+      expect(walletDelta(db, mark)).toBe(roll.payout - roll.bet);
       return 0;
     }
-    case 'flipBot':
-      settleBotFlip(
+    case 'flipBot': {
+      const mark = ledgerMark(db);
+      const potBefore = potAmount(db, guildId) ?? pot.seed;
+      const flip = settleBotFlip(
         db,
         { guildId, userId, bet: step.bet, side: step.side },
         now,
         draws([step.draw]),
       );
+      const potGain = (potAmount(db, guildId) ?? pot.seed) - potBefore;
+      // The bot's rake comes off a win; a loss adds nothing to the pot. Coins entering the pot are
+      // exactly the rake the player paid out of the payout, never more.
+      expect(potGain, 'the pot gains exactly the rake').toBe(flip.rake);
+      expect(flip.rake, 'a loss is not raked').toBe(flip.won ? flip.rake : 0);
+      const wallets = walletDelta(db, mark);
+      expect(
+        wallets + potGain,
+        'the bot funds its side: wallets and pot net the bet on a win',
+      ).toBe(flip.won ? flip.bet : -flip.bet);
       return 0;
-    case 'flipChallenge':
+    }
+    case 'flipChallenge': {
+      const mark = ledgerMark(db);
+      const potBefore = potAmount(db, guildId) ?? pot.seed;
       settleChallenge(
         db,
         {
@@ -226,7 +244,12 @@ async function apply(db: Db, step: Op, now: number): Promise<number> {
         now,
         draws([step.draw]),
       );
+      const potGain = (potAmount(db, guildId) ?? pot.seed) - potBefore;
+      // Player against player is closed: coins leaving the wallets are exactly the coins entering
+      // the pot.
+      expect(walletDelta(db, mark) + potGain, 'a challenge conserves coins').toBe(0);
       return 0;
+    }
     case 'daily':
       claimDaily(db, guildId, userId, now);
       return 0;
@@ -243,6 +266,25 @@ async function apply(db: Db, step: Op, now: number): Promise<number> {
       adminAdjust(db, { guildId, userId, actorId: '9', ...step, now });
       return 0;
   }
+}
+
+/** The highest ledger id, to measure what a settle moved afterwards. */
+function ledgerMark(db: Db): number {
+  return db
+    .select()
+    .from(ledger)
+    .all()
+    .reduce((max, row) => Math.max(max, row.id), 0);
+}
+
+/** Net coins the wallets gained from ledger rows after `mark`, ignoring wallet-creation grants. */
+function walletDelta(db: Db, mark: number): number {
+  return db
+    .select()
+    .from(ledger)
+    .all()
+    .filter((row) => row.id > mark && row.reason !== 'start')
+    .reduce((sum, row) => sum + row.delta, 0);
 }
 
 function potAmount(db: Db, guildId: string): number | undefined {
@@ -306,7 +348,8 @@ function expectInvariants(db: Db, removed: number): void {
   }
   const ledgerRows = db.select().from(ledger).all();
   for (const row of db.select().from(flips).all()) {
-    expect(row.rake).toBeGreaterThanOrEqual(1);
+    // Player flips always rake; the bot rakes a win only, so a lost bot flip has none.
+    expect(row.rake).toBeGreaterThanOrEqual(row.mode === 'bot' && row.winnerId === null ? 0 : 1);
     expect(row.rake).toBeLessThanOrEqual(row.bet);
     const mine = ledgerRows.filter(
       (entry) =>
@@ -327,7 +370,7 @@ function expectInvariants(db: Db, removed: number): void {
     }
   }
   for (const row of db.select().from(rolls).all()) {
-    expect(row.edge).toBeGreaterThanOrEqual(1);
+    expect(row.edge).toBeGreaterThanOrEqual(0);
     expect(row.edge).toBeLessThanOrEqual(row.bet);
     const mine = ledgerRows
       .filter(

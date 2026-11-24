@@ -47,7 +47,8 @@ describe('settleRoll', () => {
       db,
       { guildId: 'g', userId: 'u', bet: '100', call: { kind: 'high' } },
       5,
-      draws(5, 2),
+      // Dice 6 and 3, then the payout draw (9,999 rounds 237.6 down), then the edge draw.
+      draws(5, 2, 9_999),
     );
     expect(roll).toMatchObject({
       bet: 100,
@@ -107,20 +108,21 @@ describe('settleRoll', () => {
     expectLedgerConsistent(db);
   });
 
-  it('exact 12 on ⚅⚅ pays floor(bet × 35.64)', () => {
+  it('exact 12 on ⚅⚅ pays bet × 35.64', () => {
     const roll = settleRoll(
       db,
       { guildId: 'g', userId: 'u', bet: '250', call: { kind: 'exact', target: 12 } },
       5,
-      draws(5, 5),
+      // Dice 6 and 6, then the edge draw (2.5 coins: a low draw rounds up).
+      draws(5, 5, 49),
     );
     expect(roll).toMatchObject({
       die1: 6,
       die2: 6,
       total: 12,
       won: true,
-      payout: Math.floor(250 * 35.64),
-      edge: 2,
+      payout: 8_910,
+      edge: 3,
     });
     expect(db.select().from(rolls).get()).toMatchObject({ call: 'exact', target: 12 });
     expectLedgerConsistent(db);
@@ -128,7 +130,7 @@ describe('settleRoll', () => {
 
   it('stats count rolls, wins, wagered and won', () => {
     const request = { guildId: 'g', userId: 'u', bet: '100', call: { kind: 'high' } } as const;
-    settleRoll(db, request, 5, draws(5, 2));
+    settleRoll(db, request, 5, draws(5, 2, 9_999));
     settleRoll(db, request, 6, draws(0, 0));
     settleRoll(db, { ...request, bet: undefined }, 7, draws(0, 0));
     expect(statsFor('u')).toMatchObject({

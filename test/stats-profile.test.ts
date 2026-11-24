@@ -85,7 +85,7 @@ describe('playerProfile', () => {
       rolls: 1,
       rollWins: 1,
       rollWagered: 100,
-      rollWon: 237,
+      rollWon: 238,
     });
   });
 

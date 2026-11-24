@@ -49,5 +49,5 @@ export {
   settleBotFlip,
   settleChallenge,
 } from './play.js';
-export { flipRake } from './rake.js';
+export { botFlipRake, flipRake } from './rake.js';
 export { recordFlipStats } from './stats.js';

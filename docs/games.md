@@ -56,8 +56,12 @@ and no buttons.
 - **open**: anyone can accept within 120 seconds.
 - Pending challenges keep their original deadline across bot restarts. If they expire while the
   bot is offline, it updates the cards when it comes back.
-- The winner takes the pool minus a 3% rake (at least 1 coin) that goes into the gamba pot. Against
-  the bot a win nets your bet minus the rake and a loss costs the bet.
+- Against a member the winner takes the pool minus a 3% rake (at least 1 coin) that goes into the
+  gamba pot.
+- Against the bot a win pays both stakes minus the same 3% of the pool, so it nets your bet minus the
+  rake, and the rake goes into the pot. A loss costs the bet and adds nothing to the pot. Over many
+  flips you lose 3% of what you bet, and that is exactly what the pot gains. Small rakes are
+  rounded up or down at random in proportion to the fraction, so this holds at every bet.
 - The coin spins for a few seconds before the result shows.
 - A finished challenge has a **Rematch** button. Either player can press it: the first press
   challenges the other for the same bet and removes the button.
@@ -80,6 +84,8 @@ result. Bets run from 10 to 10,000 coins (default 10).
 | exact 3 or 11    | that total      | 17.82x |
 | exact 2 or 12    | that total      | 35.64x |
 
-Payouts are 99% of fair odds, rounded down to whole coins. 1% of every bet (at least 1 coin) goes
-into the gamba pot. **Roll again** repeats the same bet and call. From a message:
+Payouts are 99% of fair odds. Fractions of a coin are rounded up or down at random in proportion to
+the fraction (a 10-coin high pays 23 or 24, 24 six times in ten for an average of 23.76), so the
+return is 99% at every bet size. 1% of every bet goes into the gamba pot the same way (a 10-coin
+roll adds a coin one time in ten). **Roll again** repeats the same bet and call. From a message:
 `?dice 50 seven`, `?dice =12 50`.

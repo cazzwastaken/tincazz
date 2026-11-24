@@ -46,8 +46,8 @@ export function settleRoll(db: Db, request: RollRequest, now: number, randomInt?
   return db.transaction((tx) => {
     const [die1, die2] = rollDice(randomInt);
     const won = wins(call, die1, die2);
-    const payout = won ? payoutFor(call, bet) : 0;
-    const edge = diceEdge(bet);
+    const payout = won ? payoutFor(call, bet, randomInt) : 0;
+    const edge = diceEdge(bet, randomInt);
     const { id: rollId } = tx
       .insert(rolls)
       .values({

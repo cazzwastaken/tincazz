@@ -201,7 +201,7 @@ function flipDice(prefix: string): Page {
         `**bot**: flip against the bot, e.g. \`${prefix}cf 100 tails\``,
         `**challenge**: \`/coinflip challenge @member\` or \`${prefix}cf @member 100\`, open for ${seconds(coinflip.expiryMs.challenge)} seconds`,
         `**open**: \`${prefix}cf open 100\`, anyone can accept within ${seconds(coinflip.expiryMs.open)} seconds`,
-        `The winner takes both stakes minus a ${coinflip.rakePercent}% rake that goes to the gamba pot. Challenge results have a **Rematch** button.`,
+        `The winner takes both stakes minus a ${coinflip.rakePercent}% rake that goes to the gamba pot (against the bot the rake comes off a win only). Challenge results have a **Rematch** button.`,
       ].join('\n'),
       [
         '### 🎲 Dice',

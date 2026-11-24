@@ -216,9 +216,9 @@ describe('/dice and ?dice', () => {
       expect(json(interaction.reply.mock.calls[0])).toContain('tumbling');
       await vi.waitFor(() => expect(interaction.editReply).toHaveBeenCalledTimes(editCount));
       expect(json(interaction.editReply.mock.calls.at(-1)?.[0])).toBe(
-        doubleSixCard('1', 10, { kind: 'high' }, 23, 1),
+        doubleSixCard('1', 10, { kind: 'high' }, 24, 1),
       );
-      expect(findWallet(container.db, '2', '1')?.balance).toBe(startingBalance - 10 + 23);
+      expect(findWallet(container.db, '2', '1')?.balance).toBe(startingBalance - 10 + 24);
     });
 
     it('on:e12 bet:50 settles an exact 12', async () => {

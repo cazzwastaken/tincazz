@@ -1,4 +1,5 @@
 import { randomInt as cryptoRandomInt } from 'node:crypto';
+import { roundUnbiased } from '../economy/rounding.js';
 import type { RandomInt } from '../gamba/roll.js';
 import { type DiceCall, dieFace } from './calls.js';
 import { dice } from './config.js';
@@ -44,14 +45,21 @@ export function payoutBps(call: DiceCall): number {
   return (36 * dice.returnBps) / ways(call);
 }
 
-/** Coins paid for a winning wager, floored to whole coins. */
-export function payoutFor(call: DiceCall, bet: number): number {
-  return Math.floor((bet * payoutBps(call)) / 10_000);
+/**
+ * Coins paid for a winning wager. The exact payout is rarely a whole number, so it is rounded
+ * up or down at random in proportion to the fraction: the expected payout is exactly the
+ * advertised return at every bet size.
+ */
+export function payoutFor(call: DiceCall, bet: number, randomInt?: RandomInt): number {
+  return roundUnbiased(bet * payoutBps(call), 10_000, randomInt);
 }
 
-/** Coins taken from a wager as the house edge: a percentage, at least one. */
-export function diceEdge(bet: number): number {
-  return Math.max(1, Math.floor((bet * dice.edgePercent) / 100));
+/**
+ * Coins taken from a wager as the house edge into the pot. Rounded unbiased like payouts, so the
+ * pot gains the edge on average (a 10-coin bet adds 0.1 coins per roll, not a whole one).
+ */
+export function diceEdge(bet: number, randomInt?: RandomInt): number {
+  return roundUnbiased(bet * dice.edgePercent, 100, randomInt);
 }
 
 /** What the first die leaves the player needing, shown while the second die is still rolling. */
