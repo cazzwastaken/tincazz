@@ -10,6 +10,7 @@ import {
   coinflip,
   forgetChallengeCard,
   liveChallengeCount,
+  reserveChallengeSlot,
   trackChallengeCard,
 } from '../src/features/coinflip/index.js';
 
@@ -106,5 +107,46 @@ describe('live challenge limit (model)', () => {
     expect(liveChallengeCount('10', '1')).toBe(0);
     release();
     await pending;
+  });
+
+  it('counts in-flight reservations with live rows and frees them once released', () => {
+    const releases: (() => void)[] = [];
+    trackChallengeCard('10', 'c', 'live', view('1'), async () => undefined);
+    for (let taken = 1; taken < coinflip.maxLiveChallenges; taken++) {
+      releases.push(reserveChallengeSlot('10', '1'));
+    }
+    expect(() => reserveChallengeSlot('10', '1')).toThrow(ChallengeLimitError);
+    // Other players and guilds are unaffected.
+    releases.push(reserveChallengeSlot('10', '2'), reserveChallengeSlot('20', '1'));
+
+    const [first] = releases;
+    first?.();
+    first?.();
+    releases.push(reserveChallengeSlot('10', '1'));
+    expect(() => reserveChallengeSlot('10', '1')).toThrow(ChallengeLimitError);
+    for (const release of releases) release();
+    expect(() => assertChallengeCapacity('10', '1')).not.toThrow();
+  });
+
+  it('never admits more concurrent reservations than the cap allows (model)', () => {
+    fc.assert(
+      fc.property(fc.array(fc.nat(coinflip.maxLiveChallenges + 3), { maxLength: 30 }), (picks) => {
+        container.db = openDatabase(':memory:');
+        const held: (() => void)[] = [];
+        for (const pick of picks) {
+          if (pick === 0 && held.length > 0) {
+            held.pop()?.();
+            continue;
+          }
+          try {
+            held.push(reserveChallengeSlot('10', '1'));
+          } catch (error) {
+            expect(error).toBeInstanceOf(ChallengeLimitError);
+          }
+          expect(held.length).toBeLessThanOrEqual(coinflip.maxLiveChallenges);
+        }
+        for (const release of held) release();
+      }),
+    );
   });
 });

@@ -219,6 +219,42 @@ describe('/coinflip', () => {
       expect(cards()).toBe(coinflip.maxLiveChallenges);
     });
 
+    it('never exceeds the cap when challenges are started concurrently', async () => {
+      let nextCard = 0;
+      const starts = Array.from({ length: coinflip.maxLiveChallenges * 2 }, () => {
+        const interaction = makeChatInput(client, {
+          commandName: 'coinflip',
+          userId: '1',
+          subcommand: 'open',
+          options: { bet: '10' },
+        });
+        const id = `card-${nextCard++}`;
+        // The card goes out slowly, so every start has checked the cap before any row exists.
+        interaction.reply.mockImplementation((async (options: { withResponse?: boolean }) => {
+          if (!options.withResponse) return {};
+          await new Promise((resolve) => setTimeout(resolve, 30));
+          return { resource: { message: { id } } };
+        }) as never);
+        client.emit(Events.InteractionCreate, interaction as never);
+        return interaction;
+      });
+      await vi.waitFor(
+        () => {
+          for (const interaction of starts) {
+            expect(interaction.reply).toHaveBeenCalledTimes(1);
+          }
+          expect(cards()).toBe(coinflip.maxLiveChallenges);
+        },
+        { timeout: 3000 },
+      );
+
+      const refused = starts.filter((interaction) =>
+        json(interaction.reply.mock.calls[0]).includes('open challenges'),
+      );
+      expect(refused).toHaveLength(starts.length - coinflip.maxLiveChallenges);
+      expect(cards()).toBe(coinflip.maxLiveChallenges);
+    });
+
     it('counts per challenger and per guild', async () => {
       seed(coinflip.maxLiveChallenges, '7');
       seed(coinflip.maxLiveChallenges, '1', '99');

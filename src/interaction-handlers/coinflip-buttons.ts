@@ -9,7 +9,6 @@ import {
   updateDisplay,
 } from '../features/animation/index.js';
 import {
-  assertChallengeCapacity,
   botFlipCard,
   botFlipFrames,
   type ChallengeId,
@@ -35,6 +34,7 @@ import {
   type RematchId,
   rematchTaken,
   reopen,
+  reserveChallengeSlot,
   ShortStakeError,
   settleBotFlip,
   settleChallenge,
@@ -116,57 +116,62 @@ export class CoinflipButtonsHandler extends InteractionHandler {
       return interaction.reply(errorReply(notYourChallenge));
     }
     // Before the key is claimed, so a refused rematch can be pressed again once a slot is free.
-    assertChallengeCapacity(interaction.guildId as string, clickerId);
-    const key = `rematch:${interaction.message.id}`;
-    if (!tryClose(key)) {
-      return interaction.reply(errorReply(rematchTaken));
-    }
-
-    // Retire the button first, so the result card cannot offer a rematch that is already on.
-    const shown = interaction.message.components[0]?.toJSON();
+    // Held until the new challenge has its row, so the cap holds while the card is being sent.
+    const release = reserveChallengeSlot(interaction.guildId as string, clickerId);
     try {
-      if (shown?.type === ComponentType.Container) {
-        await interaction.update(cardReply(withoutActionRows(shown)));
-      } else {
-        await interaction.deferUpdate();
+      const key = `rematch:${interaction.message.id}`;
+      if (!tryClose(key)) {
+        return interaction.reply(errorReply(rematchTaken));
       }
-    } catch (error) {
-      // Nothing was sent, so the players can press again.
-      reopen(key);
-      throw error;
-    }
 
-    const isChallenger = clickerId === id.challengerId;
-    const otherId = isChallenger ? id.acceptorId : id.challengerId;
-    const now = Date.now();
-    const view: ChallengeView = {
-      challengerId: clickerId,
-      opponentId: otherId,
-      bet: id.bet,
-      side: isChallenger ? id.challengerSide : otherSide(id.challengerSide),
-      expiresAt: now + coinflip.expiryMs.challenge,
-    };
-    let sent: Message;
-    try {
-      sent = await interaction.message.reply({
-        ...cardReply(challengeCard(view)),
-        allowedMentions: { users: [otherId] },
-      });
-    } catch (error) {
-      this.container.logger.error(
-        `coinflip: could not send the rematch for ${interaction.message.id}: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
+      // Retire the button first, so the result card cannot offer a rematch that is already on.
+      const shown = interaction.message.components[0]?.toJSON();
+      try {
+        if (shown?.type === ComponentType.Container) {
+          await interaction.update(cardReply(withoutActionRows(shown)));
+        } else {
+          await interaction.deferUpdate();
+        }
+      } catch (error) {
+        // Nothing was sent, so the players can press again.
+        reopen(key);
+        throw error;
+      }
+
+      const isChallenger = clickerId === id.challengerId;
+      const otherId = isChallenger ? id.acceptorId : id.challengerId;
+      const now = Date.now();
+      const view: ChallengeView = {
+        challengerId: clickerId,
+        opponentId: otherId,
+        bet: id.bet,
+        side: isChallenger ? id.challengerSide : otherSide(id.challengerSide),
+        expiresAt: now + coinflip.expiryMs.challenge,
+      };
+      let sent: Message;
+      try {
+        sent = await interaction.message.reply({
+          ...cardReply(challengeCard(view)),
+          allowedMentions: { users: [otherId] },
+        });
+      } catch (error) {
+        this.container.logger.error(
+          `coinflip: could not send the rematch for ${interaction.message.id}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+        return;
+      }
+      trackChallengeCard(
+        interaction.guildId as string,
+        interaction.channelId,
+        sent.id,
+        view,
+        (closed) => sent.edit(cardReply(closed)),
       );
-      return;
+    } finally {
+      release();
     }
-    trackChallengeCard(
-      interaction.guildId as string,
-      interaction.channelId,
-      sent.id,
-      view,
-      (closed) => sent.edit(cardReply(closed)),
-    );
   }
 
   private async answer(interaction: ButtonInteraction, id: ChallengeId) {

@@ -24,6 +24,7 @@ export {
   forgetChallengeCard,
   isChallengeCardClosed,
   liveChallengeCount,
+  reserveChallengeSlot,
   restoreChallengeCards,
   trackChallengeCard,
 } from './challenge-cards.js';

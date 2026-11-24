@@ -16,7 +16,6 @@ import {
   stillRolling,
 } from '../../features/animation/index.js';
 import {
-  assertChallengeCapacity,
   botFlipCard,
   botFlipFrames,
   type ChallengeView,
@@ -28,6 +27,7 @@ import {
   flipUsage,
   memberNotFound,
   parseFlipArgs,
+  reserveChallengeSlot,
   settleBotFlip,
   trackChallengeCard,
   wager,
@@ -234,22 +234,26 @@ export class CoinflipCommand extends Command {
       return surface.error(cannotChallengeBot);
     }
 
-    assertChallengeCapacity(surface.guildId, challengerId);
+    // Held until the row exists: the card is sent first, so the cap would otherwise be racy.
+    const release = reserveChallengeSlot(surface.guildId, challengerId);
+    try {
+      // Nothing is escrowed: the stake is only checked here and debited when someone accepts.
+      const now = Date.now();
+      const wallet = getOrCreateWallet(this.container.db, surface.guildId, challengerId, now);
+      const amount = parseBet(bet?.trim() || String(wager.defaultBet), wallet.balance, wager);
+      const view: ChallengeView = {
+        challengerId,
+        opponentId: opponent?.id,
+        bet: amount,
+        side,
+        expiresAt: now + coinflip.expiryMs[mode],
+      };
 
-    // Nothing is escrowed: the stake is only checked here and debited when someone accepts.
-    const now = Date.now();
-    const wallet = getOrCreateWallet(this.container.db, surface.guildId, challengerId, now);
-    const amount = parseBet(bet?.trim() || String(wager.defaultBet), wallet.balance, wager);
-    const view: ChallengeView = {
-      challengerId,
-      opponentId: opponent?.id,
-      bet: amount,
-      side,
-      expiresAt: now + coinflip.expiryMs[mode],
-    };
-
-    // Only a named opponent is pinged; an open challenge pings nobody.
-    const sent = await surface.reply(challengeCard(view), opponent ? [opponent.id] : undefined);
-    trackChallengeCard(surface.guildId, surface.channelId, sent.id, view, surface.edit);
+      // Only a named opponent is pinged; an open challenge pings nobody.
+      const sent = await surface.reply(challengeCard(view), opponent ? [opponent.id] : undefined);
+      trackChallengeCard(surface.guildId, surface.channelId, sent.id, view, surface.edit);
+    } finally {
+      release();
+    }
   }
 }
