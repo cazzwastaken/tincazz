@@ -1,0 +1,1 @@
+CREATE INDEX `polls_status_ends_idx` ON `polls` (`status`,`ends_at`);

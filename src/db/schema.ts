@@ -295,6 +295,7 @@ export const polls = sqliteTable(
   (table) => [
     primaryKey({ columns: [table.guildId, table.id] }),
     index('polls_next_sync_idx').on(table.nextSyncAt),
+    index('polls_status_ends_idx').on(table.status, table.endsAt),
     index('polls_host_status_idx').on(table.guildId, table.hostId, table.status),
   ],
 );

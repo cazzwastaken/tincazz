@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { closeDatabase, type Db, openDatabase } from '../src/db/index.js';
 import { pollVotes } from '../src/db/schema.js';
@@ -276,6 +277,18 @@ describe('startup recovery', () => {
       nextSyncAt: now,
     });
     expect(getPoll(db, '10', open.id)).toMatchObject({ nextSyncAt: now, lastRecountAt: null });
+  });
+});
+
+describe('due poll scan', () => {
+  it('uses indexes for both branches, so finished rows are not scanned', () => {
+    const plan = db.all<{ detail: string }>(
+      sql`explain query plan select * from polls where next_sync_at <= 1 or (status = 'open' and ends_at <= 1)`,
+    );
+    const text = plan.map((row) => row.detail).join('\n');
+    expect(text).toContain('polls_next_sync_idx');
+    expect(text).toContain('polls_status_ends_idx');
+    expect(text).not.toMatch(/SCAN polls\b(?! USING)/);
   });
 });
 
