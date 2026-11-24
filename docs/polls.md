@@ -44,7 +44,8 @@ Tincazz needs these permissions in the channel:
   Without it only your latest vote counts, but the older reactions stay visible on the message.
   Without it, a withdrawn vote can also come back: the periodic recount restores your vote only if
   exactly one option reaction of yours remains. With several left, the latest cannot be known and
-  you stay unvoted.
+  you stay unvoted. For example, if you react A, then B, and then remove B, the next recount
+  (every 15 minutes or so) may restore your vote to A, because A is the only reaction left.
 
 Polls are stored in the database and survive restarts. While the bot is offline, votes are
 not lost: on startup, and every 15 minutes, Tincazz reads the reactions Discord returns and brings
