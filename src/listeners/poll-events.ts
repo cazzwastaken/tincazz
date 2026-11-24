@@ -48,7 +48,8 @@ export class PollEventsListener extends Listener {
         const { guild_id: guildId, message_id: messageId, user_id: userId } = packet.d;
         // Super (burst) reactions never vote.
         if (!guildId || packet.d.burst) return;
-        if (packet.d.member?.user.bot || userId === client.user?.id) return;
+        if (packet.d.member?.user.bot || client.users.cache.get(userId)?.bot) return;
+        if (userId === client.user?.id) return;
         const emoji = unicode(packet.d.emoji);
         if (!emoji) return;
         // Only a poll's own option emoji reach the vote path.

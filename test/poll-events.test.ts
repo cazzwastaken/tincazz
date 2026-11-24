@@ -81,6 +81,16 @@ describe('poll events', () => {
     expect(votes()).toEqual([1, 0, 0]);
   });
 
+  it('ignores a bot known only from the user cache', () => {
+    save();
+    vi.spyOn(client.users.cache, 'get').mockImplementation(((id: string) =>
+      id === '6' ? { bot: true } : undefined) as never);
+    reaction('MESSAGE_REACTION_ADD', one as string, { user_id: '6' });
+    expect(votes()).toEqual([0, 0, 0]);
+    reaction('MESSAGE_REACTION_ADD', one as string, { user_id: '7' });
+    expect(votes()).toEqual([1, 0, 0]);
+  });
+
   it('ignores super (burst) reactions, added or removed', () => {
     save();
     reaction('MESSAGE_REACTION_ADD', one as string, { burst: true });
