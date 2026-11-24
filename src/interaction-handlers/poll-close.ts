@@ -11,6 +11,7 @@ import { errorReply } from '../features/ui/index.js';
 export const notYourPoll = 'Only the host or a moderator with Manage Messages can close this poll.';
 export const pollAlreadyOver = 'This poll is already closed.';
 export const pollWrongMessage = 'This button does not belong to a live poll.';
+export const pollStillPosting = 'This poll is still being posted. Try again in a moment.';
 export const pollGone = 'This poll no longer exists.';
 
 export class PollCloseHandler extends InteractionHandler {
@@ -34,6 +35,7 @@ export class PollCloseHandler extends InteractionHandler {
     if (interaction.message.id !== row.messageId) {
       return interaction.reply(errorReply(pollWrongMessage));
     }
+    if (row.status === 'publishing') return interaction.reply(errorReply(pollStillPosting));
     if (row.status !== 'open') return interaction.reply(errorReply(pollAlreadyOver));
 
     const allowed =

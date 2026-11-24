@@ -280,6 +280,8 @@ export const polls = sqliteTable(
     yesNo: integer('yes_no', { mode: 'boolean' }).notNull().default(false),
     anonymous: integer('anonymous', { mode: 'boolean' }).notNull().default(false),
     endsAt: integer('ends_at').notNull(),
+    /** When the row was queued; a `publishing` row is given up on after a TTL. */
+    createdAt: integer('created_at').notNull().default(0),
     status: text('status', { enum: pollStatuses }).notNull().default('publishing'),
     closedBy: text('closed_by'),
     closedAt: integer('closed_at'),

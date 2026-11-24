@@ -14,6 +14,7 @@ const base: Poll = {
   yesNo: false,
   anonymous: false,
   endsAt: 1_800_000_000_000,
+  createdAt: 0,
   status: 'open',
   closedBy: null,
   closedAt: null,

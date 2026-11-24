@@ -4,6 +4,7 @@ import type { Db } from '../../db/index.js';
 import { pollCardHash } from './cards.js';
 import { poll as config } from './config.js';
 import {
+  deletePollMessage,
   editPollMessage,
   fetchPollMessage,
   fetchVoters,
@@ -16,6 +17,7 @@ import {
 import {
   applyRecount,
   closeDuePoll,
+  discardPoll,
   duePolls,
   type Poll,
   recountRaced,
@@ -72,6 +74,12 @@ export async function syncPoll(client: Client<true>, db: Db, row: Poll, now: num
   try {
     if (row.status === 'deleted') return;
     if (row.status === 'publishing') {
+      if (now - row.createdAt >= config.publishTtlMs) {
+        // Stuck publishing: do not hold the host's slot forever.
+        await deletePollMessage(client, row);
+        discardPoll(db, row);
+        return;
+      }
       if (row.messageId === null) return;
       await publishPoll(client, db, row, now);
       return;

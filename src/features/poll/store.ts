@@ -92,6 +92,9 @@ export function queuePoll(db: Db, details: PollCreation, now: number): QueuedPol
         yesNo: details.options === undefined,
         anonymous: details.anonymous,
         endsAt: now + details.durationMs,
+        createdAt: now,
+        // The runner gives up on the row if it is still publishing by then.
+        nextSyncAt: now + config.publishTtlMs,
         status: 'publishing',
       })
       .returning()

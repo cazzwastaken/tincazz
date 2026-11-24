@@ -368,6 +368,39 @@ describe('publishPoll', () => {
     expect(read()?.status).toBe('publishing');
   });
 
+  it('gives up on a poll stuck publishing after the TTL and frees the slot', async () => {
+    const row = queued();
+    vi.useFakeTimers({ now });
+    const api = discord();
+    const del = vi.fn(async (_route: string) => undefined);
+    Object.assign(api.client.rest, { delete: del });
+    updatePoll(db, row, { messageId: '30' });
+    const stop = startPolls(api.client);
+    try {
+      // Make the resumed publish fail so the row stays publishing until the TTL.
+      api.put.mockRejectedValue(new Error('no reactions'));
+      await vi.advanceTimersByTimeAsync(poll.publishTtlMs + 10_000);
+      expect(read()).toMatchObject({ status: 'deleted', messageId: null });
+      expect(del).toHaveBeenCalledWith(messagePath);
+      expect(openPollsByHost(db, '10', '2')).toHaveLength(0);
+    } finally {
+      stop();
+    }
+  });
+
+  it('gives up on a publishing row that never got a message', async () => {
+    queued();
+    vi.useFakeTimers({ now });
+    const api = discord();
+    const stop = startPolls(api.client);
+    try {
+      await vi.advanceTimersByTimeAsync(poll.publishTtlMs + 5000);
+      expect(read()?.status).toBe('deleted');
+    } finally {
+      stop();
+    }
+  });
+
   it('resumes publishing polls at startup', async () => {
     const row = queued();
     updatePoll(db, row, { messageId: '30' });

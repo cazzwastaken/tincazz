@@ -18,6 +18,8 @@ export const poll = {
   /** Wait before recounting again after a vote event made a recount's snapshot stale. */
   racedRecountRetryMs: 5_000,
   publishRetryMs: 5_000,
+  /** A poll still `publishing` this long after it was queued is given up on. */
+  publishTtlMs: 10 * minute,
   accessRetryMs: 5 * minute,
   maxAccessRetryMs: 60 * minute,
   maxConcurrentSyncs: 4,

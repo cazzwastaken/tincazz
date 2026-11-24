@@ -3,6 +3,7 @@ import { Events, PermissionFlagsBits, PermissionsBitField } from 'discord.js';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createClient } from '../src/client.js';
 import { closeDatabase, type Db, openDatabase } from '../src/db/index.js';
+import { polls } from '../src/db/schema.js';
 import { encodePollCloseId } from '../src/features/poll/index.js';
 import {
   castVote,
@@ -14,6 +15,7 @@ import {
   notYourPoll,
   pollAlreadyOver,
   pollGone,
+  pollStillPosting,
   pollWrongMessage,
 } from '../src/interaction-handlers/poll-close.js';
 import { testEnv } from './support/env.js';
@@ -120,5 +122,13 @@ describe('Close poll button', () => {
     const button = await press('2', 0n, undefined, '10', '999');
     expect(text(button)).toContain(pollWrongMessage);
     expect(getPoll(db, '10', 1)?.status).toBe('open');
+  });
+
+  it('says a publishing poll is still being posted, not closed', async () => {
+    db.update(polls).set({ status: 'publishing' }).run();
+    const button = await press('2');
+    expect(text(button)).toContain(pollStillPosting);
+    expect(text(button)).not.toContain(pollAlreadyOver);
+    expect(getPoll(db, '10', 1)?.status).toBe('publishing');
   });
 });
