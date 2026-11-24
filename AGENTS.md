@@ -34,9 +34,10 @@ sharp for images, pnpm, [Biome](https://biomejs.dev), [Vitest](https://vitest.de
 | Change gamba or dice odds  | `src/features/gamba/config.ts` / `src/features/dice/config.ts`, then the `*-evaluate` tests, `docs/games.md`, the help cards                                                                                                                                                                                              |
 | Add a coin faucet          | `src/features/economy/` (config, claim function, ledger reason), `test/fuzz-economy.test.ts` (op and `expectCooldownsHeld`), help `coins` page                                                                                                                                                                            |
 | Add an image source or op  | `src/features/imaging/` (`source.ts`, `render.ts`, `frames.ts`...), keep `urls.ts` allowlist intact, `test/imaging-*.test.ts` and `fuzz-imaging-*.test.ts`                                                                                                                                                                |
-| Add a help topic           | `src/features/help/topics.ts` (page, `topicInfo`, aliases), page in `cards.ts`, `test/help.test.ts`                                                                                                                                                                                                                       |
+| Add a help topic           | `src/features/help/topics.ts` (page, `topicInfo`, aliases), page in `cards.ts`, `test/help.test.ts` and `fuzz-help.test.ts`                                                                                                                                                                                               |
 | Add an env variable        | zod schema in `src/config/env.ts`, `.env.example`, `test/env.test.ts`                                                                                                                                                                                                                                                     |
 | Add a DB column or table   | `src/db/schema.ts`, then `pnpm db:generate --name <change>`, commit `drizzle/` with it                                                                                                                                                                                                                                    |
+| Change Hall of Fame rules  | `src/features/halloffame/`: `config.ts` (limits, tiers, timings), `eligibility.ts` (guards and `guardNotes`, repeated by the intro card, `/help` and the docs), `cards.ts` for the card, `settings.ts` for `/settings halloffame`, then `test/*halloffame*.test.ts`, the `/help` page, `docs/halloffame.md`               |
 | Add a poll option or limit | `src/features/poll/config.ts` (limits, emoji), `args.ts` for parsing, `cards.ts`/`bars.ts` for the card, then `test/poll-*.test.ts`, the `/help` page, `docs/polls.md`                                                                                                                                                    |
 | Add a log event            | event type in `src/features/logs/events.ts`, card in `cards.ts`, emit through `sendLog` after the transaction                                                                                                                                                                                                             |
 | Add a listener or handler  | one file in `src/listeners/` or `src/interaction-handlers/` (auto-loaded)                                                                                                                                                                                                                                                 |
@@ -61,8 +62,8 @@ src/
   config/env.ts   zod schema for environment variables
   db/             SQLite schema (Drizzle) and `openDatabase`, exposed as `container.db`
   commands/       one file per command, grouped in folders by category
-    admin/        `/settings` (log channels, join auto-roles, the gamba jackpot role, game channels and the honeypot channel;
-                  Manage Server); `/giveaway create` (server-level and channel Manage Messages)
+    admin/        `/settings` (log channels, join auto-roles, the gamba jackpot role, game channels, the honeypot channel
+                  and the Hall of Fame channel, threshold and exempt channels; Manage Server); `/giveaway create` (server-level and channel Manage Messages)
                   and `/giveaway cancel` (same staff checks), plus `/giveaway list`
     economy/      `/balance` (also `?bal` / `?balance`), `/daily`, `/collect`, `/bailout`, `/eco`
     general/      `?ping` / `/ping`, `?help` / `/help` (paged card, `topic` option / argument)
@@ -95,7 +96,17 @@ src/
                   recounts, restart recovery), `poll:close:*` custom IDs and `createPoll`, which
                   posts and seeds a poll and frees the slot when that fails
     giveaways/    guild-scoped reaction giveaways, live entry counts, durable draw and result edits
-    help/         the paged help card (home, games, images, coins, gamba, coinflip and dice, giveaways, polls), the
+    halloffame/   reaction-triggered Hall of Fame: config (threshold 2-50, caps, tiers, timings), the
+                  store (settings, exempt channels and one entry per source message: a claim made
+                  before sending, the posted card, a tombstone when staff delete it, the peak count),
+                  pure eligibility (the guards and their `guardNotes`), distinct-people scoring,
+                  content and quoting helpers, the card and intro renderers (`cards.ts`, images
+                  re-uploaded), the `HallDiscord` port and its discord.js implementation (REST
+                  fetches, downloads), the debounce, queue and per-message lock (`queue.ts`), the
+                  runner (induct, sync edits and peak, drop posts of deleted originals, adopt or
+                  release claims abandoned mid-post) and the `/settings halloffame` handlers
+                  (`settings.ts`, kept out of `commands/` so Sapphire does not load them)
+    help/         the paged help card (home, games, images, coins, gamba, coinflip and dice, giveaways, polls, Hall of Fame), the
                   topic menu and aliases, built from the economy and wager config so it cannot
                   drift; `hp:*` custom IDs
     honeypot/     per-guild honeypot channel: the softban trigger with its in-memory guard, the
@@ -128,12 +139,13 @@ src/
                   after a single or bulk delete (`honeypot.ts`, `honeypot-card-delete.ts`,
                   `honeypot-card-bulk-delete.ts`), ready, a generic ephemeral reply
                   when a command or handler throws, giveaway reaction refreshes and deletion handling, poll votes from raw reaction and
-                  delete events (`poll-events.ts`),
+                  delete events (`poll-events.ts`), Hall of Fame reactions, edits and deletes from raw
+                  events (`halloffame-events.ts`),
                   and replies when a precondition denies a command, such as a cooldown)
 assets/fonts/     the OFL fonts used for image captions, each with its licence file
 drizzle/          generated SQL migrations, committed and shipped in the image
 test/             Vitest tests (`test/support/` has shared helpers)
-docs/             `games.md` (player-facing rules), `giveaways.md`, `polls.md` and `deploy.md` (operator guide)
+docs/             `games.md` (player-facing rules), `giveaways.md`, `polls.md`, `halloffame.md` and `deploy.md` (operator guide)
 .github/          CI, image publishing, Dependabot, issue forms, PR template and CODEOWNERS
 ```
 
@@ -177,6 +189,15 @@ ID (see `features/gamba/custom-ids.ts`), so handlers must ignore IDs they cannot
   channel; Manage Messages is optional and only lets the bot remove a voter's old reaction when they
   switch (without it the latest vote still wins). Votes come from raw gateway events
   (`poll-events.ts`), so they work for uncached messages.
+- **Hall of Fame** needs View Channel, Send Messages, Attach Files and Read Message History in the
+  hall channel (`/settings halloffame set` checks all four and `/settings show` warns; the history
+  permission is for finding an abandoned card again after a crash) and View Channel and Read
+  Message History in every channel it inducts from (otherwise the channel is skipped and
+  remembered as unreadable for 10 minutes). Reactions, edits and deletes come from raw gateway
+  events (`halloffame-events.ts`), so uncached messages work, and the message and its reactors are
+  fetched over REST. It needs no new intent: Guilds, GuildMessages and GuildMessageReactions are
+  already on. Messages never leak into the wrong audience: the guards (private to public, NSFW to
+  non-NSFW, private threads) live in `eligibility.ts` and are explained to users from `guardNotes`.
 - **`Partials.Message`** (`src/client.ts`) lets `messageDelete` and `messageDeleteBulk` include an
   uncached honeypot card so it can be re-posted. Do not remove it.
 - Pending screening joins persist until role assignment or departure. The hourly job recovers completions missed while offline.
@@ -186,6 +207,11 @@ ID (see `features/gamba/custom-ids.ts`), so handlers must ignore IDs they cannot
 - `CONTRIBUTING.md` is the human-facing summary of these rules. When a convention here changes,
   update it there too.
 - Use `.js` extensions in relative imports (NodeNext ESM), and `import type` for type-only imports.
+- Write erasable TypeScript only (`erasableSyntaxOnly` in `tsconfig.json`, so `pnpm typecheck`
+  enforces it): no parameter properties (`constructor(private x: number)`), no `enum`, no
+  `namespace`. Sapphire loads pieces through Node's native type stripping, which rejects those, so
+  a listener that imports such a module fails to load. Use plain fields and a `const` object (or a
+  union of string literals) instead.
 - Read configuration only through `parseEnv` in `src/config/env.ts`. Add new variables to the zod
   schema **and** to `.env.example` in the same commit. Do not read `process.env` elsewhere.
 - Feature logic goes in `src/features/<name>/` with an `index.ts` public surface; commands and

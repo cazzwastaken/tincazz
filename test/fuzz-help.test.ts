@@ -25,6 +25,16 @@ const known: [string, HelpPage][] = [
   ['dice', 'flipdice'],
   ['roll', 'flipdice'],
   ['flipdice', 'flipdice'],
+  ['poll', 'polls'],
+  ['polls', 'polls'],
+  ['vote', 'polls'],
+  ['halloffame', 'halloffame'],
+  ['hall-of-fame', 'halloffame'],
+  ['hof', 'halloffame'],
+  ['hall', 'halloffame'],
+  ['fame', 'halloffame'],
+  ['starboard', 'halloffame'],
+  ['star', 'halloffame'],
 ];
 
 const whitespace = fc.stringMatching(/^[ \t\n]{0,4}$/);

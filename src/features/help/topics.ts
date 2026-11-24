@@ -7,6 +7,7 @@ export const helpPages = [
   'flipdice',
   'giveaways',
   'polls',
+  'halloffame',
 ] as const;
 export type HelpPage = (typeof helpPages)[number];
 
@@ -55,6 +56,11 @@ export const topicInfo: Record<Exclude<HelpPage, 'home'>, TopicInfo> = {
     label: 'Polls',
     description: 'Ask a question and vote with reactions',
   },
+  halloffame: {
+    emoji: '🏛️',
+    label: 'Hall of Fame',
+    description: 'Messages many people reacted to, kept in one channel',
+  },
 };
 
 const aliases: Record<string, HelpPage> = {
@@ -86,6 +92,13 @@ const aliases: Record<string, HelpPage> = {
   poll: 'polls',
   polls: 'polls',
   vote: 'polls',
+  halloffame: 'halloffame',
+  'hall-of-fame': 'halloffame',
+  hof: 'halloffame',
+  hall: 'halloffame',
+  fame: 'halloffame',
+  starboard: 'halloffame',
+  star: 'halloffame',
 };
 
 /** A forgiving topic lookup for `?help <topic>`; anything unknown opens the home page. */

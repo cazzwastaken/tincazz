@@ -17,6 +17,8 @@ import { payoutBps, pot, wager } from '../gamba/config.js';
 import { threeOfAKindOdds } from '../gamba/index.js';
 import { outcomeEmoji } from '../gamba/outcomes.js';
 import { giveaway, giveawayDurationHint } from '../giveaways/config.js';
+import { hallOfFame, hallTiers } from '../halloffame/config.js';
+import { guardNotes } from '../halloffame/eligibility.js';
 import { poll, pollDurationHint } from '../poll/config.js';
 import { accents, coins } from '../ui/index.js';
 import { encodeHelpMenuId, encodeHelpPageId } from './custom-ids.js';
@@ -47,7 +49,7 @@ function home(prefix: string): Page {
         (page) =>
           `### ${topicInfo[page].emoji} ${topicInfo[page].label}\n${homeSummary(page, prefix)}`,
       ),
-      `-# Also: \`/ping\`, \`/help\`. Admins: \`/settings\` (log channels, auto-roles, jackpot role, game channels, honeypot) and \`/eco\`.`,
+      `-# Also: \`/ping\`, \`/help\`. Admins: \`/settings\` (log channels, auto-roles, jackpot role, game channels, honeypot, Hall of Fame) and \`/eco\`.`,
     ],
   };
 }
@@ -68,6 +70,8 @@ function homeSummary(page: Exclude<HelpPage, 'home'>, prefix: string): string {
       return 'Find current prize draws in this server';
     case 'polls':
       return `Ask a question, people vote with reactions and a live bar chart tracks the result`;
+    case 'halloffame':
+      return `A message ${hallOfFame.defaultThreshold}+ people react to is kept in the Hall of Fame channel`;
   }
 }
 
@@ -258,6 +262,53 @@ function pollsPage(prefix: string): Page {
   };
 }
 
+/** The tier ladder as words, from the config: `⭐ at the threshold, 🌟 from 2x, ...`. */
+function tierLadder(): string {
+  return hallTiers
+    .map((tier, index) => {
+      const from = hallTiers[index - 1]?.below;
+      return from === undefined ? `${tier.emoji} at the threshold` : `${tier.emoji} from ${from}x`;
+    })
+    .join(', ');
+}
+
+/** The automatic skips, one line each, from the same notes the setup card and docs use. */
+function hallSkips(): string {
+  return guardNotes
+    .filter((note) => note.reason !== 'hall-disabled' && note.reason !== 'hall-unavailable')
+    .map((note) => `- **${note.title}**: ${note.text}`)
+    .join('\n');
+}
+
+function hallOfFamePage(): Page {
+  const { minThreshold, maxThreshold, defaultThreshold, maxImages, maxExemptChannels } = hallOfFame;
+  return {
+    title: '# 🏛️ Hall of Fame',
+    body: [
+      [
+        '### What it is',
+        `When **${defaultThreshold}** or more different people react to a message (staff can set ${minThreshold} to ${maxThreshold}), Tincazz posts it in the server's Hall of Fame channel. Nothing to run: just react.`,
+        'It counts **people**, not reactions. Someone reacting with five emoji counts once, and the author, bots and super reactions never count.',
+      ].join('\n'),
+      [
+        '### The post',
+        `A card with the author, the channel and when it was sent, the text, up to ${maxImages} pictures (copied, so they never expire), replies and forwards, and a link back. Other files are listed by name.`,
+        `The footer shows the **peak** number of people and the top emoji. The icon grows with it: ${tierLadder()} the threshold. Taking reactions off later does not remove a post.`,
+        'Editing the original updates the post, and deleting the original removes it. If staff delete a post, it is not posted again.',
+      ].join('\n'),
+      `### Never posted\n${hallSkips()}`,
+      [
+        '### Staff',
+        'With Manage Server:',
+        '`/settings halloffame set channel:#hall threshold:5` picks the channel and posts an intro card there.',
+        '`/settings halloffame threshold count:8` changes the count (not retroactive). `clear` stops new posts and keeps old ones.',
+        `\`exempt\` / \`unexempt\` skip a channel or a whole category (up to ${maxExemptChannels}). \`/settings show\` lists it all.`,
+        'The bot needs View Channel, Send Messages, Attach Files and Read Message History in the hall, and View Channel and Read Message History where messages are posted.',
+      ].join('\n'),
+    ],
+  };
+}
+
 const builders: Record<HelpPage, (prefix: string) => Page> = {
   home,
   games,
@@ -267,6 +318,7 @@ const builders: Record<HelpPage, (prefix: string) => Page> = {
   flipdice: flipDice,
   giveaways: giveawaysPage,
   polls: pollsPage,
+  halloffame: hallOfFamePage,
 };
 
 /**

@@ -46,6 +46,9 @@ The SQLite database is created under `./data/` on first start.
 2. Put feature logic in `src/features/<name>/` and keep commands, listeners and interaction handlers
    thin. Sapphire loads pieces automatically, so never register them by hand.
 3. Prefer slash commands for new user-facing features.
+   Write erasable TypeScript only (`erasableSyntaxOnly`, enforced by `pnpm typecheck`): no
+   parameter properties, `enum` or `namespace`, because pieces are loaded through Node's native
+   type stripping.
 4. Add or update tests in `test/` (see "Tests" below).
 5. If you change `src/db/schema.ts`, run `pnpm db:generate --name <change>` and commit the generated
    migration in `drizzle/` with it.
@@ -55,7 +58,8 @@ The SQLite database is created under `./data/` on first start.
    show) with a `GameSurface` for slash and prefix commands, and a single transactional settle in
    the feature that uses `settleStake` (bet, then payouts) from `src/features/economy/`. Do not
    hand-roll the bet and payout ledger steps.
-8. Guild specifics (log channels, auto-roles, the jackpot role, game channels) are per-guild
+8. Guild specifics (log channels, auto-roles, the jackpot role, game channels, the Hall of Fame
+   channel and its exemptions) are per-guild
    settings in `src/features/settings/`, set by staff with `/settings`. Never hard-code role,
    channel or server IDs in the code.
 9. Keep the docs in step: the README feature list and the `/help` cards for user-visible behavior,

@@ -6,6 +6,8 @@ import { dice, wager as diceWager } from '../src/features/dice/config.js';
 import { payoutBps as dicePayoutBps } from '../src/features/dice/rules.js';
 import { bailout, cashback, chatReward, collect, daily } from '../src/features/economy/config.js';
 import { payoutBps, pot, wager } from '../src/features/gamba/config.js';
+import { hallOfFame, hallTiers } from '../src/features/halloffame/config.js';
+import { guardNotes } from '../src/features/halloffame/eligibility.js';
 import {
   helpPage,
   helpPages,
@@ -102,6 +104,29 @@ describe('help pages', () => {
     expect(text).toContain('Close poll');
     expect(text).toContain(`${poll.maxOpenPerHost} open polls`);
     expect(text).toContain(`${poll.minOptions} to ${poll.maxOptions}`);
+  });
+
+  it('documents the Hall of Fame from its config and guard notes', () => {
+    const text = page('halloffame');
+    expect(text).toContain(`**${hallOfFame.defaultThreshold}** or more different people`);
+    expect(text).toContain(`${hallOfFame.minThreshold} to ${hallOfFame.maxThreshold}`);
+    expect(text).toContain(`up to ${hallOfFame.maxImages} pictures`);
+    expect(text).toContain(`up to ${hallOfFame.maxExemptChannels}`);
+    expect(text).toContain('**people**, not reactions');
+    expect(text).toContain('/settings halloffame set');
+    expect(text).toContain('not retroactive');
+    for (const tier of hallTiers) expect(text).toContain(tier.emoji);
+    // Every silent skip is explained, except the two about the channel not being set up.
+    for (const note of guardNotes) {
+      if (note.reason === 'hall-disabled' || note.reason === 'hall-unavailable') continue;
+      expect(text, note.reason).toContain(note.text);
+    }
+    expect(text).toContain('Attach Files');
+    expect(text).toContain('Read Message History');
+    for (const alias of ['halloffame', 'hall-of-fame', 'hof', 'hall', 'fame', 'starboard']) {
+      expect(parseTopic(alias)).toBe('halloffame');
+    }
+    expect(page('home')).toContain('Hall of Fame');
   });
 
   it('lists the games with aliases and examples', () => {
@@ -213,6 +238,8 @@ describe('parseTopic', () => {
       ['cf', 'flipdice'],
       ['poll', 'polls'],
       ['?polls', 'polls'],
+      ['Hall', 'halloffame'],
+      ['/hof', 'halloffame'],
       ['?gamba', 'gamba'],
       ['nope', 'home'],
       ['constructor', 'home'],
