@@ -79,7 +79,8 @@ src/
                   persisted until closed so their original expiry survives restarts; result
                   cards have a single-use Rematch button
     dice/         2d6 calls and payouts (tuned to a 99% return), the edge into the pot, the
-                  single-transaction settle, `dc:*` custom IDs, the prefix parser, cards, frames
+                  single-transaction settle, `dc:*` custom IDs (Roll again, Double, Change call), the prefix
+                  parser, cards, frames and the sharp-drawn dice pictures (`render.ts`, glyph fallback)
     economy/      wallets and ledger; the only code that changes balances. Faucets: daily (with
                   cashback on yesterday's gambling losses), hourly collect, bailout, chat
     gamba/        spin logic, odds and payouts (tuned to a ~1% house edge), the pot, bet parsing,
@@ -113,7 +114,7 @@ src/
     stats/        read-only profile, recent plays and leaderboard queries, `lb:*` custom IDs, cards
     ui/           shared Components V2 card helpers
   interaction-handlers/  one file per component or modal handler (gamba, coinflip, dice and help
-                  buttons and menu, leaderboard paging and category select, the caption modal)
+                  buttons and menu, the dice Change call menu, leaderboard paging and category select, the caption modal)
   listeners/      one file per Discord/Sapphire event listener (member join, leave and screening,
                   channel and role delete cleanup, chat rewards, the honeypot trigger and card re-post
                   after a single or bulk delete (`honeypot.ts`, `honeypot-card-delete.ts`,

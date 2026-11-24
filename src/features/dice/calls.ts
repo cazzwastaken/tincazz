@@ -50,6 +50,15 @@ export function decodeCall(code: string): DiceCall | undefined {
   return { kind: 'exact', target };
 }
 
+/** Every call a player can make, in menu order. */
+export const allCalls: readonly DiceCall[] = [
+  { kind: 'high' },
+  { kind: 'low' },
+  { kind: 'seven' },
+  { kind: 'doubles' },
+  ...[2, 3, 4, 5, 6, 8, 9, 10, 11, 12].map((target) => ({ kind: 'exact', target }) as const),
+];
+
 export function callLabel(call: DiceCall): string {
   switch (call.kind) {
     case 'high':

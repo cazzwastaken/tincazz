@@ -20,8 +20,8 @@ import {
   diceErrorText,
   diceUsage,
   type Roll,
-  rollCard,
   rollFrames,
+  rollResult,
 } from '../src/features/dice/index.js';
 import {
   adminAdjust,
@@ -47,12 +47,21 @@ function mockRandomInt(...values: number[]) {
 }
 
 const json = (value: unknown) => JSON.stringify(value);
+/** An edit as the card alone: edits also tell Discord to replace the old frame's attachment. */
+const cardJson = (value: unknown) =>
+  JSON.stringify(value, (key, item) => (key === 'attachments' ? undefined : item));
 
 /** One reply for the first frame, then one edit per remaining frame plus the result. */
-const editCount = rollFrames('1', { bet: 10, call: defaultCall, die1: 1 }).length;
+const editCount = (await rollFrames('1', { bet: 10, call: defaultCall, die1: 1 })).length;
 
 /** The result card a settled 6 + 6 roll ends on, as the first roll in a fresh database. */
-function doubleSixCard(userId: string, bet: number, call: DiceCall, payout: number, edge: number) {
+async function doubleSixCard(
+  userId: string,
+  bet: number,
+  call: DiceCall,
+  payout: number,
+  edge: number,
+) {
   const roll: Roll = {
     bet,
     call,
@@ -66,7 +75,7 @@ function doubleSixCard(userId: string, bet: number, call: DiceCall, payout: numb
     pot: pot.seed + edge,
     rollId: 1,
   };
-  return json(cardReply(rollCard(userId, roll)));
+  return json(cardReply(await rollResult(userId, roll)));
 }
 
 const author = '100000000000000001';
@@ -215,9 +224,13 @@ describe('/dice and ?dice', () => {
       expect(rollRows()).toMatchObject([{ bet: 10, call: 'high', target: null, die1: 6, die2: 6 }]);
       expect(json(interaction.reply.mock.calls[0])).toContain('tumbling');
       await vi.waitFor(() => expect(interaction.editReply).toHaveBeenCalledTimes(editCount));
-      expect(json(interaction.editReply.mock.calls.at(-1)?.[0])).toBe(
-        doubleSixCard('1', 10, { kind: 'high' }, 24, 1),
+      expect(cardJson(interaction.editReply.mock.calls.at(-1)?.[0])).toBe(
+        await doubleSixCard('1', 10, { kind: 'high' }, 24, 1),
       );
+      // Every edit replaces the previous frame's picture rather than adding another attachment.
+      for (const [edit] of interaction.editReply.mock.calls) {
+        expect(edit).toMatchObject({ attachments: [] });
+      }
       expect(findWallet(container.db, '2', '1')?.balance).toBe(startingBalance - 10 + 24);
     });
 
@@ -227,8 +240,8 @@ describe('/dice and ?dice', () => {
 
       expect(rollRows()).toMatchObject([{ bet: 50, call: 'exact', target: 12, won: 1 }]);
       await vi.waitFor(() => expect(interaction.editReply).toHaveBeenCalledTimes(editCount));
-      expect(json(interaction.editReply.mock.calls.at(-1)?.[0])).toBe(
-        doubleSixCard('1', 50, { kind: 'exact', target: 12 }, 1_782, 1),
+      expect(cardJson(interaction.editReply.mock.calls.at(-1)?.[0])).toBe(
+        await doubleSixCard('1', 50, { kind: 'exact', target: 12 }, 1_782, 1),
       );
     });
 
@@ -327,8 +340,8 @@ describe('/dice and ?dice', () => {
       expect(rollRows()).toMatchObject([{ bet: 50, call: 'exact', target: 12, won: 1 }]);
       expect(json(firstReply(message))).toContain('tumbling');
       await vi.waitFor(() => expect(message.sent.edit).toHaveBeenCalledTimes(editCount));
-      expect(json(message.sent.edit.mock.calls.at(-1)?.[0])).toBe(
-        doubleSixCard(author, 50, { kind: 'exact', target: 12 }, 1_782, 1),
+      expect(cardJson(message.sent.edit.mock.calls.at(-1)?.[0])).toBe(
+        await doubleSixCard(author, 50, { kind: 'exact', target: 12 }, 1_782, 1),
       );
     });
 

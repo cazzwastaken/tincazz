@@ -1,5 +1,6 @@
 export { type DiceArgs, diceUsage, parseDiceArgs } from './args.js';
 export {
+  allCalls,
   callLabel,
   type DiceCall,
   decodeCall,
@@ -7,9 +8,40 @@ export {
   dieFace,
   encodeCall,
 } from './calls.js';
-export { diceErrorText, notYourRoll, rollCard, rollFrames } from './cards.js';
+export {
+  type DiceImage,
+  diceErrorText,
+  doubledBet,
+  notYourRoll,
+  resultImageName,
+  retargetCard,
+  rollCard,
+  rollFrames,
+  rollResult,
+} from './cards.js';
 export { dice, wager } from './config.js';
-export { decodeDiceId, encodeRollAgainId, type RollAgainId } from './custom-ids.js';
+export {
+  type CallSelectId,
+  type DiceId,
+  type DoubleId,
+  decodeDiceId,
+  encodeCallSelectId,
+  encodeDoubleId,
+  encodeRollAgainId,
+  type RollAgainId,
+} from './custom-ids.js';
 export { type Roll, type RollRequest, settleRoll } from './play.js';
-export { diceEdge, needsText, payoutBps, payoutFor, rollDice, ways, wins } from './rules.js';
+export { type DiceTint, type DieFace, diceImageSize, renderDice } from './render.js';
+export {
+  diceEdge,
+  multiplierText,
+  needsText,
+  oddsText,
+  payoutBps,
+  payoutFor,
+  rollDice,
+  ways,
+  winningCalls,
+  wins,
+} from './rules.js';
 export { recordRollStats } from './stats.js';

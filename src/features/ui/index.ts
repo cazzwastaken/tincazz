@@ -1,5 +1,6 @@
 import {
   type APIContainerComponent,
+  type AttachmentBuilder,
   ComponentType,
   ContainerBuilder,
   MessageFlags,
@@ -31,11 +32,24 @@ export function withoutActionRows(container: APIContainerComponent): ContainerBu
   });
 }
 
+const attached = new WeakMap<ContainerBuilder, AttachmentBuilder[]>();
+
+/** Files a card shows (`attachment://` media); `cardReply` sends them with the card. */
+export function withFiles(container: ContainerBuilder, ...files: AttachmentBuilder[]) {
+  attached.set(container, files);
+  return container;
+}
+
 export function cardReply(container: ContainerBuilder, options: { ephemeral?: boolean } = {}) {
   const flags = options.ephemeral
     ? MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral
     : MessageFlags.IsComponentsV2;
-  return { components: [container], flags } as const;
+  const files = attached.get(container);
+  return { components: [container], flags, ...(files ? { files } : {}) } as {
+    components: [ContainerBuilder];
+    flags: typeof flags;
+    files?: AttachmentBuilder[];
+  };
 }
 
 export function errorReply(text: string) {
