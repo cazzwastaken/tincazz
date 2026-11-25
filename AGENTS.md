@@ -98,7 +98,8 @@ src/
     giveaways/    guild-scoped reaction giveaways, live entry counts, durable draw and result edits
     halloffame/   reaction-triggered Hall of Fame: config (threshold 2-50, caps, tiers, timings), the
                   store (settings, exempt channels and one entry per source message: a claim made
-                  before sending, the posted card, a tombstone when staff delete it, the peak count),
+                  before sending, the posted card, a tombstone when staff delete it, the peak count,
+                  and `uploaded_images` for tracking which images the card displays),
                   pure eligibility (the guards and their `guardNotes`), distinct-people scoring,
                   content and quoting helpers, the card and intro renderers (`cards.ts`, images
                   re-uploaded), the `HallDiscord` port and its discord.js implementation (REST

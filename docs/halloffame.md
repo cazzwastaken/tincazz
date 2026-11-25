@@ -183,14 +183,15 @@ Staff should exempt such channels (`/settings halloffame exempt`).
 
 - **Edits**: when the original is edited, the post is redrawn within a few seconds. An edit that
   changes nothing visible, such as a link preview that finished loading, does not touch the post.
-  The pictures are copied again, and a picture the author removed disappears. If a picture the post
-  already shows cannot be downloaded at that moment (Discord's CDN hiccuping), the redraw is put
-  off and retried after 10 seconds, up to 3 times, rather than dropping the picture; after that
-  the post stays as it is until the next edit or reaction tries again. A picture that never made it
-  into the post does not hold a redraw back. A redraw for an edit
+  A successful redraw copies the current pictures and removes pictures the author deleted. If a
+  retained picture cannot be downloaded, Tincazz retries the whole redraw after 10 seconds, up to
+  3 times. Until a redraw succeeds, the old card can still show text or pictures the author edited
+  or removed. Staff can delete the hall post to remove that copy immediately. After retries are
+  exhausted, the next edit or reaction can trigger another redraw. If Tincazz knows a picture
+  was never uploaded, a failed download of that picture does not delay the redraw. A redraw for an edit
   keeps the people count and emoji breakdown the post already shows and does not count the
   reactions again (only a reaction refreshes those). An author who keeps editing gets one redraw
-  per 10 seconds at most; the last edit always lands after that pause. This stops for a post that
+  per 10 seconds at most. The last edit is queued after that pause. This stops for a post that
   is frozen (see below), and an edit made while the bot was offline is only picked up by the next
   edit or reaction.
 - **Deleted originals**: while the bot is online, deleting the original (or bulk deleting it, or
