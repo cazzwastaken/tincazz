@@ -130,7 +130,16 @@ export function createHallRunner(deps: HallRunnerDeps): HallRunner {
   const now = deps.now ?? Date.now;
   const lock = new KeyedLock();
   const counters = new TtlLru<Counter>(config.counterCacheSize, config.counterTtlMs, now);
+  /** When a posted message was last read and redrawn, whatever the reason. */
   const lastSync = new TtlLru<number>(config.counterCacheSize, config.counterTtlMs, now);
+  /** When its reactors were last counted. */
+  const lastCount = new TtlLru<number>(config.counterCacheSize, config.counterTtlMs, now);
+  /** The per emoji counts its card shows, so an edit can redraw it without counting again. */
+  const breakdowns = new TtlLru<readonly EmojiCount[]>(
+    config.counterCacheSize,
+    config.counterTtlMs,
+    now,
+  );
   const failures = new Map<string, number>();
   let stopped = false;
 
@@ -183,6 +192,8 @@ export function createHallRunner(deps: HallRunnerDeps): HallRunner {
     debouncer.cancel(key);
     counters.delete(key);
     lastSync.delete(key);
+    lastCount.delete(key);
+    breakdowns.delete(key);
   };
 
   /* ----------------------------------------------------------------- Discord I/O */
@@ -502,6 +513,8 @@ export function createHallRunner(deps: HallRunnerDeps): HallRunner {
     }
 
     lastSync.set(key, now());
+    lastCount.set(key, now());
+    breakdowns.set(key, tally.score().perEmoji);
     // An early exit counted only enough people to qualify: refine the count and breakdown later.
     if (tallied.early || tallied.truncated) {
       debouncer.schedule(
@@ -527,12 +540,30 @@ export function createHallRunner(deps: HallRunnerDeps): HallRunner {
     if (entry.hallMessageId === null) return;
     const hallMessageId = entry.hallMessageId;
 
-    // Reaction work waits out the cooldown (deferred, never dropped).
-    const last = lastSync.get(key);
-    const due = job.edit || last === undefined || now() - last >= config.peakCooldownMs;
-    if (!due && last !== undefined) {
-      debouncer.schedule(key, job, last + config.peakCooldownMs - now());
+    // Two kinds of work, each with its own cooldown, deferred and never dropped. Counting the
+    // reactors (a REST call per emoji) is for reactions and runs at most every `peakCooldownMs`.
+    // An edit alone only redraws the card from the message, with the stored peak and breakdown,
+    // at most every `editCooldownMs`, and counts nothing unless the breakdown is not known (after
+    // a restart): that one-off count is allowed at once.
+    const wantsCount = job.reaction || job.refresh;
+    const lastCounted = lastCount.get(key);
+    const countAt = lastCounted === undefined ? 0 : lastCounted + config.peakCooldownMs;
+    const lastRun = lastSync.get(key);
+    const editAt = lastRun === undefined ? 0 : lastRun + config.editCooldownMs;
+    const known = breakdowns.get(key);
+    const recount = (wantsCount && now() >= countAt) || (job.edit && known === undefined);
+    const redraw = !recount && job.edit && now() >= editAt;
+    if (!recount && !redraw) {
+      const soonest = Math.min(
+        wantsCount ? countAt : Number.POSITIVE_INFINITY,
+        job.edit ? editAt : Number.POSITIVE_INFINITY,
+      );
+      debouncer.schedule(key, job, soonest - now());
       return;
+    }
+    if (redraw && wantsCount) {
+      // The edit goes now; the reactions wait for their own cooldown.
+      debouncer.schedule(key, { ...job, edit: false }, countAt - now());
     }
 
     let message: HallSourceMessage;
@@ -551,6 +582,7 @@ export function createHallRunner(deps: HallRunnerDeps): HallRunner {
       return;
     }
     lastSync.set(key, now());
+    if (recount) lastCount.set(key, now());
 
     // The channel may have changed since the induction (made private, age-restricted or exempt,
     // or the hall opened to the public): never copy a later edit out of it. The post stays as is.
@@ -576,24 +608,37 @@ export function createHallRunner(deps: HallRunnerDeps): HallRunner {
       return;
     }
 
-    let tallied: Tallied;
-    try {
-      tallied = await tallyReactors(message, undefined);
-    } catch (error) {
-      // A partial count would change the breakdown and hash, so leave the card as it is.
-      logger.warn(`Hall of Fame could not count the reactions on ${messageId}`, error);
-      return;
+    let peak: number;
+    let perEmoji: readonly EmojiCount[];
+    if (recount) {
+      let tallied: Tallied;
+      try {
+        tallied = await tallyReactors(message, undefined);
+      } catch (error) {
+        // A partial count would change the breakdown and hash, so leave the card as it is.
+        logger.warn(`Hall of Fame could not count the reactions on ${messageId}`, error);
+        return;
+      }
+      // Peak only ever rises, whatever order syncs finish in.
+      const bumped = bumpHallPeak(db, guildId, messageId, tallied.tally.distinct, now());
+      if (!bumped?.hallMessageId) return;
+      peak = bumped.peakCount;
+      perEmoji = tallied.tally.score().perEmoji;
+      breakdowns.set(key, perEmoji);
+    } else {
+      const current = getHallEntry(db, guildId, messageId);
+      if (current?.status !== 'posted' || !known) return;
+      peak = current.peakCount;
+      perEmoji = known;
     }
-
-    // Peak only ever rises, whatever order syncs finish in.
-    const row = bumpHallPeak(db, guildId, messageId, tallied.tally.distinct, now());
-    if (!row?.hallMessageId) return;
+    const row = getHallEntry(db, guildId, messageId);
+    if (row?.status !== 'posted' || !row.hallMessageId) return;
 
     const input = await cardInput(message, {
       guildId,
-      peak: row.peakCount,
+      peak,
       threshold: hallSettings(db, guildId).threshold,
-      perEmoji: tallied.tally.score().perEmoji,
+      perEmoji,
       channelName: source.name,
     });
     // An unchanged card (an embed that resolved, a reaction that changed nothing) is not edited.
@@ -804,7 +849,8 @@ export function createHallRunner(deps: HallRunnerDeps): HallRunner {
         now(),
       );
       if (adopted) {
-        // The real count and a fresh card follow.
+        // The real count and a fresh card follow: forget any breakdown, so the edit counts again.
+        breakdowns.delete(key);
         debouncer.schedule(key, {
           guildId,
           channelId: entry.channelId,

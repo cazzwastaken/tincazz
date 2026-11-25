@@ -159,9 +159,12 @@ hard block for a private channel, and nothing else overrides it.
 
 - **Edits**: when the original is edited, the post is redrawn within a few seconds. An edit that
   changes nothing visible, such as a link preview that finished loading, does not touch the post.
-  The pictures are copied again, and a picture the author removed disappears. This stops for a post
-  that is frozen (see below), and an edit made while the bot was offline is only picked up by the
-  next edit or reaction.
+  The pictures are copied again, and a picture the author removed disappears. A redraw for an edit
+  keeps the people count and emoji breakdown the post already shows and does not count the
+  reactions again (only a reaction refreshes those). An author who keeps editing gets one redraw
+  per 10 seconds at most; the last edit always lands after that pause. This stops for a post that
+  is frozen (see below), and an edit made while the bot was offline is only picked up by the next
+  edit or reaction.
 - **Deleted originals**: while the bot is online, deleting the original (or bulk deleting it, or
   deleting its channel or thread, or the channel or forum a thread belongs to) deletes the hall post
   too. This is driven by Discord's delete events, so an original deleted **while the bot was
@@ -191,8 +194,9 @@ You can ignore this unless something looks slow or missing.
   than 30 seconds, then counts the people once. A message that was just short of the threshold is
   not looked at again until enough new reactions could have taken it over.
 - **A bounded queue.** Two messages are counted at a time. If more than 200 are waiting, the extra
-  are dropped, and the next reaction on them tries again. Posted cards are refreshed at most every
-  30 seconds. Discord's rate limits are handled by the library, which waits and retries.
+  are dropped, and the next reaction on them tries again. The people count of a posted card is
+  refreshed at most every 30 seconds, and its text and pictures for an edit at most every 10.
+  Discord's rate limits are handled by the library, which waits and retries.
 - **No access, no retries.** If Discord refuses access to a channel, it is skipped for 10 minutes.
   Running `/settings halloffame set` for a hall channel, including the one already set, clears that
   memory for it at once, so after fixing permissions just run it again.

@@ -111,7 +111,7 @@ describe('hall of fame sync', () => {
 
     message.facts = { ...message.facts, attachments: [image(0)] };
     h.runner.onMessageUpdate(guildId, messageId);
-    await h.settle();
+    await h.settle(hallOfFame.editCooldownMs + hallOfFame.debounceMs);
     const second = h.fake.log.edit.at(-1);
     expect(second?.post.files.map((f) => f.name)).toEqual(['hall-0.png']);
     expect(JSON.stringify(second?.post.card.toJSON())).not.toContain('hall-1.png');
@@ -129,20 +129,129 @@ describe('hall of fame sync', () => {
 
     h.fake.downloads.delete(image(0).url);
     h.runner.onMessageUpdate(guildId, messageId);
-    await h.settle();
+    await h.settle(hallOfFame.editCooldownMs + hallOfFame.debounceMs);
     expect(h.fake.log.edit.at(-1)?.post.files.map((f) => f.name)).toEqual(['hall-0.png']);
+  });
+
+  describe('edits of the original', () => {
+    const text = (h: Awaited<ReturnType<typeof posted>>, content: string) => {
+      const message = h.fake.messages.get(messageId);
+      if (!message) throw new Error('missing');
+      message.facts = { ...message.facts, content };
+    };
+    const lastCard = (h: Awaited<ReturnType<typeof posted>>) =>
+      JSON.stringify(h.fake.log.edit.at(-1)?.post.card.toJSON());
+
+    it('redraws from the message with the stored count, without counting the reactors', async () => {
+      const h = await posted();
+      const reactors = h.fake.log.fetchReactors;
+      // More people reacted, but only reactions refresh the count.
+      h.fake.react(messageId, '⭐', people(0, 9));
+      text(h, 'edited');
+      h.runner.onMessageUpdate(guildId, messageId);
+      await h.settle();
+      expect(h.fake.log.fetchReactors).toBe(reactors);
+      expect(lastCard(h)).toContain('edited');
+      expect(lastCard(h)).toContain('**5** people');
+      expect(entry()?.peakCount).toBe(5);
+    });
+
+    it('limits an author who keeps editing, and the last edit still lands', async () => {
+      const h = await posted();
+      const reactors = h.fake.log.fetchReactors;
+      const reads = h.fake.log.fetchMessage;
+      const before = h.fake.log.edit.length;
+      const edits = 12;
+      for (let i = 1; i <= edits; i++) {
+        text(h, `edit ${i}`);
+        h.runner.onMessageUpdate(guildId, messageId);
+        await vi.advanceTimersByTimeAsync(hallOfFame.debounceMs + 1000);
+      }
+      await h.settle(hallOfFame.editCooldownMs + hallOfFame.debounceMs);
+      const elapsed = edits * (hallOfFame.debounceMs + 1000);
+      const bound = Math.ceil(elapsed / hallOfFame.editCooldownMs) + 1;
+      expect(h.fake.log.edit.length - before).toBeLessThanOrEqual(bound);
+      expect(h.fake.log.edit.length - before).toBeLessThan(edits);
+      expect(h.fake.log.fetchMessage - reads).toBeLessThanOrEqual(bound);
+      expect(h.fake.log.fetchReactors).toBe(reactors);
+      expect(lastCard(h)).toContain('edit 12');
+      expect(entry()?.lastRenderedHash).toBeTruthy();
+    });
+
+    it('defers a second edit until the cooldown has passed', async () => {
+      const h = await posted();
+      text(h, 'one');
+      h.runner.onMessageUpdate(guildId, messageId);
+      await h.settle();
+      expect(lastCard(h)).toContain('one');
+      const edits = h.fake.log.edit.length;
+
+      text(h, 'two');
+      h.runner.onMessageUpdate(guildId, messageId);
+      await h.settle();
+      // Only a few seconds after the first redraw: not yet.
+      expect(h.fake.log.edit).toHaveLength(edits);
+      await h.settle(hallOfFame.editCooldownMs);
+      expect(h.fake.log.edit).toHaveLength(edits + 1);
+      expect(lastCard(h)).toContain('two');
+    });
+
+    it('counts the reactors once when the breakdown is not known (after a restart)', async () => {
+      const h = await posted();
+      const again = harness(db, vi);
+      // A new runner on the same database and the same Discord, as after a restart.
+      for (const [id, message] of h.fake.messages) again.fake.messages.set(id, message);
+      for (const [id, users] of h.fake.reactors) again.fake.reactors.set(id, users);
+      for (const [id, card] of h.fake.posted) again.fake.posted.set(id, card);
+      again.fake.react(messageId, '⭐', people(0, 9));
+      text(again, 'edited');
+      again.runner.onMessageUpdate(guildId, messageId);
+      await again.settle();
+      expect(again.fake.log.fetchReactors).toBe(1);
+      expect(entry()?.peakCount).toBe(9);
+
+      text(again, 'edited again');
+      again.runner.onMessageUpdate(guildId, messageId);
+      await again.settle(hallOfFame.editCooldownMs + hallOfFame.debounceMs);
+      expect(again.fake.log.fetchReactors).toBe(1);
+      expect(lastCard(again)).toContain('edited again');
+    });
+
+    it('sends the edit first and the reactions after their own cooldown', async () => {
+      const h = await posted();
+      h.fake.react(messageId, '⭐', people(0, 8));
+      h.add('3000');
+      await h.settle();
+      expect(entry()?.peakCount).toBe(8);
+      const reactors = h.fake.log.fetchReactors;
+
+      // Reactions and an edit arrive together, soon after a count: the edit is not held back.
+      h.fake.react(messageId, '⭐', people(0, 11));
+      h.add('3001');
+      await vi.advanceTimersByTimeAsync(hallOfFame.editCooldownMs);
+      text(h, 'late edit');
+      h.runner.onMessageUpdate(guildId, messageId);
+      await h.settle();
+      expect(lastCard(h)).toContain('late edit');
+      expect(h.fake.log.fetchReactors).toBe(reactors);
+      expect(entry()?.peakCount).toBe(8);
+
+      await h.settle(hallOfFame.peakCooldownMs);
+      expect(h.fake.log.fetchReactors).toBeGreaterThan(reactors);
+      expect(entry()?.peakCount).toBe(11);
+    });
   });
 
   it('never lowers the peak, whatever order syncs finish in', async () => {
     const h = await posted();
     h.fake.react(messageId, '⭐', people(0, 8));
-    h.runner.onMessageUpdate(guildId, messageId);
+    h.add('3000');
     await h.settle();
     expect(entry()?.peakCount).toBe(8);
 
     h.fake.react(messageId, '⭐', people(0, 6));
-    h.runner.onMessageUpdate(guildId, messageId);
-    await h.settle();
+    h.add('3001');
+    await h.settle(hallOfFame.peakCooldownMs + hallOfFame.debounceMs);
     expect(entry()?.peakCount).toBe(8);
     expect(JSON.stringify(h.fake.log.edit.at(-1)?.post.card.toJSON())).toContain('**8** people');
 
@@ -335,15 +444,15 @@ describe('hall of fame sync', () => {
 
     h.fake.faults.edit = 'other';
     h.fake.react(messageId, '⭐', people(0, 10));
-    h.runner.onMessageUpdate(guildId, messageId);
-    await h.settle();
+    h.add('3001');
+    await h.settle(hallOfFame.peakCooldownMs + hallOfFame.debounceMs);
     expect(entry()?.status).toBe('posted');
     expect(h.warn).toHaveBeenCalled();
 
     // The next sync still brings the card up to date.
     h.fake.faults.edit = undefined;
     h.runner.onMessageUpdate(guildId, messageId);
-    await h.settle();
+    await h.settle(hallOfFame.editCooldownMs + hallOfFame.debounceMs);
     expect(JSON.stringify(h.fake.log.edit.at(-1)?.post.card.toJSON())).toContain('**10** people');
   });
 
@@ -352,7 +461,7 @@ describe('hall of fame sync', () => {
     const edits = h.fake.log.edit.length;
     h.fake.faults.fetchReactors = 'other';
     h.fake.react(messageId, '⭐', people(0, 9));
-    h.runner.onMessageUpdate(guildId, messageId);
+    h.add('3000');
     await h.settle();
     expect(h.fake.log.edit).toHaveLength(edits);
     expect(entry()?.peakCount).toBe(5);
@@ -495,7 +604,7 @@ describe('hall of fame sync', () => {
       expect(h.fake.log.edit).toHaveLength(0);
       db.$client.prepare('delete from guild_hall_exempt_channels').run();
       h.runner.onMessageUpdate(guildId, messageId);
-      await h.settle();
+      await h.settle(hallOfFame.editCooldownMs + hallOfFame.debounceMs);
       expect(JSON.stringify(h.fake.log.edit.at(-1)?.post.card.toJSON())).toContain(
         'a secret added later',
       );

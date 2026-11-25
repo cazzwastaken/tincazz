@@ -36,6 +36,8 @@ export const hallOfFame = {
   counterTtlMs: 30 * minute,
   /** A posted entry is re-evaluated for a higher peak at most this often. */
   peakCooldownMs: 30 * second,
+  /** A posted entry is redrawn for an edit of the original at most this often (deferred, not dropped). */
+  editCooldownMs: 10 * second,
   /** A channel that answered 403/404 is skipped for this long. */
   failureMemoryMs: 10 * minute,
   /** A claim still `publishing` this long after it was made is recovered at startup and hourly. */
