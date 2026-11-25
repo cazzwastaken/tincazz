@@ -217,9 +217,12 @@ ID (see `features/gamba/custom-ids.ts`), so handlers must ignore IDs they cannot
 - Use `.js` extensions in relative imports (NodeNext ESM), and `import type` for type-only imports.
 - Write erasable TypeScript only (`erasableSyntaxOnly` in `tsconfig.json`, so `pnpm typecheck`
   enforces it): no parameter properties (`constructor(private x: number)`), no `enum`, no
-  `namespace`. Sapphire loads pieces through Node's native type stripping, which rejects those, so
-  a listener that imports such a module fails to load. Use plain fields and a `const` object (or a
-  union of string literals) instead.
+  `namespace`. Production runs the compiled JavaScript in `dist/` and `pnpm dev` runs through
+  `tsx`, so neither needs this; the tests do: Sapphire loads pieces with Node's native `import()`,
+  which in Vitest reads the `.ts` sources through Node's type stripping (`test/support/resolve-ts.ts`
+  only maps the `.js` import specifiers back to `.ts`), and that rejects such syntax, so a listener
+  that imports such a module fails to load. Use plain fields and a `const` object (or a union of
+  string literals) instead.
 - Read configuration only through `parseEnv` in `src/config/env.ts`. Add new variables to the zod
   schema **and** to `.env.example` in the same commit. Do not read `process.env` elsewhere.
 - Feature logic goes in `src/features/<name>/` with an `index.ts` public surface; commands and

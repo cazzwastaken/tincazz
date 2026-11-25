@@ -47,8 +47,9 @@ The SQLite database is created under `./data/` on first start.
    thin. Sapphire loads pieces automatically, so never register them by hand.
 3. Prefer slash commands for new user-facing features.
    Write erasable TypeScript only (`erasableSyntaxOnly`, enforced by `pnpm typecheck`): no
-   parameter properties, `enum` or `namespace`, because pieces are loaded through Node's native
-   type stripping.
+   parameter properties, `enum` or `namespace`. The built bot runs compiled JavaScript and
+   `pnpm dev` uses `tsx`, but the tests load pieces with Node's native type stripping, which
+   rejects that syntax.
 4. Add or update tests in `test/` (see "Tests" below).
 5. If you change `src/db/schema.ts`, run `pnpm db:generate --name <change>` and commit the generated
    migration in `drizzle/` with it.

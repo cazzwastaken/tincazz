@@ -71,7 +71,7 @@ function homeSummary(page: Exclude<HelpPage, 'home'>, prefix: string): string {
     case 'polls':
       return `Ask a question, people vote with reactions and a live bar chart tracks the result`;
     case 'halloffame':
-      return `A message ${hallOfFame.defaultThreshold}+ people react to is kept in the Hall of Fame channel`;
+      return 'A message enough people react to is kept in the Hall of Fame channel';
   }
 }
 
@@ -300,7 +300,7 @@ function hallOfFamePage(): Page {
       [
         '### Staff',
         'With Manage Server:',
-        '`/settings halloffame set channel:#hall threshold:5` picks the channel and posts an intro card there.',
+        `\`/settings halloffame set channel:#hall threshold:${defaultThreshold}\` picks the channel and posts an intro card there.`,
         '`/settings halloffame threshold count:8` changes the count (not retroactive). `clear` stops new posts and keeps old ones.',
         `\`exempt\` / \`unexempt\` skip a channel or a whole category (up to ${maxExemptChannels}). \`/settings show\` lists it all.`,
         'The bot needs View Channel, Send Messages, Attach Files and Read Message History in the hall, and View Channel and Read Message History where messages are posted.',

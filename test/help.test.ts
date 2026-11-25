@@ -127,6 +127,8 @@ describe('help pages', () => {
       expect(parseTopic(alias)).toBe('halloffame');
     }
     expect(page('home')).toContain('Hall of Fame');
+    // The count is a server setting, so the summary never states one.
+    expect(page('home')).not.toContain(`${hallOfFame.defaultThreshold}+`);
   });
 
   it('lists the games with aliases and examples', () => {

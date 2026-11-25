@@ -42,7 +42,9 @@ Every card is a single Components V2 message in the hall channel:
   the pictures are **copied** into the hall post and stay for as long as the post does. Pictures
   marked as spoilers stay spoilers. A picture that cannot be copied is left out and the card says
   so. Stickers are shown by their permanent image (a Lottie sticker, which has none, by name), and
-  images and GIFs from links (Discord, Tenor and Giphy only) are shown from the link.
+  images and GIFs from links (Discord, Tenor and Giphy only) are shown from the link, through
+  Discord's image proxy and not copied, so they can change or disappear if the linked site
+  changes the image.
 - Other attachments are listed by name (the first five, then "+N more files"); they are not copied.
 - A footer with the peak number of people and the three most used emoji (custom emoji from other
   servers are left out of the breakdown but still counted), then two buttons: **Jump to message**
@@ -180,7 +182,9 @@ hard block for a private channel, and nothing else overrides it.
 - **Changing the hall channel**: posts in the old channel stay there and keep following edits and
   deletions. New inductions go to the new channel, and a message that is already in the old hall is
   not posted again.
-- **Clearing the hall**: nothing new is inducted. Existing posts stay.
+- **Clearing the hall** (`/settings halloffame clear`): nothing new is inducted. Existing posts stay
+  and keep following edits and deletions of their originals, but reactions added from then on no
+  longer update their counts (the footer keeps the peak it had).
 - **Deleting the hall channel**: the setting is cleared automatically (and logged), and the records
   of the posts that were in it are dropped. After picking a new channel, those messages can be
   inducted again if people react to them again. Deleting an exempt channel or category removes it
@@ -229,7 +233,7 @@ If a message does not show up, check in this order:
    itself and the honeypot are never inducted.
 4. **Is the message eligible?** Messages by bots and webhooks and system messages are skipped.
 5. **Permissions.** The bot needs View Channel and Read Message History in the source channel, and
-   View Channel, Send Messages and Attach Files in the hall. A channel that refused the bot is
+   View Channel, Send Messages, Attach Files and Read Message History in the hall. A channel that refused the bot is
    skipped for 10 minutes. After fixing the hall's permissions, run `/settings halloffame set` for it again to clear that at once; a source channel is tried again after the 10 minutes.
 6. **Was it posted before?** If staff deleted the post, it is never posted again. A message
    already in an older hall channel is not posted again either.
