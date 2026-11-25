@@ -59,6 +59,23 @@ describe('hall of fame induction', () => {
     expect(row?.lastRenderedHash).toMatch(/^[0-9a-f]{64}$/);
   });
 
+  it('counts again for reactions that arrived while its card was being published', async () => {
+    const h = harness(db, vi);
+    h.fake.addMessage();
+    h.fake.react(messageId, '⭐', people(0, 5));
+    // Four more people react while the send is in flight: those events see a `publishing` claim.
+    h.fake.duringSend = () => {
+      h.fake.react(messageId, '⭐', people(0, 9));
+      for (const user of people(5, 4)) h.add(user);
+    };
+    for (const user of people(0, 5)) h.add(user);
+    await h.settle();
+    expect(entry()).toMatchObject({ status: 'posted', peakCount: 5 });
+
+    await h.settle(hallOfFame.peakCooldownMs + hallOfFame.debounceMs);
+    expect(entry()?.peakCount).toBe(9);
+  });
+
   it('waits for the debounce and fetches once for a burst', async () => {
     const h = harness(db, vi);
     h.fake.addMessage();

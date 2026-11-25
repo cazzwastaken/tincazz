@@ -567,13 +567,12 @@ export function createHallRunner(deps: HallRunnerDeps): HallRunner {
     lastSync.set(key, now());
     lastCount.set(key, now());
     breakdowns.set(key, tally.score().perEmoji);
-    // An edit of the original while this was `publishing` was ignored, so always look again (an
-    // unchanged card is not edited). An early exit counted only enough people to qualify: refine
-    // the count and breakdown too, once the reactions' own cooldown has passed.
-    const refine = tallied.early || tallied.truncated;
+    // Edits and reactions that arrived while this was `publishing` were ignored, so always look
+    // again: an unchanged card is not edited, and the count refreshes the peak and breakdown (also
+    // when the count stopped early or was cut short) once the reactions' own cooldown has passed.
     debouncer.schedule(
       key,
-      { guildId, channelId, messageId, reaction: refine, edit: true, refresh: false },
+      { guildId, channelId, messageId, reaction: true, edit: true, refresh: false },
       config.editCooldownMs,
     );
   }

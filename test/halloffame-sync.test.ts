@@ -55,7 +55,9 @@ async function posted(options: { images?: number } = {}) {
   h.fake.react(messageId, '⭐', people(0, 5));
   h.add('2000');
   await h.settle();
-  // Past the refinement's cooldown too, so the entry is quiet.
+  // Past the follow-up too (the redraw, then the recount of late reactions) and the cooldown of
+  // that recount, so the entry is quiet and may be counted again at once.
+  await h.settle(hallOfFame.peakCooldownMs + hallOfFame.editCooldownMs + hallOfFame.debounceMs);
   await h.settle(hallOfFame.peakCooldownMs);
   return h;
 }
