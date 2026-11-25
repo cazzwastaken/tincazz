@@ -92,6 +92,7 @@ describe('hall of fame discord adapter', () => {
           url: 'https://cdn.discordapp.com/a.png',
           size: 5,
           content_type: 'image/png',
+          flags: 8,
         },
       ],
       embeds: [],
@@ -102,7 +103,23 @@ describe('hall of fame discord adapter', () => {
         attachments: [],
         embeds: [],
       },
-      message_snapshots: [{ message: { content: 'fwd', attachments: [], embeds: [] } }],
+      message_snapshots: [
+        {
+          message: {
+            content: 'fwd',
+            attachments: [
+              {
+                id: '7',
+                filename: 'b.png',
+                url: 'https://cdn.discordapp.com/b.png',
+                size: 1,
+                flags: 8,
+              },
+            ],
+            embeds: [],
+          },
+        },
+      ],
       poll: { question: { text: 'Tea?' } },
       reactions: [
         { count: 3, count_details: { normal: 2, burst: 1 }, emoji: { id: null, name: '⭐' } },
@@ -124,6 +141,9 @@ describe('hall of fame discord adapter', () => {
     });
     expect(message.reply).toEqual({ authorName: 'other', content: 'question?', hasMedia: false });
     expect(message.facts.snapshots[0]?.content).toBe('fwd');
+    // The spoiler flag (not only a SPOILER_ name) reaches the content rules.
+    expect(message.facts.attachments[0]?.flags).toBe(8);
+    expect(message.facts.snapshots[0]?.attachments[0]?.flags).toBe(8);
     expect(message.facts.pollQuestion).toBe('Tea?');
     expect(message.facts.stickers).toEqual([{ id: '8', name: 'wave', format: 1 }]);
     expect(message.reactions).toEqual([

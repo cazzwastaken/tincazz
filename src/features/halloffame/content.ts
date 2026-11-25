@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { StickerFormatType } from 'discord.js';
+import { AttachmentFlags, StickerFormatType } from 'discord.js';
 import { isAllowedHost } from '../imaging/urls.js';
 import { hallOfFame } from './config.js';
 
@@ -171,6 +171,8 @@ export interface AttachmentFacts {
   url: string;
   size: number;
   contentType?: string | null | undefined;
+  /** Discord's attachment flags bitfield: `IsSpoiler` is set however the file is named. */
+  flags?: number | null | undefined;
 }
 
 export interface StickerFacts {
@@ -260,6 +262,14 @@ export function isSpoilerName(name: string): boolean {
   return name.startsWith(spoilerPrefix);
 }
 
+/** A spoiler attachment: the `SPOILER_` file name prefix or Discord's `IsSpoiler` flag. */
+export function isSpoilerAttachment(attachment: Pick<AttachmentFacts, 'name' | 'flags'>): boolean {
+  return (
+    isSpoilerName(attachment.name) ||
+    ((attachment.flags ?? 0) & AttachmentFlags.IsSpoiler) === AttachmentFlags.IsSpoiler
+  );
+}
+
 export function isImageAttachment(attachment: Pick<AttachmentFacts, 'name' | 'contentType'>) {
   const type = attachment.contentType?.split(';')[0]?.trim().toLowerCase();
   if (type) return imageTypes.has(type);
@@ -305,11 +315,11 @@ export function planAttachments(
         name: attachment.name,
         url: attachment.url,
         size: attachment.size,
-        spoiler: isSpoilerName(attachment.name),
+        spoiler: isSpoilerAttachment(attachment),
       });
     } else {
-      // A spoiler's name is hidden on Discord too (a file named SPOILER_plans.zip).
-      names.push(isSpoilerName(attachment.name) ? 'spoiler file' : safeFileName(attachment.name));
+      // A spoiler's name is hidden on Discord too (a file named SPOILER_plans.zip, or flagged).
+      names.push(isSpoilerAttachment(attachment) ? 'spoiler file' : safeFileName(attachment.name));
     }
   }
   const files = names.slice(0, caps.maxAttachmentNames);

@@ -191,6 +191,30 @@ describe('attachments', () => {
     expect(plan.files).toEqual(['spoiler file', 'ok.zip']);
   });
 
+  it('treats the IsSpoiler flag as a spoiler whatever the file is named', () => {
+    const flagged = (name: string, contentType: string | null) => ({
+      ...attachment(name, 10, contentType),
+      flags: 8,
+    });
+    const plan = planAttachments([
+      flagged('plain.png', 'image/png'),
+      flagged('secret.zip', 'application/zip'),
+      { ...attachment('other.png'), flags: 0 },
+      { ...attachment('x.png'), flags: 1 << 2 },
+    ]);
+    expect(plan.images.map((i) => [i.name, i.spoiler])).toEqual([
+      ['plain.png', true],
+      ['other.png', false],
+      ['x.png', false],
+    ]);
+    expect(plan.files).toEqual(['spoiler file']);
+    expect(
+      describeMessage(
+        message({ snapshots: [message({ attachments: [flagged('p.png', 'image/png')] })] }),
+      ).images[0]?.spoiler,
+    ).toBe(true);
+  });
+
   it('falls back to the extension without a content type', () => {
     expect(planAttachments([attachment('x.WEBP', 1, null)]).images).toHaveLength(1);
     expect(planAttachments([attachment('x.svg', 1, 'image/svg+xml')]).images).toHaveLength(0);

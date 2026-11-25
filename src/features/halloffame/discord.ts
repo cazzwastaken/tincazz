@@ -87,6 +87,7 @@ function attachmentFacts(attachment: APIAttachment) {
     url: attachment.url,
     size: attachment.size,
     contentType: attachment.content_type ?? null,
+    flags: attachment.flags ?? 0,
   };
 }
 
