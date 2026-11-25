@@ -240,6 +240,34 @@ describe('hall of fame sync', () => {
     expect(entry()).toBeUndefined();
   });
 
+  it('removes the hall posts of threads when their parent channel is deleted', async () => {
+    const h = harness(db, vi);
+    const thread = '21';
+    h.fake.channels.set(
+      thread,
+      channelInfo(thread, 'a thread', { isThread: true, parentId: sourceChannelId }),
+    );
+    // One message from a thread of the source channel, one from an unrelated channel.
+    h.fake.addMessage({ channelId: thread });
+    h.fake.react(messageId, '⭐', people(0, 5));
+    h.add('2000', { channelId: thread });
+    await h.settle(hallOfFame.peakCooldownMs);
+    h.fake.channels.set('22', channelInfo('22', 'elsewhere'));
+    h.fake.addMessage({ id: '101', channelId: '22' });
+    h.fake.react('101', '⭐', people(0, 5));
+    h.add('2001', { messageId: '101', channelId: '22' });
+    await h.settle(hallOfFame.peakCooldownMs);
+    expect(h.fake.posted.size).toBe(2);
+    expect(entry()).toMatchObject({ channelId: thread, parentChannelId: sourceChannelId });
+
+    // Discord sends no thread delete when the parent goes, only the channel delete.
+    const rows = await h.runner.onSourceChannelDeleted(sourceChannelId);
+    expect(rows.map((row) => row.messageId)).toEqual([messageId]);
+    expect(entry()).toBeUndefined();
+    expect(h.fake.posted.size).toBe(1);
+    expect(getHallEntry(db, guildId, '101')).toBeDefined();
+  });
+
   it('makes a tombstone of a deleted hall post, and never posts it again', async () => {
     const h = await posted();
     const hallId = entry()?.hallMessageId as string;

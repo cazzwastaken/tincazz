@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "fcd1517f-9eb0-4d6c-9d5f-e69f2b244ede",
+  "id": "d2af478a-73ab-4ab6-8d96-5da7ca9c1ead",
   "prevId": "dcfa8179-72f6-42f8-abac-33401150c3b7",
   "tables": {
     "flips": {
@@ -525,6 +525,13 @@
           "notNull": true,
           "autoincrement": false
         },
+        "parent_channel_id": {
+          "name": "parent_channel_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "author_id": {
           "name": "author_id",
           "type": "text",
@@ -596,6 +603,13 @@
           "name": "hall_entries_channel_idx",
           "columns": [
             "channel_id"
+          ],
+          "isUnique": false
+        },
+        "hall_entries_parent_channel_idx": {
+          "name": "hall_entries_parent_channel_idx",
+          "columns": [
+            "parent_channel_id"
           ],
           "isUnique": false
         },

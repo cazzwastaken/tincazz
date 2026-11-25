@@ -148,7 +148,7 @@ the way to hard-block a private channel, and nothing else overrides it.
   preview that finished loading, does not touch the post. The pictures are copied again, and a
   picture the author removed disappears.
 - **Deleted originals**: deleting the original (or bulk deleting it, or deleting its channel or
-  thread) deletes the hall post too. Nothing stays in the hall that its author removed.
+  thread, or the channel or forum a thread belongs to) deletes the hall post too. Nothing stays in the hall that its author removed.
 - **Deleted hall posts**: if staff delete a post from the hall, Tincazz remembers and never posts
   that message again, whatever happens to its reactions.
 - **Changed or deleted source**: if the channel later becomes private, age-restricted or exempt,

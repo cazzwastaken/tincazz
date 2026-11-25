@@ -409,7 +409,14 @@ export function createHallRunner(deps: HallRunnerDeps): HallRunner {
 
     const claim = claimHallEntry(
       db,
-      { guildId, messageId, channelId, authorId: message.author.id, hallChannelId },
+      {
+        guildId,
+        messageId,
+        channelId,
+        parentChannelId: source.facts.parentId,
+        authorId: message.author.id,
+        hallChannelId,
+      },
       now(),
     );
     if (claim.kind !== 'claimed') return;

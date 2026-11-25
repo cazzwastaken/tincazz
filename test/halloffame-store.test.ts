@@ -359,6 +359,22 @@ describe('hall of fame entries', () => {
     expect(deleteHallEntriesBySourceChannel(db, 'c1')).toEqual([]);
   });
 
+  it('deletes the entries of threads when their parent channel is deleted', () => {
+    claimHallEntry(db, claim('m1', { channelId: 'c1' }), 1);
+    claimHallEntry(db, claim('m2', { channelId: 't1', parentChannelId: 'c1' }), 1);
+    claimHallEntry(db, claim('m3', { channelId: 't2', parentChannelId: 'c1' }), 1);
+    claimHallEntry(db, claim('m4', { channelId: 't3', parentChannelId: 'c2' }), 1);
+    claimHallEntry(db, claim('m5', { channelId: 'c3' }), 1);
+    expect(getHallEntry(db, 'g1', 'm2')?.parentChannelId).toBe('c1');
+    expect(getHallEntry(db, 'g1', 'm1')?.parentChannelId).toBeNull();
+    const rows = deleteHallEntriesBySourceChannel(db, 'c1');
+    expect(rows.map((row) => row.messageId).sort()).toEqual(['m1', 'm2', 'm3']);
+    expect(getHallEntry(db, 'g1', 'm4')).toBeDefined();
+    expect(getHallEntry(db, 'g1', 'm5')).toBeDefined();
+    // A deleted thread still matches by its own id.
+    expect(deleteHallEntriesBySourceChannel(db, 't3').map((row) => row.messageId)).toEqual(['m4']);
+  });
+
   it('deletes by hall channel, leaving entries in another hall channel', () => {
     post(db, 'm1');
     claimHallEntry(db, claim('m2'), 1);

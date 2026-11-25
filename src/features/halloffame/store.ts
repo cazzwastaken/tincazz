@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, lt, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, lt, or, sql } from 'drizzle-orm';
 import type { DbOrTx } from '../../db/index.js';
 import {
   guildHallExemptChannels,
@@ -121,6 +121,8 @@ export interface HallClaim {
   /** The source message. */
   messageId: string;
   channelId: string;
+  /** The parent channel when the message is in a thread. */
+  parentChannelId?: string | undefined;
   authorId: string;
   hallChannelId: string;
 }
@@ -318,11 +320,19 @@ export function deleteHallEntries(db: DbOrTx, guildId: string, messageIds: strin
     .all();
 }
 
-/** Deletes the entries of a deleted source channel or thread and returns them. */
+/**
+ * Deletes the entries of a deleted source channel or thread and returns them. Deleting a channel
+ * or forum sends no delete event for its threads, so entries from its threads go with it.
+ */
 export function deleteHallEntriesBySourceChannel(db: DbOrTx, channelId: string): HallEntry[] {
   return db
     .delete(hallOfFameEntries)
-    .where(eq(hallOfFameEntries.channelId, channelId))
+    .where(
+      or(
+        eq(hallOfFameEntries.channelId, channelId),
+        eq(hallOfFameEntries.parentChannelId, channelId),
+      ),
+    )
     .returning()
     .all();
 }

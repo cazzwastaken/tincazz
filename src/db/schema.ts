@@ -239,6 +239,8 @@ export const hallOfFameEntries = sqliteTable(
     messageId: text('message_id').notNull(),
     /** The source channel (a thread's own ID when it was posted in one). */
     channelId: text('channel_id').notNull(),
+    /** The parent of that thread (a channel or forum), so deleting it can find the entries. */
+    parentChannelId: text('parent_channel_id'),
     authorId: text('author_id').notNull(),
     hallChannelId: text('hall_channel_id').notNull(),
     /** Null until the hall post exists. */
@@ -253,6 +255,7 @@ export const hallOfFameEntries = sqliteTable(
   (table) => [
     primaryKey({ columns: [table.guildId, table.messageId] }),
     index('hall_entries_channel_idx').on(table.channelId),
+    index('hall_entries_parent_channel_idx').on(table.parentChannelId),
     index('hall_entries_hall_channel_idx').on(table.hallChannelId),
     index('hall_entries_status_created_idx').on(table.status, table.createdAt),
   ],
