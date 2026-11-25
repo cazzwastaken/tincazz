@@ -46,21 +46,26 @@ The SQLite database is created under `./data/` on first start.
 2. Put feature logic in `src/features/<name>/` and keep commands, listeners and interaction handlers
    thin. Sapphire loads pieces automatically, so never register them by hand.
 3. Prefer slash commands for new user-facing features.
-4. Add or update tests in `test/` (see "Tests" below).
-5. If you change `src/db/schema.ts`, run `pnpm db:generate --name <change>` and commit the generated
+4. Write erasable TypeScript only (`erasableSyntaxOnly`, enforced by `pnpm typecheck`): no
+   parameter properties, `enum` or `namespace`. The built bot runs compiled JavaScript and
+   `pnpm dev` uses `tsx`, but the tests load pieces with Node's native type stripping, which
+   rejects that syntax.
+5. Add or update tests in `test/` (see "Tests" below).
+6. If you change `src/db/schema.ts`, run `pnpm db:generate --name <change>` and commit the generated
    migration in `drizzle/` with it.
-6. If you add an environment variable, add it to the zod schema in `src/config/env.ts` **and** to
+7. If you add an environment variable, add it to the zod schema in `src/config/env.ts` **and** to
    `.env.example` in the same commit. Read config only through `parseEnv`.
-7. Games run through the shared animation flow: `runAnimatedGame` (busy lock, settle, error text,
+8. Games run through the shared animation flow: `runAnimatedGame` (busy lock, settle, error text,
    show) with a `GameSurface` for slash and prefix commands, and a single transactional settle in
    the feature that uses `settleStake` (bet, then payouts) from `src/features/economy/`. Do not
    hand-roll the bet and payout ledger steps.
-8. Guild specifics (log channels, auto-roles, the jackpot role, game channels) are per-guild
+9. Guild specifics (log channels, auto-roles, the jackpot role, game channels, the Hall of Fame
+   channel and its exemptions) are per-guild
    settings in `src/features/settings/`, set by staff with `/settings`. Never hard-code role,
    channel or server IDs in the code.
-9. Keep the docs in step: the README feature list and the `/help` cards for user-visible behavior,
-   [docs/games.md](docs/games.md) for rule or payout changes, and AGENTS.md (layout, conventions)
-   plus this file when a convention changes.
+10. Keep the docs in step: the README feature list and the `/help` cards for user-visible behavior,
+    [docs/games.md](docs/games.md) for rule or payout changes, and AGENTS.md (layout, conventions)
+    plus this file when a convention changes.
 
 ## Checks
 

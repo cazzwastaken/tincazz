@@ -1,0 +1,787 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { closeDatabase, type Db, openDatabase } from '../src/db/index.js';
+import {
+  addHallExempt,
+  bumpHallPeak,
+  claimHallEntry,
+  getHallEntry,
+  hallOfFame,
+  markHallPosted,
+  setHallChannel,
+} from '../src/features/halloffame/index.js';
+import {
+  authorId,
+  channelInfo,
+  guildId,
+  hallChannelId,
+  harness,
+  messageId,
+  people,
+  sourceChannelId,
+  t0,
+} from './support/hall-discord.js';
+
+let db: Db;
+beforeEach(() => {
+  db = openDatabase(':memory:');
+  vi.useFakeTimers({ now: t0 });
+});
+afterEach(() => {
+  vi.useRealTimers();
+  closeDatabase(db);
+});
+
+const entry = () => getHallEntry(db, guildId, messageId);
+const image = (n: number) => ({
+  id: String(n),
+  name: `pic${n}.png`,
+  url: `https://cdn.discordapp.com/attachments/1/${n}/pic${n}.png?ex=1`,
+  size: 1000,
+  contentType: 'image/png',
+});
+
+/** A posted entry made through the runner itself, so card, hash and row agree. */
+async function posted(options: { images?: number } = {}) {
+  const h = harness(db, vi);
+  h.fake.addMessage({
+    facts: {
+      content: 'a fine message',
+      attachments: Array.from({ length: options.images ?? 0 }, (_, i) => image(i)),
+      stickers: [],
+      embeds: [],
+      snapshots: [],
+    },
+  });
+  h.fake.react(messageId, '⭐', people(0, 5));
+  h.add('2000');
+  await h.settle();
+  // Past the follow-up too (the redraw, then the recount of late reactions) and the cooldown of
+  // that recount, so the entry is quiet and may be counted again at once.
+  await h.settle(hallOfFame.peakCooldownMs + hallOfFame.editCooldownMs + hallOfFame.debounceMs);
+  await h.settle(hallOfFame.peakCooldownMs);
+  return h;
+}
+
+describe('hall of fame sync', () => {
+  it('raises the peak and edits the card when more people react', async () => {
+    const h = await posted();
+    const before = entry();
+    h.fake.react(messageId, '⭐', people(0, 9));
+    h.add('3000');
+    await h.settle();
+    await h.settle(hallOfFame.peakCooldownMs);
+
+    const row = entry();
+    expect(row?.peakCount).toBe(9);
+    expect(row?.lastRenderedHash).not.toBe(before?.lastRenderedHash);
+    const edit = h.fake.log.edit.at(-1);
+    expect(edit?.messageId).toBe(before?.hallMessageId);
+    expect(JSON.stringify(edit?.post.card.toJSON())).toContain('**9** people');
+  });
+
+  it('does not edit when nothing about the card changed', async () => {
+    const h = await posted();
+    const edits = h.fake.log.edit.length;
+    const hash = entry()?.lastRenderedHash;
+    h.runner.onMessageUpdate(guildId, messageId);
+    await h.settle();
+    expect(h.fake.log.edit).toHaveLength(edits);
+    expect(entry()?.lastRenderedHash).toBe(hash);
+  });
+
+  it('skips the image downloads of an unchanged card', async () => {
+    const h = await posted({ images: 2 });
+    const downloads = h.fake.log.downloaded.length;
+    h.runner.onMessageUpdate(guildId, messageId);
+    await h.settle();
+    expect(h.fake.log.downloaded).toHaveLength(downloads);
+    expect(h.fake.log.edit).toHaveLength(0);
+  });
+
+  it('re-uploads the images with every edit, and drops one the author removed', async () => {
+    const h = await posted({ images: 2 });
+    expect(h.fake.log.send[0]?.post.files.map((f) => f.name)).toEqual(['hall-0.png', 'hall-1.png']);
+
+    const message = h.fake.messages.get(messageId);
+    if (!message) throw new Error('missing');
+    message.facts = { ...message.facts, content: 'edited text' };
+    h.runner.onMessageUpdate(guildId, messageId);
+    await h.settle();
+    const first = h.fake.log.edit.at(-1);
+    expect(first?.post.files.map((f) => f.name)).toEqual(['hall-0.png', 'hall-1.png']);
+    expect(JSON.stringify(first?.post.card.toJSON())).toContain('edited text');
+
+    message.facts = { ...message.facts, attachments: [image(0)] };
+    h.runner.onMessageUpdate(guildId, messageId);
+    await h.settle(hallOfFame.editCooldownMs + hallOfFame.debounceMs);
+    const second = h.fake.log.edit.at(-1);
+    expect(second?.post.files.map((f) => f.name)).toEqual(['hall-0.png']);
+    expect(JSON.stringify(second?.post.card.toJSON())).not.toContain('hall-1.png');
+  });
+
+  it('keeps the card as it is while an image of it fails to download, then redraws', async () => {
+    const h = await posted({ images: 1 });
+    const before = entry();
+    const edits = h.fake.log.edit.length;
+    const message = h.fake.messages.get(messageId);
+    if (!message) throw new Error('missing');
+    message.facts = { ...message.facts, content: 'changed' };
+    h.fake.downloads.set(image(0).url, new Error('cdn down'));
+    h.runner.onMessageUpdate(guildId, messageId);
+    await h.settle();
+    // The post would lose its picture: nothing is edited and nothing is recorded as drawn.
+    expect(h.fake.log.edit).toHaveLength(edits);
+    expect(entry()?.lastRenderedHash).toBe(before?.lastRenderedHash);
+    expect(h.debug).toHaveBeenCalledWith(expect.stringContaining('put off redrawing'));
+
+    // The retry comes by itself, after the edit cooldown, and goes through once the CDN is back.
+    h.fake.downloads.delete(image(0).url);
+    await h.settle(hallOfFame.editCooldownMs + hallOfFame.debounceMs);
+    const edit = h.fake.log.edit.at(-1);
+    expect(edit?.post.files.map((f) => f.name)).toEqual(['hall-0.png']);
+    expect(JSON.stringify(edit?.post.card.toJSON())).toContain('changed');
+    expect(entry()?.lastRenderedHash).not.toBe(before?.lastRenderedHash);
+  });
+
+  it('gives up retrying a picture that stays down, without losing it, and starts over on a change', async () => {
+    const h = await posted({ images: 1 });
+    const edits = h.fake.log.edit.length;
+    const message = h.fake.messages.get(messageId);
+    if (!message) throw new Error('missing');
+    message.facts = { ...message.facts, content: 'changed' };
+    h.fake.downloads.set(image(0).url, new Error('cdn down'));
+    const fetches = h.fake.log.downloaded.length;
+    h.runner.onMessageUpdate(guildId, messageId);
+    await h.settle(hallOfFame.editCooldownMs * 10);
+    expect(h.fake.log.edit).toHaveLength(edits);
+    // One try and its retries, then it waits for the next change instead of looping.
+    expect(h.fake.log.downloaded.length - fetches).toBe(hallOfFame.imageRetryLimit + 1);
+    expect(h.warn).toHaveBeenCalledWith(expect.stringContaining('left the card'));
+
+    h.fake.downloads.delete(image(0).url);
+    h.runner.onMessageUpdate(guildId, messageId);
+    await h.settle(hallOfFame.editCooldownMs + hallOfFame.debounceMs);
+    expect(h.fake.log.edit.at(-1)?.post.files.map((f) => f.name)).toEqual(['hall-0.png']);
+  });
+
+  it('is not held back by an image that never made it into the card', async () => {
+    const h = harness(db, vi);
+    h.fake.addMessage({
+      facts: {
+        content: 'a fine message',
+        attachments: [image(0)],
+        stickers: [],
+        embeds: [],
+        snapshots: [],
+      },
+    });
+    h.fake.react(messageId, '⭐', people(0, 5));
+    h.fake.downloads.set(image(0).url, new Error('cdn down'));
+    h.add('2000');
+    await h.settle();
+    await h.settle(hallOfFame.peakCooldownMs + hallOfFame.editCooldownMs + hallOfFame.debounceMs);
+    expect(h.fake.log.send[0]?.post.files).toEqual([]);
+
+    // An edit of the text goes through although the picture still fails: it was never in the card.
+    const message = h.fake.messages.get(messageId);
+    if (!message) throw new Error('missing');
+    message.facts = { ...message.facts, content: 'changed' };
+    h.runner.onMessageUpdate(guildId, messageId);
+    await h.settle(hallOfFame.peakCooldownMs);
+    const edit = h.fake.log.edit.at(-1);
+    expect(JSON.stringify(edit?.post.card.toJSON())).toContain('changed');
+    expect(edit?.post.files).toEqual([]);
+    expect(h.debug).not.toHaveBeenCalledWith(expect.stringContaining('put off redrawing'));
+
+    // And the picture joins the card as soon as it can be copied.
+    h.fake.downloads.delete(image(0).url);
+    h.runner.onMessageUpdate(guildId, messageId);
+    await h.settle(hallOfFame.editCooldownMs + hallOfFame.debounceMs);
+    expect(h.fake.log.edit.at(-1)?.post.files.map((f) => f.name)).toEqual(['hall-0.png']);
+  });
+
+  it('does not lose a picture of an adopted card whose images are not known', async () => {
+    const h = harness(db, vi);
+    h.fake.addMessage({
+      facts: {
+        content: 'a fine message',
+        attachments: [image(0)],
+        stickers: [],
+        embeds: [],
+        snapshots: [],
+      },
+    });
+    claimHallEntry(
+      db,
+      { guildId, messageId, channelId: sourceChannelId, authorId, hallChannelId },
+      t0,
+    );
+    markHallPosted(
+      db,
+      guildId,
+      messageId,
+      { hallMessageId: '1', peakCount: 5, renderedHash: '' },
+      t0,
+    );
+    h.fake.posted.set('1', { channelId: hallChannelId, post: { card: {} as never, files: [] } });
+    h.fake.react(messageId, '⭐', people(0, 5));
+    h.fake.downloads.set(image(0).url, new Error('cdn down'));
+    h.runner.onMessageUpdate(guildId, messageId);
+    await h.settle();
+    expect(h.fake.log.edit).toHaveLength(0);
+    expect(entry()?.uploadedImages).toBeNull();
+  });
+
+  describe('edits of the original', () => {
+    const text = (h: Awaited<ReturnType<typeof posted>>, content: string) => {
+      const message = h.fake.messages.get(messageId);
+      if (!message) throw new Error('missing');
+      message.facts = { ...message.facts, content };
+    };
+    const lastCard = (h: Awaited<ReturnType<typeof posted>>) =>
+      JSON.stringify(h.fake.log.edit.at(-1)?.post.card.toJSON());
+
+    it('redraws from the message with the stored count, without counting the reactors', async () => {
+      const h = await posted();
+      const reactors = h.fake.log.fetchReactors;
+      // More people reacted, but only reactions refresh the count.
+      h.fake.react(messageId, '⭐', people(0, 9));
+      text(h, 'edited');
+      h.runner.onMessageUpdate(guildId, messageId);
+      await h.settle();
+      expect(h.fake.log.fetchReactors).toBe(reactors);
+      expect(lastCard(h)).toContain('edited');
+      expect(lastCard(h)).toContain('**5** people');
+      expect(entry()?.peakCount).toBe(5);
+    });
+
+    it('limits an author who keeps editing, and the last edit still lands', async () => {
+      const h = await posted();
+      const reactors = h.fake.log.fetchReactors;
+      const reads = h.fake.log.fetchMessage;
+      const before = h.fake.log.edit.length;
+      const edits = 12;
+      for (let i = 1; i <= edits; i++) {
+        text(h, `edit ${i}`);
+        h.runner.onMessageUpdate(guildId, messageId);
+        await vi.advanceTimersByTimeAsync(hallOfFame.debounceMs + 1000);
+      }
+      await h.settle(hallOfFame.editCooldownMs + hallOfFame.debounceMs);
+      const elapsed = edits * (hallOfFame.debounceMs + 1000);
+      const bound = Math.ceil(elapsed / hallOfFame.editCooldownMs) + 1;
+      expect(h.fake.log.edit.length - before).toBeLessThanOrEqual(bound);
+      expect(h.fake.log.edit.length - before).toBeLessThan(edits);
+      expect(h.fake.log.fetchMessage - reads).toBeLessThanOrEqual(bound);
+      expect(h.fake.log.fetchReactors).toBe(reactors);
+      expect(lastCard(h)).toContain('edit 12');
+      expect(entry()?.lastRenderedHash).toBeTruthy();
+    });
+
+    it('defers a second edit until the cooldown has passed', async () => {
+      const h = await posted();
+      text(h, 'one');
+      h.runner.onMessageUpdate(guildId, messageId);
+      await h.settle();
+      expect(lastCard(h)).toContain('one');
+      const edits = h.fake.log.edit.length;
+
+      text(h, 'two');
+      h.runner.onMessageUpdate(guildId, messageId);
+      await h.settle();
+      // Only a few seconds after the first redraw: not yet.
+      expect(h.fake.log.edit).toHaveLength(edits);
+      await h.settle(hallOfFame.editCooldownMs);
+      expect(h.fake.log.edit).toHaveLength(edits + 1);
+      expect(lastCard(h)).toContain('two');
+    });
+
+    it('counts the reactors once when the breakdown is not known (after a restart)', async () => {
+      const h = await posted();
+      const again = harness(db, vi);
+      // A new runner on the same database and the same Discord, as after a restart.
+      for (const [id, message] of h.fake.messages) again.fake.messages.set(id, message);
+      for (const [id, users] of h.fake.reactors) again.fake.reactors.set(id, users);
+      for (const [id, card] of h.fake.posted) again.fake.posted.set(id, card);
+      again.fake.react(messageId, '⭐', people(0, 9));
+      text(again, 'edited');
+      again.runner.onMessageUpdate(guildId, messageId);
+      await again.settle();
+      expect(again.fake.log.fetchReactors).toBe(1);
+      expect(entry()?.peakCount).toBe(9);
+
+      text(again, 'edited again');
+      again.runner.onMessageUpdate(guildId, messageId);
+      await again.settle(hallOfFame.editCooldownMs + hallOfFame.debounceMs);
+      expect(again.fake.log.fetchReactors).toBe(1);
+      expect(lastCard(again)).toContain('edited again');
+    });
+
+    it('sends the edit first and the reactions after their own cooldown', async () => {
+      const h = await posted();
+      h.fake.react(messageId, '⭐', people(0, 8));
+      h.add('3000');
+      await h.settle();
+      expect(entry()?.peakCount).toBe(8);
+      const reactors = h.fake.log.fetchReactors;
+
+      // Reactions and an edit arrive together, soon after a count: the edit is not held back.
+      h.fake.react(messageId, '⭐', people(0, 11));
+      h.add('3001');
+      await vi.advanceTimersByTimeAsync(hallOfFame.editCooldownMs);
+      text(h, 'late edit');
+      h.runner.onMessageUpdate(guildId, messageId);
+      await h.settle();
+      expect(lastCard(h)).toContain('late edit');
+      expect(h.fake.log.fetchReactors).toBe(reactors);
+      expect(entry()?.peakCount).toBe(8);
+
+      await h.settle(hallOfFame.peakCooldownMs);
+      expect(h.fake.log.fetchReactors).toBeGreaterThan(reactors);
+      expect(entry()?.peakCount).toBe(11);
+    });
+  });
+
+  it('never lowers the peak, whatever order syncs finish in', async () => {
+    const h = await posted();
+    h.fake.react(messageId, '⭐', people(0, 8));
+    h.add('3000');
+    await h.settle();
+    expect(entry()?.peakCount).toBe(8);
+
+    h.fake.react(messageId, '⭐', people(0, 6));
+    h.add('3001');
+    await h.settle(hallOfFame.peakCooldownMs + hallOfFame.debounceMs);
+    expect(entry()?.peakCount).toBe(8);
+    expect(JSON.stringify(h.fake.log.edit.at(-1)?.post.card.toJSON())).toContain('**8** people');
+
+    // Removing reactions only refreshes.
+    h.fake.react(messageId, '⭐', []);
+    h.runner.onReactionChange({ guildId, channelId: sourceChannelId, messageId });
+    await h.settle(hallOfFame.peakCooldownMs);
+    expect(entry()?.peakCount).toBe(8);
+    expect(entry()?.status).toBe('posted');
+  });
+
+  it('peak writes are MAX at the store, so a slow older sync cannot lower it', async () => {
+    const h = await posted();
+    const row = entry();
+    if (!row) throw new Error('missing');
+    bumpHallPeak(db, guildId, messageId, 12, t0);
+    bumpHallPeak(db, guildId, messageId, 7, t0);
+    expect(entry()?.peakCount).toBe(12);
+    h.runner.stop();
+  });
+
+  it('defers reaction work inside the cooldown instead of dropping it', async () => {
+    const h = await posted();
+    h.fake.react(messageId, '⭐', people(0, 7));
+    h.add('3000');
+    await h.settle();
+    // First sync after the cooldown has long passed: runs immediately.
+    expect(entry()?.peakCount).toBe(7);
+
+    h.fake.react(messageId, '⭐', people(0, 11));
+    h.add('3001');
+    await h.settle(hallOfFame.debounceMs);
+    expect(entry()?.peakCount).toBe(7);
+
+    await h.settle(hallOfFame.peakCooldownMs);
+    expect(entry()?.peakCount).toBe(11);
+  });
+
+  it('coalesces a burst of reactions into one sync', async () => {
+    const h = await posted();
+    const fetched = h.fake.log.fetchMessage;
+    h.fake.react(messageId, '⭐', people(0, 9));
+    for (const user of people(20, 4)) h.add(user);
+    await h.settle();
+    expect(h.fake.log.fetchMessage).toBe(fetched + 1);
+  });
+
+  it('holds a steady stream of reactions back no longer than the maximum wait', async () => {
+    const h = await posted();
+    const fetched = h.fake.log.fetchMessage;
+    for (let i = 0; i < 20; i++) {
+      h.add(String(4000 + i));
+      await vi.advanceTimersByTimeAsync(hallOfFame.debounceMs - 1_000);
+    }
+    await h.runner.idle();
+    expect(h.fake.log.fetchMessage).toBeGreaterThan(fetched);
+  });
+
+  it('deletes the row before the hall message when the source is gone', async () => {
+    const h = await posted();
+    const hallId = entry()?.hallMessageId as string;
+    let rowWhenDeleted: unknown = 'unset';
+    h.fake.beforeDelete = () => {
+      rowWhenDeleted = entry();
+    };
+    h.fake.messages.delete(messageId);
+    h.runner.onMessageUpdate(guildId, messageId);
+    await h.settle();
+
+    expect(rowWhenDeleted).toBeUndefined();
+    expect(h.fake.log.deleted).toEqual([{ channelId: hallChannelId, messageId: hallId }]);
+    expect(entry()).toBeUndefined();
+    // Our own delete event finds no row, so nothing is tombstoned.
+    expect(h.runner.onHallMessagesDeleted(guildId, [hallId])).toEqual([]);
+  });
+
+  it('removes the hall post when the source message is deleted', async () => {
+    const h = await posted();
+    const hallId = entry()?.hallMessageId as string;
+    let rowWhenDeleted: unknown = 'unset';
+    h.fake.beforeDelete = () => {
+      rowWhenDeleted = entry();
+    };
+    await h.runner.onSourceMessagesDeleted(guildId, [messageId, '999']);
+    expect(rowWhenDeleted).toBeUndefined();
+    expect(h.fake.posted.has(hallId)).toBe(false);
+    expect(entry()).toBeUndefined();
+  });
+
+  it('removes the post of a message deleted while its induction was in flight', async () => {
+    // The delete event lands after the message was read and before the claim: the event must not
+    // be skipped just because no row exists yet, or the induction would post an orphan.
+    const h = harness(db, vi);
+    h.fake.addMessage();
+    h.fake.react(messageId, '⭐', people(0, 6));
+    let deleting: Promise<void> | undefined;
+    h.fake.afterFetchMessage = () => {
+      h.fake.afterFetchMessage = undefined;
+      h.fake.messages.delete(messageId);
+      deleting = h.runner.onSourceMessagesDeleted(guildId, [messageId]);
+    };
+    h.add('2000');
+    await h.settle();
+    await deleting;
+    await h.settle(hallOfFame.peakCooldownMs);
+    expect(h.fake.log.send).toHaveLength(1);
+    expect(h.fake.posted.size).toBe(0);
+    expect(entry()).toBeUndefined();
+    // And a later reaction finds nothing to induct.
+    h.add('2001');
+    await h.settle();
+    expect(h.fake.log.send).toHaveLength(1);
+  });
+
+  it('ignores a delete event for a message that was never inducted', async () => {
+    const h = harness(db, vi);
+    await h.runner.onSourceMessagesDeleted(guildId, [messageId]);
+    expect(h.fake.log.deleted).toEqual([]);
+    expect(entry()).toBeUndefined();
+  });
+
+  it('removes the hall posts of a deleted source channel', async () => {
+    const h = await posted();
+    const rows = await h.runner.onSourceChannelDeleted(sourceChannelId);
+    expect(rows).toHaveLength(1);
+    expect(h.fake.posted.size).toBe(0);
+    expect(entry()).toBeUndefined();
+  });
+
+  it('removes the hall posts of threads when their parent channel is deleted', async () => {
+    const h = harness(db, vi);
+    const thread = '21';
+    h.fake.channels.set(
+      thread,
+      channelInfo(thread, 'a thread', { isThread: true, parentId: sourceChannelId }),
+    );
+    // One message from a thread of the source channel, one from an unrelated channel.
+    h.fake.addMessage({ channelId: thread });
+    h.fake.react(messageId, '⭐', people(0, 5));
+    h.add('2000', { channelId: thread });
+    await h.settle(hallOfFame.peakCooldownMs);
+    h.fake.channels.set('22', channelInfo('22', 'elsewhere'));
+    h.fake.addMessage({ id: '101', channelId: '22' });
+    h.fake.react('101', '⭐', people(0, 5));
+    h.add('2001', { messageId: '101', channelId: '22' });
+    await h.settle(hallOfFame.peakCooldownMs);
+    expect(h.fake.posted.size).toBe(2);
+    expect(entry()).toMatchObject({ channelId: thread, parentChannelId: sourceChannelId });
+
+    // Discord sends no thread delete when the parent goes, only the channel delete.
+    const rows = await h.runner.onSourceChannelDeleted(sourceChannelId);
+    expect(rows.map((row) => row.messageId)).toEqual([messageId]);
+    expect(entry()).toBeUndefined();
+    expect(h.fake.posted.size).toBe(1);
+    expect(getHallEntry(db, guildId, '101')).toBeDefined();
+  });
+
+  it('makes a tombstone of a deleted hall post, and never posts it again', async () => {
+    const h = await posted();
+    const hallId = entry()?.hallMessageId as string;
+    const rows = h.runner.onHallMessagesDeleted(guildId, [hallId]);
+    expect(rows).toHaveLength(1);
+    expect(entry()?.status).toBe('removed');
+
+    h.fake.react(messageId, '⭐', people(0, 12));
+    h.add('3000');
+    await h.settle(hallOfFame.peakCooldownMs);
+    expect(h.fake.log.send).toHaveLength(1);
+    expect(entry()?.status).toBe('removed');
+  });
+
+  it('tombstones when an edit finds the hall post gone', async () => {
+    const h = await posted();
+    const hallId = entry()?.hallMessageId as string;
+    h.fake.posted.delete(hallId);
+    h.fake.react(messageId, '⭐', people(0, 9));
+    h.add('3000');
+    await h.settle();
+    expect(entry()?.status).toBe('removed');
+    expect(h.fake.log.send).toHaveLength(1);
+  });
+
+  it('does not tombstone on missing permissions or a transient error', async () => {
+    const h = await posted();
+    h.fake.react(messageId, '⭐', people(0, 9));
+    h.fake.faults.edit = 'forbidden';
+    h.add('3000');
+    await h.settle();
+    expect(entry()?.status).toBe('posted');
+
+    h.fake.faults.edit = 'other';
+    h.fake.react(messageId, '⭐', people(0, 10));
+    h.add('3001');
+    await h.settle(hallOfFame.peakCooldownMs + hallOfFame.debounceMs);
+    expect(entry()?.status).toBe('posted');
+    expect(h.warn).toHaveBeenCalled();
+
+    // The next sync still brings the card up to date.
+    h.fake.faults.edit = undefined;
+    h.runner.onMessageUpdate(guildId, messageId);
+    await h.settle(hallOfFame.editCooldownMs + hallOfFame.debounceMs);
+    expect(JSON.stringify(h.fake.log.edit.at(-1)?.post.card.toJSON())).toContain('**10** people');
+  });
+
+  it('leaves the card alone when the reactors cannot be counted', async () => {
+    const h = await posted();
+    const edits = h.fake.log.edit.length;
+    h.fake.faults.fetchReactors = 'other';
+    h.fake.react(messageId, '⭐', people(0, 9));
+    h.add('3000');
+    await h.settle();
+    expect(h.fake.log.edit).toHaveLength(edits);
+    expect(entry()?.peakCount).toBe(5);
+  });
+
+  it('keeps editing a post in the old hall channel after the hall changed', async () => {
+    const h = await posted();
+    h.fake.channels.set('31', channelInfo('31', 'hall-2'));
+    setHallChannel(db, guildId, '31', t0);
+    h.fake.react(messageId, '⭐', people(0, 9));
+    h.add('3000');
+    await h.settle();
+    expect(h.fake.log.edit.at(-1)?.channelId).toBe(hallChannelId);
+    expect(h.fake.log.send).toHaveLength(1);
+  });
+
+  it('stops following reactions once the hall is cleared, but still mirrors edits', async () => {
+    const h = await posted();
+    const counted = h.fake.log.fetchReactors;
+    setHallChannel(db, guildId, null, t0);
+    // A reaction taken back would recount, and the recount would see people who reacted since.
+    h.fake.react(messageId, '⭐', people(0, 9));
+    h.runner.onReactionChange({ guildId, channelId: sourceChannelId, messageId });
+    h.add('3000');
+    await h.settle();
+    await h.settle(hallOfFame.peakCooldownMs);
+    expect(h.fake.log.fetchReactors).toBe(counted);
+    expect(entry()?.peakCount).toBe(5);
+
+    const message = h.fake.messages.get(messageId);
+    if (!message) throw new Error('missing');
+    message.facts = { ...message.facts, content: 'edited after the clear' };
+    h.runner.onMessageUpdate(guildId, messageId);
+    await h.settle();
+    expect(JSON.stringify(h.fake.log.edit.at(-1)?.post.card.toJSON())).toContain(
+      'edited after the clear',
+    );
+    expect(entry()?.peakCount).toBe(5);
+  });
+
+  it('skips the queued induction recount if staff clear the hall before it runs', async () => {
+    const h = harness(db, vi);
+    h.fake.addMessage();
+    h.fake.react(messageId, '⭐', people(0, 5));
+    h.add('2000');
+    await h.settle();
+    expect(entry()?.peakCount).toBe(5);
+
+    const counted = h.fake.log.fetchReactors;
+    setHallChannel(db, guildId, null, t0);
+    h.fake.react(messageId, '⭐', people(0, 9));
+    await h.settle(hallOfFame.peakCooldownMs + hallOfFame.editCooldownMs);
+    expect(h.fake.log.fetchReactors).toBe(counted);
+    expect(entry()?.peakCount).toBe(5);
+  });
+
+  it('discards a reaction recount that was in flight when staff cleared the hall', async () => {
+    const h = await posted();
+    const edits = h.fake.log.edit.length;
+    h.fake.react(messageId, '⭐', people(0, 9));
+    const fetchReactors = h.fake.fetchReactors.bind(h.fake);
+    vi.spyOn(h.fake, 'fetchReactors').mockImplementationOnce(async (...args) => {
+      const reactors = await fetchReactors(...args);
+      setHallChannel(db, guildId, null, t0);
+      return reactors;
+    });
+    h.add('3000');
+    await h.settle();
+
+    expect(h.fake.log.edit).toHaveLength(edits);
+    expect(entry()?.peakCount).toBe(5);
+  });
+
+  it('forgets the entries of a deleted hall channel', async () => {
+    const h = await posted();
+    expect(h.runner.onHallChannelDeleted(hallChannelId)).toHaveLength(1);
+    expect(entry()).toBeUndefined();
+  });
+
+  it('ignores a message update for a message that is not in the hall', async () => {
+    const h = harness(db, vi);
+    h.fake.addMessage();
+    h.runner.onMessageUpdate(guildId, messageId);
+    h.runner.onReactionChange({ guildId, channelId: sourceChannelId, messageId });
+    await h.settle();
+    expect(h.fake.log.fetchMessage).toBe(0);
+  });
+
+  it('does not edit a claim that is still being published', async () => {
+    const h = harness(db, vi);
+    h.fake.addMessage();
+    claimHallEntry(
+      db,
+      { guildId, messageId, channelId: sourceChannelId, authorId, hallChannelId },
+      t0,
+    );
+    h.runner.onMessageUpdate(guildId, messageId);
+    h.add('2000');
+    await h.settle();
+    expect(h.fake.log.fetchMessage).toBe(0);
+    markHallPosted(
+      db,
+      guildId,
+      messageId,
+      { hallMessageId: '1', peakCount: 5, renderedHash: 'x' },
+      t0,
+    );
+  });
+
+  describe('a source channel that became ineligible after the induction', () => {
+    const edited = async (h: Awaited<ReturnType<typeof posted>>) => {
+      const message = h.fake.messages.get(messageId);
+      if (!message) throw new Error('missing');
+      message.facts = { ...message.facts, content: 'a secret added later' };
+      h.fake.react(messageId, '⭐', people(0, 9));
+      h.runner.onMessageUpdate(guildId, messageId);
+      await h.settle();
+    };
+    const frozen = (h: Awaited<ReturnType<typeof posted>>, reason: string) => {
+      expect(h.fake.log.edit).toHaveLength(0);
+      expect(entry()?.peakCount).toBe(5);
+      expect(h.fake.log.deleted).toHaveLength(0);
+      expect(h.debug).toHaveBeenCalledWith(expect.stringContaining(reason));
+    };
+
+    it('stops copying edits once the channel is exempt', async () => {
+      const h = await posted();
+      addHallExempt(db, guildId, sourceChannelId, t0);
+      await edited(h);
+      frozen(h, 'exempt');
+    });
+
+    it('stops copying edits once the channel is exempt through its category', async () => {
+      const h = await posted();
+      h.fake.channels.set(
+        sourceChannelId,
+        channelInfo(sourceChannelId, 'memes', { categoryId: '77' }),
+      );
+      addHallExempt(db, guildId, '77', t0);
+      await edited(h);
+      frozen(h, 'exempt');
+    });
+
+    it('stops copying edits once the channel is private and the hall is public', async () => {
+      const h = await posted();
+      h.fake.channels.set(
+        sourceChannelId,
+        channelInfo(sourceChannelId, 'memes', { audience: ['staff-role'] }),
+      );
+      await edited(h);
+      frozen(h, 'audience-mismatch');
+    });
+
+    it('stops copying edits once a role that cannot see the source can see the hall', async () => {
+      const h = await posted();
+      // The source is for staff only, and a members-only hall would show it to members.
+      h.fake.channels.set(
+        sourceChannelId,
+        channelInfo(sourceChannelId, 'staff', { audience: ['staff'] }),
+      );
+      h.fake.channels.set(
+        hallChannelId,
+        channelInfo(hallChannelId, 'hall', { audience: ['member'] }),
+      );
+      await edited(h);
+      frozen(h, 'audience-mismatch');
+    });
+
+    it('stops copying edits once the channel is age-restricted and the hall is not', async () => {
+      const h = await posted();
+      h.fake.channels.set(sourceChannelId, channelInfo(sourceChannelId, 'memes', { nsfw: true }));
+      await edited(h);
+      frozen(h, 'nsfw-to-sfw');
+    });
+
+    it('stops copying edits when the source turned out to be a private thread', async () => {
+      const h = await posted();
+      h.fake.channels.set(
+        sourceChannelId,
+        channelInfo(sourceChannelId, 'memes', { isThread: true, isPrivateThread: true }),
+      );
+      await edited(h);
+      frozen(h, 'private-thread');
+    });
+
+    it('stops copying edits when the hall channel cannot be resolved', async () => {
+      const h = await posted();
+      h.fake.channels.delete(hallChannelId);
+      await edited(h);
+      frozen(h, 'unavailable');
+    });
+
+    it('resumes once the channel is eligible again', async () => {
+      const h = await posted();
+      addHallExempt(db, guildId, sourceChannelId, t0);
+      await edited(h);
+      expect(h.fake.log.edit).toHaveLength(0);
+      db.$client.prepare('delete from guild_hall_exempt_channels').run();
+      h.runner.onMessageUpdate(guildId, messageId);
+      await h.settle(hallOfFame.editCooldownMs + hallOfFame.debounceMs);
+      expect(JSON.stringify(h.fake.log.edit.at(-1)?.post.card.toJSON())).toContain(
+        'a secret added later',
+      );
+    });
+
+    it('still deletes the hall post when the source is deleted', async () => {
+      const h = await posted();
+      const hallId = entry()?.hallMessageId as string;
+      addHallExempt(db, guildId, sourceChannelId, t0);
+      h.fake.messages.delete(messageId);
+      h.runner.onMessageUpdate(guildId, messageId);
+      await h.settle();
+      expect(entry()).toBeUndefined();
+      expect(h.fake.posted.has(hallId)).toBe(false);
+
+      const again = await posted();
+      addHallExempt(db, guildId, sourceChannelId, t0);
+      const row = entry()?.hallMessageId as string;
+      await again.runner.onSourceMessagesDeleted(guildId, [messageId]);
+      expect(entry()).toBeUndefined();
+      expect(again.fake.posted.has(row)).toBe(false);
+    });
+  });
+});

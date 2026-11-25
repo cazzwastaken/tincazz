@@ -1,0 +1,1 @@
+ALTER TABLE `hall_of_fame_entries` ADD `uploaded_images` text;

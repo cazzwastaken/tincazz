@@ -3,6 +3,7 @@ import type { Client } from 'discord.js';
 import { parseEnv } from '../config/env.js';
 import { restoreChallengeCards } from '../features/coinflip/index.js';
 import { startGiveaways } from '../features/giveaways/index.js';
+import { startHallOfFame } from '../features/halloffame/index.js';
 import { ensureAllCards } from '../features/honeypot/index.js';
 import { createMemberReconcileJob } from '../features/members/job.js';
 import { startPolls } from '../features/poll/index.js';
@@ -25,6 +26,7 @@ export class ReadyListener extends Listener {
     restoreChallengeCards(client);
     startGiveaways(client);
     startPolls(client);
+    startHallOfFame(client);
     void ensureAllCards();
   }
 }

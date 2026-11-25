@@ -40,7 +40,12 @@ Type `/help` (or `?help`) in Discord for a paged guide with the live numbers.
 
 - Staff can host timed reaction giveaways with `/giveaway create`. Cancel a pending draw with `/giveaway cancel`. Use `/giveaway list` to find draws in channels you can read. See [giveaways](docs/giveaways.md).
 - `/poll` (or `?poll`): ask a question, members vote with reactions and a live bar chart shows the result. Yes/no or up to 9 options, optional anonymity and a timer up to 7 days. See [polls](docs/polls.md).
-- `/settings`: log channels, join roles, the jackpot role and which channels the games may be played in
+- Hall of Fame: when enough different people react to a message (5 by default), Tincazz posts it in
+  a channel of your choice as a card with the author, the text, pictures (uploaded ones are copied, linked ones are shown through Discord's proxy) and a link back,
+  with an icon that grows with the count. Messages from bots, apps and webhooks (including this bot's
+  own polls, giveaways and cards) are never inducted, and bot reactions never count. Staff set it up
+  with `/settings halloffame`. See [Hall of Fame](docs/halloffame.md).
+- `/settings`: log channels, join roles, the jackpot role, which channels the games may be played in, and the Hall of Fame
 - Honeypot channel: `/settings honeypot set` catches compromised accounts spamming every channel. The bot attempts a DM embed before softbanning and wiping the last hour of messages server-wide. Staff (Manage Messages or Administrator) and the server owner get an embed explaining why they weren't kicked and a 🍯 reaction if Discord allows it. Bots are ignored.
 - Most commands also work with the `?` prefix, such as `?gamba 100` or `?caption hello`
 
@@ -52,7 +57,9 @@ Type `/help` (or `?help`) in Discord for a paged guide with the live numbers.
 3. Invite it with the `bot` and `applications.commands` scopes and the **Manage Roles**, **Ban Members** and **Manage Messages** permissions.
    Keep its highest role above the jackpot and auto-roles.
 4. As someone with Manage Server, run `/settings show`, then `/settings logs set` and
-   `/settings autorole add` to taste, and `/settings jackpot set` to choose the gamba jackpot role.
+   `/settings autorole add` to taste, `/settings jackpot set` to choose the gamba jackpot role and
+   `/settings halloffame set` to pick the Hall of Fame channel (the bot needs View Channel, Send
+   Messages, Attach Files and Read Message History there).
 
 ## Run it yourself
 

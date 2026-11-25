@@ -183,6 +183,10 @@ export const guildSettings = sqliteTable('guild_settings', {
   honeypotMessageId: text('honeypot_message_id'),
   honeypotKicks: integer('honeypot_kicks').notNull().default(0),
   gambaJackpotRoleId: text('gamba_jackpot_role_id'),
+  /** Where the Hall of Fame posts go; null means the Hall of Fame is off. */
+  hallChannelId: text('hall_channel_id'),
+  /** Distinct reactors a message needs to be inducted. */
+  hallThreshold: integer('hall_threshold').notNull().default(5),
   gameChannelsRestricted: integer('game_channels_restricted', { mode: 'boolean' })
     .notNull()
     .default(false),
@@ -209,6 +213,57 @@ export const guildGameChannels = sqliteTable(
     createdAt: integer('created_at').notNull(),
   },
   (table) => [primaryKey({ columns: [table.guildId, table.channelId] })],
+);
+
+/** Channels (or categories) whose messages never enter the Hall of Fame. */
+export const guildHallExemptChannels = sqliteTable(
+  'guild_hall_exempt_channels',
+  {
+    guildId: text('guild_id').notNull(),
+    channelId: text('channel_id').notNull(),
+    createdAt: integer('created_at').notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.guildId, table.channelId] })],
+);
+
+/** `publishing` is a claim made before sending; `removed` is a tombstone for a deleted hall post. */
+export const hallStatuses = ['publishing', 'posted', 'removed'] as const;
+export type HallStatus = (typeof hallStatuses)[number];
+
+/** One row per inducted message: the claim that keeps it to a single hall post. */
+export const hallOfFameEntries = sqliteTable(
+  'hall_of_fame_entries',
+  {
+    guildId: text('guild_id').notNull(),
+    /** The source message. */
+    messageId: text('message_id').notNull(),
+    /** The source channel (a thread's own ID when it was posted in one). */
+    channelId: text('channel_id').notNull(),
+    /** The parent of that thread (a channel or forum), so deleting it can find the entries. */
+    parentChannelId: text('parent_channel_id'),
+    authorId: text('author_id').notNull(),
+    hallChannelId: text('hall_channel_id').notNull(),
+    /** Null until the hall post exists. */
+    hallMessageId: text('hall_message_id').unique(),
+    status: text('status', { enum: hallStatuses }).notNull().default('publishing'),
+    /** Highest distinct reactor count seen; it never falls. */
+    peakCount: integer('peak_count').notNull().default(0),
+    lastRenderedHash: text('last_rendered_hash'),
+    /**
+     * JSON array of the ids of the source images the card shows as uploaded files, so a redraw can
+     * tell an image it would lose from one that never made it. Null when not known (an adopted card).
+     */
+    uploadedImages: text('uploaded_images'),
+    createdAt: integer('created_at').notNull(),
+    updatedAt: integer('updated_at').notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.guildId, table.messageId] }),
+    index('hall_entries_channel_idx').on(table.channelId),
+    index('hall_entries_parent_channel_idx').on(table.parentChannelId),
+    index('hall_entries_hall_channel_idx').on(table.hallChannelId),
+    index('hall_entries_status_created_idx').on(table.status, table.createdAt),
+  ],
 );
 
 /** Challenge cards that still need their expiry or terminal display applied. */

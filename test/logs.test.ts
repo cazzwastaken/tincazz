@@ -131,6 +131,54 @@ it('renders a card for every event type', () => {
       { type: 'autorole_failed', userId: '1', failures: [{ roleId: '77', reason: 'hierarchy' }] },
       ['<@1>', '<@&77>', 'hierarchy'],
     ],
+    [
+      {
+        type: 'hall_set',
+        actorId: '9',
+        fromChannelId: '69',
+        toChannelId: '70',
+        threshold: 7,
+      },
+      ['<@9> set the Hall of Fame to <#70> (7 people)', 'Previously <#69>'],
+    ],
+    [
+      { type: 'hall_set', actorId: '9', toChannelId: '70', threshold: 5 },
+      ['<@9> set the Hall of Fame to <#70> (5 people)'],
+    ],
+    [
+      { type: 'hall_cleared', actorId: '9', fromChannelId: '70' },
+      ['<@9> cleared the Hall of Fame (was <#70>)', 'Existing posts stay'],
+    ],
+    [
+      { type: 'hall_threshold', actorId: '9', from: 5, to: 8 },
+      ['<@9> changed the threshold from 5 to 8 people'],
+    ],
+    [
+      { type: 'hall_exempt_added', actorId: '9', channelId: '71' },
+      ['Hall of Fame exemption added', '<@9> exempted <#71> from the Hall of Fame'],
+    ],
+    [
+      { type: 'hall_exempt_removed', actorId: '9', channelId: '71' },
+      ['Hall of Fame exemption removed', '<@9> stopped exempting <#71>'],
+    ],
+    [
+      {
+        type: 'setting_auto_cleared',
+        setting: 'hall_of_fame',
+        id: '70',
+        detail: 'hall channel was deleted',
+      },
+      ['Hall of Fame channel <#70> was removed', 'hall channel was deleted'],
+    ],
+    [
+      {
+        type: 'setting_auto_cleared',
+        setting: 'hall_exempt',
+        id: '71',
+        detail: 'exempt channel was deleted',
+      },
+      ['Hall of Fame exempt channel <#71> was removed'],
+    ],
   ];
   for (const [event, needles] of mod) {
     const out = json(modLogCard(event, 1000));

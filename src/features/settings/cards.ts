@@ -16,7 +16,11 @@ export interface SettingsView {
   gameChannels: string[] | undefined;
   honeypot: { channelId?: string; kicks: number; problem?: string };
   jackpotRole: { roleId?: string; problem?: string };
+  hallOfFame: { channelId?: string; threshold: number; exempt: string[]; problem?: string };
 }
+
+/** Exempt channels listed on the card before it says how many more there are. */
+const exemptShown = 15;
 
 const warn = (problem?: string) => (problem ? ` ⚠️ ${problem}` : '');
 
@@ -41,6 +45,17 @@ export function settingsCard(view: SettingsView): ContainerBuilder {
         ? 'none (games are paused; allow a channel or use `/settings games reset`)'
         : allowed.map((id) => `<#${id}>`).join(', ');
   }
+  const hall = view.hallOfFame;
+  const people = `${hall.threshold.toLocaleString('en-US')} ${hall.threshold === 1 ? 'person' : 'people'}`;
+  const exempt =
+    hall.exempt.length === 0
+      ? 'none'
+      : `${hall.exempt
+          .slice(0, exemptShown)
+          .map((id) => `<#${id}>`)
+          .join(
+            ', ',
+          )}${hall.exempt.length > exemptShown ? ` and ${hall.exempt.length - exemptShown} more` : ''}`;
   return card(
     accents.brand,
     [
@@ -52,6 +67,10 @@ export function settingsCard(view: SettingsView): ContainerBuilder {
       `**Jackpot role:** ${jackpotRole ? `<@&${jackpotRole}>${warn(jackpotProblem)}` : 'not set (jackpots give no role)'}`,
       `**Game channels:** ${games}`,
       `**Honeypot:** ${pot ? `<#${pot}> · ${kicks.toLocaleString('en-US')} ${kicks === 1 ? 'kick' : 'kicks'}${warn(potProblem)}` : 'not set'}`,
+      `**Hall of Fame:** ${hall.channelId ? `<#${hall.channelId}> · ${people}${warn(hall.problem)}` : `not set (threshold ${people})`}`,
+      `**Hall of Fame exempt:** ${exempt}`,
+      '-# The Hall of Fame always skips private threads, age-restricted channels (unless the hall is too), channels that someone who can see the hall cannot see, that hide from someone with a View Channel deny that the hall lacks, or that deny a role while the hall allows another role by overwrite (the check compares channel permissions and errs on the side of refusing, exempt a channel to be sure), bots, webhooks and system messages.',
+      '-# It only looks at who can open a channel (View Channel): exempt channels that limit who can read old messages (a Read Message History deny) and the text chats of voice and stage channels.',
     ].join('\n'),
   );
 }
