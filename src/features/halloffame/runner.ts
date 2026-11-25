@@ -45,6 +45,7 @@ import {
   type HallEntry,
   hallExemptChannels,
   hallSettings,
+  hallUploadedImages,
   markHallMessagesRemoved,
   markHallPosted,
   publishingHallEntriesBySourceChannel,
@@ -150,6 +151,8 @@ export function createHallRunner(deps: HallRunnerDeps): HallRunner {
    */
   const botAuthors = new TtlLru<true>(config.botAuthorCacheSize, config.botAuthorTtlMs, now);
   const failures = new Map<string, number>();
+  /** How often a redraw was put off for an image that failed to download, per message. */
+  const imageRetries = new TtlLru<number>(config.counterCacheSize, config.counterTtlMs, now);
   /**
    * Source channels (and parents of threads) that were deleted a moment ago. An induction that
    * read its message before the delete event must not claim, or keep, a card for it.
@@ -230,6 +233,7 @@ export function createHallRunner(deps: HallRunnerDeps): HallRunner {
     lastSync.delete(key);
     lastCount.delete(key);
     breakdowns.delete(key);
+    imageRetries.delete(key);
   };
 
   /* ----------------------------------------------------------------- Discord I/O */
@@ -344,14 +348,24 @@ export function createHallRunner(deps: HallRunnerDeps): HallRunner {
     };
   }
 
-  /** Downloads the images, skipping any that fail or break the size caps; never throws. */
-  async function downloadImages(images: readonly HallImage[]): Promise<HallFile[]> {
+  /**
+   * Downloads the images. One that fails to download is in `failed` (it may work next time); one
+   * that breaks the size caps is skipped for good and is not.
+   */
+  async function downloadImages(
+    images: readonly HallImage[],
+  ): Promise<{ files: HallFile[]; failed: HallImage[] }> {
     const results = await Promise.allSettled(images.map((image) => discord.download(image.url)));
     const files: HallFile[] = [];
+    const failed: HallImage[] = [];
     let total = 0;
     results.forEach((result, index) => {
       const image = images[index];
-      if (!image || result.status !== 'fulfilled') return;
+      if (!image) return;
+      if (result.status !== 'fulfilled') {
+        failed.push(image);
+        return;
+      }
       const size = result.value.length;
       if (size === 0 || size > config.maxImageBytes || total + size > config.maxImageBytesTotal) {
         return;
@@ -359,7 +373,7 @@ export function createHallRunner(deps: HallRunnerDeps): HallRunner {
       total += size;
       files.push({ name: hallUploadName(image, index), data: result.value });
     });
-    return files;
+    return { files, failed };
   }
 
   /** Narrows `input.uploaded` to the files and returns exactly those the card references. */
@@ -367,6 +381,14 @@ export function createHallRunner(deps: HallRunnerDeps): HallRunner {
     input.uploaded = files.map((file) => file.name);
     const referenced = new Set(hallAttachmentNames(input));
     return files.filter((file) => referenced.has(file.name));
+  }
+
+  /** The ids of the source images the card shows as uploaded files. */
+  function uploadedImageIds(input: HallCardInput): string[] {
+    const names = new Set(hallAttachmentNames(input));
+    return input.body.images
+      .filter((image, index) => names.has(hallUploadName(image, index)))
+      .map((image) => image.id);
   }
 
   /* ---------------------------------------------------------------------- induct */
@@ -510,7 +532,7 @@ export function createHallRunner(deps: HallRunnerDeps): HallRunner {
         perEmoji: tally.score().perEmoji,
         channelName: source.name,
       });
-      const files = attachImages(input, await downloadImages(input.body.images));
+      const files = attachImages(input, (await downloadImages(input.body.images)).files);
       post = { card: hallCard(input), files, nonce: messageId.slice(0, 25) };
     } catch (error) {
       // Nothing was sent yet, so the claim can go.
@@ -549,7 +571,12 @@ export function createHallRunner(deps: HallRunnerDeps): HallRunner {
         db,
         guildId,
         messageId,
-        { hallMessageId, peakCount: tally.distinct, renderedHash: hallRenderHash(input) },
+        {
+          hallMessageId,
+          peakCount: tally.distinct,
+          renderedHash: hallRenderHash(input),
+          uploadedImages: uploadedImageIds(input),
+        },
         now(),
       );
       if (!posted) {
@@ -695,8 +722,43 @@ export function createHallRunner(deps: HallRunnerDeps): HallRunner {
     });
     // An unchanged card (an embed that resolved, a reaction that changed nothing) is not edited.
     if (hallRenderHash(input) === row.lastRenderedHash) return;
-    const files = attachImages(input, await downloadImages(input.body.images));
+    const downloaded = await downloadImages(input.body.images);
+    // An edit lists exactly the files it carries, so one whose download failed would be dropped
+    // from the post. If it was in the card (or it is not known what was), keep the card as it is
+    // and try again, a few times per trigger: the next one starts afresh. An image that never made
+    // it into the card does not hold anything back.
+    const before = hallUploadedImages(row);
+    const lost = downloaded.failed.filter((image) => before === undefined || before.has(image.id));
+    const files = attachImages(input, downloaded.files);
     const hash = hallRenderHash(input);
+    if (lost.length > 0) {
+      const attempt = (imageRetries.get(key) ?? 0) + 1;
+      if (attempt > config.imageRetryLimit) {
+        imageRetries.delete(key);
+        logger.warn(
+          `Hall of Fame left the card of ${messageId} as it is: ${lost.length} image(s) did not download, will try again at the next change`,
+        );
+        return;
+      }
+      imageRetries.set(key, attempt);
+      logger.debug(
+        `Hall of Fame put off redrawing ${messageId}: ${lost.length} image(s) did not download (attempt ${attempt})`,
+      );
+      debouncer.schedule(
+        key,
+        {
+          guildId,
+          channelId: entry.channelId,
+          messageId,
+          reaction: false,
+          edit: true,
+          refresh: false,
+        },
+        config.editCooldownMs,
+      );
+      return;
+    }
+    imageRetries.delete(key);
     if (hash === row.lastRenderedHash) return;
 
     try {
@@ -713,7 +775,7 @@ export function createHallRunner(deps: HallRunnerDeps): HallRunner {
       }
       return;
     }
-    setHallRenderedHash(db, guildId, messageId, hash, now());
+    setHallRenderedHash(db, guildId, messageId, hash, now(), uploadedImageIds(input));
   }
 
   async function processJob(job: HallJob): Promise<void> {

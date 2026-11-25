@@ -134,6 +134,13 @@
       "when": 1795594043094,
       "tag": "0018_hall_of_fame",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1795600794677,
+      "tag": "0019_hall_uploaded_images",
+      "breakpoints": true
     }
   ]
 }

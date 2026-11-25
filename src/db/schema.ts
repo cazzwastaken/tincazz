@@ -249,6 +249,11 @@ export const hallOfFameEntries = sqliteTable(
     /** Highest distinct reactor count seen; it never falls. */
     peakCount: integer('peak_count').notNull().default(0),
     lastRenderedHash: text('last_rendered_hash'),
+    /**
+     * JSON array of the ids of the source images the card shows as uploaded files, so a redraw can
+     * tell an image it would lose from one that never made it. Null when not known (an adopted card).
+     */
+    uploadedImages: text('uploaded_images'),
     createdAt: integer('created_at').notNull(),
     updatedAt: integer('updated_at').notNull(),
   },

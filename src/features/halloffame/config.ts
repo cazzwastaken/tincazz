@@ -44,6 +44,11 @@ export const hallOfFame = {
   peakCooldownMs: 30 * second,
   /** A posted entry is redrawn for an edit of the original at most this often (deferred, not dropped). */
   editCooldownMs: 10 * second,
+  /**
+   * A redraw that would lose an image already in the card (its download failed) is skipped and
+   * tried again after the edit cooldown, this many times per trigger.
+   */
+  imageRetryLimit: 3,
   /** A channel that answered 403/404 is skipped for this long. */
   failureMemoryMs: 10 * minute,
   /** A deleted source channel is remembered this long, for an induction already under way. */

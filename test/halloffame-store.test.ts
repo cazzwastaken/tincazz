@@ -16,6 +16,7 @@ import {
   type HallClaim,
   hallExemptChannels,
   hallSettings,
+  hallUploadedImages,
   markHallMessagesRemoved,
   markHallPosted,
   publishingHallEntriesBySourceChannel,
@@ -298,6 +299,35 @@ describe('hall of fame entries', () => {
     post(db);
     expect(setHallRenderedHash(db, 'g1', 'm1', 'b', 30)).toBe(true);
     expect(getHallEntry(db, 'g1', 'm1')).toMatchObject({ lastRenderedHash: 'b', updatedAt: 30 });
+  });
+
+  it('remembers which images the card uploaded, and when that is not known', () => {
+    claimHallEntry(db, claim('m1'), 10);
+    claimHallEntry(db, claim('m2'), 10);
+    const known = markHallPosted(
+      db,
+      'g1',
+      'm1',
+      { hallMessageId: 'hm1', peakCount: 5, renderedHash: 'x', uploadedImages: ['7', '8'] },
+      11,
+    );
+    const unknown = markHallPosted(
+      db,
+      'g1',
+      'm2',
+      { hallMessageId: 'hm2', peakCount: 5, renderedHash: 'x' },
+      11,
+    );
+    expect(known && hallUploadedImages(known)).toEqual(new Set(['7', '8']));
+    expect(unknown && hallUploadedImages(unknown)).toBeUndefined();
+
+    // A redraw records its own set; one that names none leaves it as it was.
+    setHallRenderedHash(db, 'g1', 'm1', 'y', 20, []);
+    expect(hallUploadedImages(getHallEntry(db, 'g1', 'm1') as never)).toEqual(new Set());
+    setHallRenderedHash(db, 'g1', 'm1', 'z', 21);
+    expect(hallUploadedImages(getHallEntry(db, 'g1', 'm1') as never)).toEqual(new Set());
+    expect(hallUploadedImages({ uploadedImages: 'not json' })).toBeUndefined();
+    expect(hallUploadedImages({ uploadedImages: '{"a":1}' })).toBeUndefined();
   });
 
   it('tombstones a deleted hall post and blocks any re-claim', () => {

@@ -119,20 +119,117 @@ describe('hall of fame sync', () => {
     expect(JSON.stringify(second?.post.card.toJSON())).not.toContain('hall-1.png');
   });
 
-  it('retries a failed image on the next sync instead of caching the failure', async () => {
+  it('keeps the card as it is while an image of it fails to download, then redraws', async () => {
     const h = await posted({ images: 1 });
+    const before = entry();
+    const edits = h.fake.log.edit.length;
     const message = h.fake.messages.get(messageId);
     if (!message) throw new Error('missing');
     message.facts = { ...message.facts, content: 'changed' };
     h.fake.downloads.set(image(0).url, new Error('cdn down'));
     h.runner.onMessageUpdate(guildId, messageId);
     await h.settle();
-    expect(h.fake.log.edit.at(-1)?.post.files).toEqual([]);
+    // The post would lose its picture: nothing is edited and nothing is recorded as drawn.
+    expect(h.fake.log.edit).toHaveLength(edits);
+    expect(entry()?.lastRenderedHash).toBe(before?.lastRenderedHash);
+    expect(h.debug).toHaveBeenCalledWith(expect.stringContaining('put off redrawing'));
+
+    // The retry comes by itself, after the edit cooldown, and goes through once the CDN is back.
+    h.fake.downloads.delete(image(0).url);
+    await h.settle(hallOfFame.editCooldownMs + hallOfFame.debounceMs);
+    const edit = h.fake.log.edit.at(-1);
+    expect(edit?.post.files.map((f) => f.name)).toEqual(['hall-0.png']);
+    expect(JSON.stringify(edit?.post.card.toJSON())).toContain('changed');
+    expect(entry()?.lastRenderedHash).not.toBe(before?.lastRenderedHash);
+  });
+
+  it('gives up retrying a picture that stays down, without losing it, and starts over on a change', async () => {
+    const h = await posted({ images: 1 });
+    const edits = h.fake.log.edit.length;
+    const message = h.fake.messages.get(messageId);
+    if (!message) throw new Error('missing');
+    message.facts = { ...message.facts, content: 'changed' };
+    h.fake.downloads.set(image(0).url, new Error('cdn down'));
+    const fetches = h.fake.log.downloaded.length;
+    h.runner.onMessageUpdate(guildId, messageId);
+    await h.settle(hallOfFame.editCooldownMs * 10);
+    expect(h.fake.log.edit).toHaveLength(edits);
+    // One try and its retries, then it waits for the next change instead of looping.
+    expect(h.fake.log.downloaded.length - fetches).toBe(hallOfFame.imageRetryLimit + 1);
+    expect(h.warn).toHaveBeenCalledWith(expect.stringContaining('left the card'));
 
     h.fake.downloads.delete(image(0).url);
     h.runner.onMessageUpdate(guildId, messageId);
     await h.settle(hallOfFame.editCooldownMs + hallOfFame.debounceMs);
     expect(h.fake.log.edit.at(-1)?.post.files.map((f) => f.name)).toEqual(['hall-0.png']);
+  });
+
+  it('is not held back by an image that never made it into the card', async () => {
+    const h = harness(db, vi);
+    h.fake.addMessage({
+      facts: {
+        content: 'a fine message',
+        attachments: [image(0)],
+        stickers: [],
+        embeds: [],
+        snapshots: [],
+      },
+    });
+    h.fake.react(messageId, '⭐', people(0, 5));
+    h.fake.downloads.set(image(0).url, new Error('cdn down'));
+    h.add('2000');
+    await h.settle();
+    await h.settle(hallOfFame.peakCooldownMs + hallOfFame.editCooldownMs + hallOfFame.debounceMs);
+    expect(h.fake.log.send[0]?.post.files).toEqual([]);
+
+    // An edit of the text goes through although the picture still fails: it was never in the card.
+    const message = h.fake.messages.get(messageId);
+    if (!message) throw new Error('missing');
+    message.facts = { ...message.facts, content: 'changed' };
+    h.runner.onMessageUpdate(guildId, messageId);
+    await h.settle(hallOfFame.peakCooldownMs);
+    const edit = h.fake.log.edit.at(-1);
+    expect(JSON.stringify(edit?.post.card.toJSON())).toContain('changed');
+    expect(edit?.post.files).toEqual([]);
+    expect(h.debug).not.toHaveBeenCalledWith(expect.stringContaining('put off redrawing'));
+
+    // And the picture joins the card as soon as it can be copied.
+    h.fake.downloads.delete(image(0).url);
+    h.runner.onMessageUpdate(guildId, messageId);
+    await h.settle(hallOfFame.editCooldownMs + hallOfFame.debounceMs);
+    expect(h.fake.log.edit.at(-1)?.post.files.map((f) => f.name)).toEqual(['hall-0.png']);
+  });
+
+  it('does not lose a picture of an adopted card whose images are not known', async () => {
+    const h = harness(db, vi);
+    h.fake.addMessage({
+      facts: {
+        content: 'a fine message',
+        attachments: [image(0)],
+        stickers: [],
+        embeds: [],
+        snapshots: [],
+      },
+    });
+    claimHallEntry(
+      db,
+      { guildId, messageId, channelId: sourceChannelId, authorId, hallChannelId },
+      t0,
+    );
+    markHallPosted(
+      db,
+      guildId,
+      messageId,
+      { hallMessageId: '1', peakCount: 5, renderedHash: '' },
+      t0,
+    );
+    h.fake.posted.set('1', { channelId: hallChannelId, post: { card: {} as never, files: [] } });
+    h.fake.react(messageId, '⭐', people(0, 5));
+    h.fake.downloads.set(image(0).url, new Error('cdn down'));
+    h.runner.onMessageUpdate(guildId, messageId);
+    await h.settle();
+    expect(h.fake.log.edit).toHaveLength(0);
+    expect(entry()?.uploadedImages).toBeNull();
   });
 
   describe('edits of the original', () => {

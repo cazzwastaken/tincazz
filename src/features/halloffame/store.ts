@@ -185,7 +185,13 @@ export function markHallPosted(
   db: DbOrTx,
   guildId: string,
   messageId: string,
-  details: { hallMessageId: string; peakCount: number; renderedHash: string },
+  details: {
+    hallMessageId: string;
+    peakCount: number;
+    renderedHash: string;
+    /** Ids of the source images uploaded with the card; leave out when not known. */
+    uploadedImages?: readonly string[] | undefined;
+  },
   now: number,
 ): HallEntry | undefined {
   return db
@@ -195,6 +201,7 @@ export function markHallPosted(
       hallMessageId: details.hallMessageId,
       peakCount: sql`max(${hallOfFameEntries.peakCount}, ${details.peakCount})`,
       lastRenderedHash: details.renderedHash,
+      uploadedImages: details.uploadedImages ? JSON.stringify(details.uploadedImages) : null,
       updatedAt: now,
     })
     .where(
@@ -248,16 +255,36 @@ export function bumpHallPeak(
     .get();
 }
 
+/** The ids of the images the card of `entry` was drawn with as uploads; undefined when unknown. */
+export function hallUploadedImages(
+  entry: Pick<HallEntry, 'uploadedImages'>,
+): Set<string> | undefined {
+  if (entry.uploadedImages === null) return undefined;
+  try {
+    const parsed: unknown = JSON.parse(entry.uploadedImages);
+    if (!Array.isArray(parsed)) return undefined;
+    return new Set(parsed.filter((id): id is string => typeof id === 'string'));
+  } catch {
+    return undefined;
+  }
+}
+
+/** Records what the card now shows: its hash and, when given, the images it uploaded. */
 export function setHallRenderedHash(
   db: DbOrTx,
   guildId: string,
   messageId: string,
   renderedHash: string,
   now: number,
+  uploadedImages?: readonly string[],
 ): boolean {
   const result = db
     .update(hallOfFameEntries)
-    .set({ lastRenderedHash: renderedHash, updatedAt: now })
+    .set({
+      lastRenderedHash: renderedHash,
+      ...(uploadedImages ? { uploadedImages: JSON.stringify(uploadedImages) } : {}),
+      updatedAt: now,
+    })
     .where(
       and(
         eq(hallOfFameEntries.guildId, guildId),
