@@ -720,7 +720,8 @@ export function createHallRunner(deps: HallRunnerDeps): HallRunner {
     for (const messageId of messageIds) {
       const key = keyOf(guildId, messageId);
       forget(key);
-      if (!getHallEntry(db, guildId, messageId)) continue;
+      // Always through the lock, even with no row yet: an induction of this message may be between
+      // its fetch and its claim, and the post it is about to make must be deleted right after.
       await lock.run(key, async () => {
         // Row first, then the hall message, so the hall message's own delete event is a no-op.
         const removed = deleteHallEntry(db, guildId, messageId);

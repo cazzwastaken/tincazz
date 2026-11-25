@@ -232,6 +232,38 @@ describe('hall of fame sync', () => {
     expect(entry()).toBeUndefined();
   });
 
+  it('removes the post of a message deleted while its induction was in flight', async () => {
+    // The delete event lands after the message was read and before the claim: the event must not
+    // be skipped just because no row exists yet, or the induction would post an orphan.
+    const h = harness(db, vi);
+    h.fake.addMessage();
+    h.fake.react(messageId, '⭐', people(0, 6));
+    let deleting: Promise<void> | undefined;
+    h.fake.afterFetchMessage = () => {
+      h.fake.afterFetchMessage = undefined;
+      h.fake.messages.delete(messageId);
+      deleting = h.runner.onSourceMessagesDeleted(guildId, [messageId]);
+    };
+    h.add('2000');
+    await h.settle();
+    await deleting;
+    await h.settle(hallOfFame.peakCooldownMs);
+    expect(h.fake.log.send).toHaveLength(1);
+    expect(h.fake.posted.size).toBe(0);
+    expect(entry()).toBeUndefined();
+    // And a later reaction finds nothing to induct.
+    h.add('2001');
+    await h.settle();
+    expect(h.fake.log.send).toHaveLength(1);
+  });
+
+  it('ignores a delete event for a message that was never inducted', async () => {
+    const h = harness(db, vi);
+    await h.runner.onSourceMessagesDeleted(guildId, [messageId]);
+    expect(h.fake.log.deleted).toEqual([]);
+    expect(entry()).toBeUndefined();
+  });
+
   it('removes the hall posts of a deleted source channel', async () => {
     const h = await posted();
     const rows = await h.runner.onSourceChannelDeleted(sourceChannelId);

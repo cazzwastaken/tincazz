@@ -88,6 +88,8 @@ export class FakeHall implements HallDiscord {
   /** Runs while a send is in flight, after the message was created. */
   public duringSend: (() => void) | undefined;
   public beforeFetchMessage: (() => Promise<void>) | undefined;
+  /** Runs once the message was read, before the caller continues with it. */
+  public afterFetchMessage: (() => void) | undefined;
   public beforeDelete: ((channelId: string, messageId: string) => void) | undefined;
   private nextId = 5000;
 
@@ -113,7 +115,9 @@ export class FakeHall implements HallDiscord {
     if (this.faults.fetchMessage) throw new HallDiscordError(this.faults.fetchMessage);
     const message = this.messages.get(id);
     if (!message || message.channelId !== channelId) throw new HallDiscordError('unknown-message');
-    return structuredClone(message);
+    const copy = structuredClone(message);
+    this.afterFetchMessage?.();
+    return copy;
   }
 
   public async fetchReactors(_channelId: string, id: string, key: string, limit: number) {
