@@ -480,6 +480,30 @@ describe('hall of fame sync', () => {
     expect(h.fake.log.send).toHaveLength(1);
   });
 
+  it('stops following reactions once the hall is cleared, but still mirrors edits', async () => {
+    const h = await posted();
+    const counted = h.fake.log.fetchReactors;
+    setHallChannel(db, guildId, null, t0);
+    // A reaction taken back would recount, and the recount would see people who reacted since.
+    h.fake.react(messageId, '⭐', people(0, 9));
+    h.runner.onReactionChange({ guildId, channelId: sourceChannelId, messageId });
+    h.add('3000');
+    await h.settle();
+    await h.settle(hallOfFame.peakCooldownMs);
+    expect(h.fake.log.fetchReactors).toBe(counted);
+    expect(entry()?.peakCount).toBe(5);
+
+    const message = h.fake.messages.get(messageId);
+    if (!message) throw new Error('missing');
+    message.facts = { ...message.facts, content: 'edited after the clear' };
+    h.runner.onMessageUpdate(guildId, messageId);
+    await h.settle();
+    expect(JSON.stringify(h.fake.log.edit.at(-1)?.post.card.toJSON())).toContain(
+      'edited after the clear',
+    );
+    expect(entry()?.peakCount).toBe(5);
+  });
+
   it('forgets the entries of a deleted hall channel', async () => {
     const h = await posted();
     expect(h.runner.onHallChannelDeleted(hallChannelId)).toHaveLength(1);

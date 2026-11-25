@@ -795,6 +795,9 @@ export function createHallRunner(deps: HallRunnerDeps): HallRunner {
 
   function onReactionChange(event: { guildId: string; channelId: string; messageId: string }) {
     if (stopped || isFailing(event.channelId)) return;
+    // With no hall channel (cleared) reactions are not followed at all: a recount would also pick
+    // up reactions added since, which the clear promised to ignore. Edits and deletes still are.
+    if (hallSettings(db, event.guildId).channelId === undefined) return;
     const entry = getHallEntry(db, event.guildId, event.messageId);
     if (entry?.status !== 'posted') return;
     debouncer.schedule(keyOf(event.guildId, event.messageId), {

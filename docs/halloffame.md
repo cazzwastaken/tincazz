@@ -205,8 +205,10 @@ Staff should exempt such channels (`/settings halloffame exempt`).
   deletions. New inductions go to the new channel, and a message that is already in the old hall is
   not posted again.
 - **Clearing the hall** (`/settings halloffame clear`): nothing new is inducted. Existing posts stay
-  and keep following edits and deletions of their originals, but reactions added from then on no
-  longer update their counts (the footer keeps the peak it had).
+  and keep following edits and deletions of their originals. Reactions, added or taken away, are
+  no longer followed (the footer keeps the peak it had). The one exception: an edit of an original
+  that the bot no longer remembers (after a restart, or half an hour without activity) counts its
+  reactions once again to redraw the card, which can raise the peak with the reactions given since.
 - **Deleting the hall channel**: the setting is cleared automatically (and logged), and the records
   of the posts that were in it are dropped. After picking a new channel, those messages can be
   inducted again if people react to them again. Deleting an exempt channel or category removes it
