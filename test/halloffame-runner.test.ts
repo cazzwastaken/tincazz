@@ -341,7 +341,8 @@ describe('hall of fame induction', () => {
     h.add('2001', { messageId: '101' });
     await h.settle();
 
-    // While muted, A gets the reactions it needed. Nothing is looked at, so the countdown stays.
+    // While muted, A gets the reactions it needed. Nothing is looked at (the dropped reaction only
+    // clears the countdown).
     h.fake.faults.send = undefined;
     h.fake.react(messageId, '⭐', people(0, 7));
     h.add('2002');
@@ -353,6 +354,39 @@ describe('hall of fame induction', () => {
     h.add('2003');
     await h.settle();
     expect(entry()?.status).toBe('posted');
+  });
+
+  it('does not keep a stale countdown through a failure that lapses by itself', async () => {
+    const h = harness(db, vi);
+    // Message A is at 3 of 5 people: the countdown says two more reactions are needed.
+    h.fake.addMessage();
+    h.fake.react(messageId, '⭐', people(0, 3));
+    h.add('2000');
+    await h.settle();
+    expect(entry()).toBeUndefined();
+
+    // The hall refuses a send for message B and is remembered as failing.
+    h.fake.addMessage({ id: '101' });
+    h.fake.react('101', '⭐', people(0, 6));
+    h.fake.faults.send = 'forbidden';
+    h.add('2001', { messageId: '101' });
+    await h.settle();
+    h.fake.faults.send = undefined;
+    const fetches = h.fake.log.fetchMessage;
+
+    // Four reactions on A arrive meanwhile and are dropped: 7 people now.
+    h.fake.react(messageId, '⭐', people(0, 7));
+    for (const user of ['2002', '2003', '2004', '2005']) h.add(user);
+    await h.settle();
+    expect(h.fake.log.fetchMessage).toBe(fetches);
+
+    // The memory lapses on its own, and the next reaction must look at the message again.
+    await vi.advanceTimersByTimeAsync(hallOfFame.failureMemoryMs);
+    h.fake.react(messageId, '⭐', people(0, 8));
+    h.add('2006');
+    await h.settle();
+    expect(entry()?.status).toBe('posted');
+    expect(entry()?.peakCount).toBe(8);
   });
 
   it('skips when the bot lacks permissions in the source or the hall, without claiming', async () => {

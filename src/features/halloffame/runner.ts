@@ -170,6 +170,8 @@ export function createHallRunner(deps: HallRunnerDeps): HallRunner {
     if (until === undefined) return false;
     if (until <= now()) {
       failures.delete(channelId);
+      // Reactions dropped while it failed never reached a countdown: none can be trusted now.
+      counters.clear();
       return false;
     }
     return true;
@@ -746,7 +748,12 @@ export function createHallRunner(deps: HallRunnerDeps): HallRunner {
     }
     const settings = hallSettings(db, guildId);
     if (settings.channelId === undefined) return;
-    if (isFailing(channelId) || isFailing(settings.channelId)) return;
+    const key = keyOf(guildId, messageId);
+    if (isFailing(channelId) || isFailing(settings.channelId)) {
+      // Dropped without counting down, so the message's "reactions still needed" is stale now.
+      counters.delete(key);
+      return;
+    }
 
     const facts: ChannelFacts = discord.peekChannel(guildId, channelId) ?? {
       id: channelId,
@@ -764,7 +771,6 @@ export function createHallRunner(deps: HallRunnerDeps): HallRunner {
     );
     if (!verdict.ok) return;
 
-    const key = keyOf(guildId, messageId);
     const entry = getHallEntry(db, guildId, messageId);
     if (entry && entry.status !== 'posted') return;
     if (!entry) {
