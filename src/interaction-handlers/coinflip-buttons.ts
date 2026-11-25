@@ -1,13 +1,6 @@
 import { InteractionHandler, InteractionHandlerTypes } from '@sapphire/framework';
 import { type ButtonInteraction, ComponentType, type Message } from 'discord.js';
-import {
-  end,
-  play,
-  runAnimatedGame,
-  stillRolling,
-  tryBegin,
-  updateDisplay,
-} from '../features/animation/index.js';
+import { play, runAnimatedGame, updateDisplay } from '../features/animation/index.js';
 import {
   botFlipCard,
   botFlipFrames,
@@ -89,8 +82,7 @@ export class CoinflipButtonsHandler extends InteractionHandler {
       return interaction.reply(errorReply(notYourFlip));
     }
     return runAnimatedGame({
-      userId,
-      busy: () => interaction.reply(errorReply(stillRolling)),
+      messageId: interaction.message.id,
       settle: () =>
         settleBotFlip(
           this.container.db,
@@ -108,7 +100,7 @@ export class CoinflipButtonsHandler extends InteractionHandler {
 
   /**
    * Turns a finished challenge into a new one from the presser to the other player. Single use
-   * per result message; no coins move and no busy lock is taken, as when a challenge is created.
+   * per result message. No coins move until the new challenge is accepted.
    */
   private async rematch(interaction: ButtonInteraction, id: RematchId) {
     const clickerId = interaction.user.id;
@@ -191,15 +183,7 @@ export class CoinflipButtonsHandler extends InteractionHandler {
       if (!allowed) {
         return interaction.reply(errorReply(notYourChallenge));
       }
-      // Before the challenge is closed, so a busy acceptor leaves the card live for a later click.
-      if (!tryBegin(clickerId)) {
-        return interaction.reply(errorReply(stillRolling));
-      }
-      try {
-        return await this.accept(interaction, id, view, messageId);
-      } finally {
-        end(clickerId);
-      }
+      return this.accept(interaction, id, view, messageId);
     }
 
     const owner = id.action === 'decline' ? id.opponentId : id.challengerId;

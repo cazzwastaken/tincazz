@@ -6,7 +6,6 @@ import {
   messageSurface,
   play,
   runAnimatedGame,
-  stillRolling,
 } from '../../features/animation/index.js';
 import {
   type DiceCall,
@@ -99,8 +98,6 @@ export class DiceCommand extends Command {
   private async roll(surface: GameSurface, bet: string | undefined, call: DiceCall) {
     const { userId, guildId } = surface;
     return runAnimatedGame({
-      userId,
-      busy: () => surface.error(stillRolling),
       settle: () => settleRoll(this.container.db, { guildId, userId, bet, call }, Date.now()),
       errorText: diceErrorText,
       reject: (text) => surface.error(text),

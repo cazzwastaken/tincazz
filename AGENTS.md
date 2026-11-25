@@ -76,9 +76,9 @@ src/
                   no `gameChannelDenied`)
     stats/        `/stats`, `/leaderboard`
   features/       plain feature logic, one folder per feature (not auto-loaded)
-    animation/    shared frame playback: per-channel frame budget, per-user busy lock, display
+    animation/    shared frame playback: per-channel frame budget, per-card update lock, display
                   adapters for slash, button and prefix, the `GameSurface` slash/prefix pair and
-                  `runAnimatedGame` (busy lock, settle, error text, show) used by every game
+                  `runAnimatedGame` (settle, error text, show, and a lock for existing card updates) used by every game
     coinflip/     rake, flips, `cf:*` custom IDs, transactional settlement, and challenge cards
                   persisted until closed so their original expiry survives restarts; result
                   cards have a single-use Rematch button
@@ -89,8 +89,7 @@ src/
                   cashback on yesterday's gambling losses), hourly collect, bailout, chat
     gamba/        spin logic, odds and payouts (tuned to a ~1% house edge), the pot, bet parsing,
                   result cards, reel frames and the shared `spin()` flow used by commands and buttons
-                  (every spin is a wager, default 1; settled first, then animated under the shared
-                  per-user busy lock)
+                  (every spin is a wager, default 1, settled before the result is shown)
     poll/         reaction polls: argument parsing, bar and card rendering, the vote store (one vote
                   per person, three open polls per host), the runner (debounced edits, expiry,
                   recounts, restart recovery), `poll:close:*` custom IDs and `createPoll`, which

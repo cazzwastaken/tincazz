@@ -1,6 +1,6 @@
 import { InteractionHandler, InteractionHandlerTypes } from '@sapphire/framework';
 import type { ButtonInteraction } from 'discord.js';
-import { play, runAnimatedGame, stillRolling, updateDisplay } from '../features/animation/index.js';
+import { play, runAnimatedGame, updateDisplay } from '../features/animation/index.js';
 import {
   type DiceId,
   decodeDiceId,
@@ -41,8 +41,7 @@ export class DiceButtonsHandler extends InteractionHandler {
     }
     const guildId = interaction.guildId as string;
     return runAnimatedGame({
-      userId,
-      busy: () => interaction.reply(errorReply(stillRolling)),
+      messageId: interaction.message.id,
       settle: () =>
         settleRoll(
           this.container.db,

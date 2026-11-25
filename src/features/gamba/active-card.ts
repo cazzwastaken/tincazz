@@ -30,6 +30,15 @@ function remember(userId: string, messageId: string): void {
 }
 
 export function setActiveCard(userId: string, messageId: string): void {
+  const current = cards().get(userId);
+  // A slower REST response can arrive after a newer card. Snowflakes sort numerically.
+  if (
+    current !== undefined &&
+    (messageId.length < current.length ||
+      (messageId.length === current.length && messageId < current))
+  ) {
+    return;
+  }
   remember(userId, messageId);
 }
 

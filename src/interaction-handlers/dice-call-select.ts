@@ -57,13 +57,14 @@ export class DiceCallSelectHandler extends InteractionHandler {
       return interaction.reply(errorReply(staleCard));
     }
     // An animation edits this card; changing it now would be overwritten or race the edits.
-    if (!tryBegin(id.userId)) {
+    const messageId = interaction.message.id;
+    if (!tryBegin(messageId)) {
       return interaction.reply(errorReply(stillRolling));
     }
     try {
       return await interaction.update(cardReply(retargetCard(card, id.userId, id.bet, call)));
     } finally {
-      end(id.userId);
+      end(messageId);
     }
   }
 }

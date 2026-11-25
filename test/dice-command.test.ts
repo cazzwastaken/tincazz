@@ -6,13 +6,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 import { createClient } from '../src/client.js';
 import { openDatabase } from '../src/db/index.js';
 import { rolls } from '../src/db/schema.js';
-import {
-  clearBudgets,
-  clearBusy,
-  setFrameDelay,
-  stillRolling,
-  tryBegin,
-} from '../src/features/animation/index.js';
+import { clearBudgets, setFrameDelay } from '../src/features/animation/index.js';
 import {
   type DiceCall,
   decodeCall,
@@ -120,7 +114,6 @@ describe('/dice and ?dice', () => {
   beforeEach(() => {
     container.db = openDatabase(':memory:');
     setFrameDelay(0);
-    clearBusy();
     clearBudgets();
     // The runIn precondition fetches the channel over REST, which needs a token.
     vi.spyOn(client.channels, 'fetch').mockResolvedValue({
@@ -131,7 +124,6 @@ describe('/dice and ?dice', () => {
   });
 
   afterEach(() => {
-    clearBusy();
     setFrameDelay(undefined);
     vi.restoreAllMocks();
     syncBuiltinESMExports();
@@ -257,25 +249,6 @@ describe('/dice and ?dice', () => {
       expect(interaction.editReply).not.toHaveBeenCalled();
       expect(rollRows()).toHaveLength(0);
     });
-
-    it('while the same user is animating gets the busy text and settles nothing', async () => {
-      tryBegin('1');
-      const interaction = await run({ bet: '100' });
-
-      const [options] = interaction.reply.mock.calls[0] as unknown as [{ flags: number }];
-      expect(json(options)).toContain(stillRolling);
-      expect(options.flags & MessageFlags.Ephemeral).toBeTruthy();
-      expect(interaction.editReply).not.toHaveBeenCalled();
-      expect(rollRows()).toHaveLength(0);
-      expect(findWallet(container.db, '2', '1')).toBeUndefined();
-    });
-
-    it('releases the busy lock once the roll has landed', async () => {
-      mockRandomInt(0);
-      const interaction = await run();
-      await vi.waitFor(() => expect(interaction.editReply).toHaveBeenCalledTimes(editCount));
-      await vi.waitFor(() => expect(tryBegin('1')).toBe(true));
-    });
   });
 
   describe('economy log', () => {
@@ -367,16 +340,6 @@ describe('/dice and ?dice', () => {
       expect(firstReply(message)).toBe(diceErrorText(new InsufficientFundsError(50, 100)));
       expect(message.sent.edit).not.toHaveBeenCalled();
       expect(rollRows()).toHaveLength(0);
-    });
-
-    it('?dice while busy gets the busy text and settles nothing', async () => {
-      tryBegin(author);
-      const message = await run('?dice 100');
-
-      expect(firstReply(message)).toBe(stillRolling);
-      expect(message.sent.edit).not.toHaveBeenCalled();
-      expect(rollRows()).toHaveLength(0);
-      expect(findWallet(container.db, '2', author)).toBeUndefined();
     });
   });
 });

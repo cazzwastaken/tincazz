@@ -1,6 +1,6 @@
 import { InteractionHandler, InteractionHandlerTypes } from '@sapphire/framework';
 import type { ButtonInteraction, ContainerBuilder } from 'discord.js';
-import { play, runAnimatedGame, stillRolling, updateDisplay } from '../features/animation/index.js';
+import { play, runAnimatedGame, updateDisplay } from '../features/animation/index.js';
 import {
   assignJackpotRole,
   decodeSpinId,
@@ -45,8 +45,7 @@ export class GambaButtonsHandler extends InteractionHandler {
     }
 
     return runAnimatedGame({
-      userId,
-      busy: () => interaction.reply(errorReply(stillRolling)),
+      messageId: interaction.message.id,
       settle: () =>
         spin(
           this.container.db,

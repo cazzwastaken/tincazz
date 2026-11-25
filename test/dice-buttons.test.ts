@@ -104,7 +104,7 @@ describe('dice buttons', () => {
     // The result card offers the same terms again.
     expect(result).toContain(again);
     expect(balance('1')).toBe(startingBalance - 50 + 1_782);
-    await vi.waitFor(() => expect(tryBegin('1')).toBe(true));
+    await vi.waitFor(() => expect(tryBegin('m1')).toBe(true));
   });
 
   it('keeps a 5,000 Roll again out of the economy log', async () => {
@@ -138,8 +138,8 @@ describe('dice buttons', () => {
     expect(balance('5')).toBeUndefined();
   });
 
-  it('a Roll again click while the same user is animating gets the busy text and settles nothing', async () => {
-    tryBegin('1');
+  it('a Roll again click while the same card is being updated gets the busy text and settles nothing', async () => {
+    tryBegin('m1');
     const interaction = await click(again, '1');
 
     const [options] = interaction.reply.mock.calls[0] as unknown as [{ flags: number }];
@@ -190,7 +190,7 @@ describe('dice buttons', () => {
     expect(options.flags & MessageFlags.Ephemeral).toBeTruthy();
     expect(interaction.update).not.toHaveBeenCalled();
     expect(rollRows()).toHaveLength(0);
-    await vi.waitFor(() => expect(tryBegin('1')).toBe(true));
+    await vi.waitFor(() => expect(tryBegin('m1')).toBe(true));
   });
 
   it.each([
@@ -220,7 +220,7 @@ describe('dice buttons', () => {
     // The next controls keep the doubled bet and the call.
     expect(result).toContain('dc:again:1:200:l');
     expect(result).toContain('dc:double:1:400:l');
-    await vi.waitFor(() => expect(tryBegin('1')).toBe(true));
+    await vi.waitFor(() => expect(tryBegin('m1')).toBe(true));
   });
 
   it('refuses a Double the balance cannot cover with the funds error', async () => {
@@ -282,7 +282,7 @@ describe('dice buttons', () => {
       expect(shown).toContain('# 8 · HIGH ✓');
       expect(rollRows()).toHaveLength(0);
       expect(balance('1')).toBeUndefined();
-      await vi.waitFor(() => expect(tryBegin('1')).toBe(true));
+      await vi.waitFor(() => expect(tryBegin('m1')).toBe(true));
     });
 
     it('tells another user it is not their roll and changes nothing', async () => {
@@ -301,8 +301,8 @@ describe('dice buttons', () => {
       expect(interaction.update).not.toHaveBeenCalled();
     });
 
-    it('is refused while the player is animating', async () => {
-      tryBegin('1');
+    it('is refused while the card is being updated', async () => {
+      tryBegin('m1');
       const interaction = await pick('1', ['l']);
       await vi.waitFor(() => expect(interaction.reply).toHaveBeenCalledTimes(1));
       expect(json(interaction.reply.mock.calls[0])).toContain(stillRolling);

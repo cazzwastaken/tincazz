@@ -13,7 +13,6 @@ import {
   messageSurface,
   play,
   runAnimatedGame,
-  stillRolling,
 } from '../../features/animation/index.js';
 import {
   botFlipCard,
@@ -207,8 +206,6 @@ export class CoinflipCommand extends Command {
   private async flipBot(surface: FlipSurface, bet: string | undefined, side: FlipSide) {
     const { userId, guildId } = surface;
     return runAnimatedGame({
-      userId,
-      busy: () => surface.error(stillRolling),
       settle: () => settleBotFlip(this.container.db, { guildId, userId, bet, side }, Date.now()),
       errorText: flipErrorText,
       reject: (text) => surface.error(text),

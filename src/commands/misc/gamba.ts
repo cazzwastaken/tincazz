@@ -5,12 +5,7 @@ import {
   InteractionContextType,
   type Message,
 } from 'discord.js';
-import {
-  play,
-  replyFallback,
-  runAnimatedGame,
-  stillRolling,
-} from '../../features/animation/index.js';
+import { play, replyFallback, runAnimatedGame } from '../../features/animation/index.js';
 import {
   assignJackpotRole,
   formatGambaFollowUp,
@@ -61,8 +56,6 @@ export class GambaCommand extends Command {
     const bet = (await args.restResult('string')).unwrapOr(undefined);
     const userId = message.author.id;
     return runAnimatedGame({
-      userId,
-      busy: () => message.reply(stillRolling),
       settle: () =>
         settleSpin(
           this.container.db,
@@ -104,8 +97,6 @@ export class GambaCommand extends Command {
     const userId = interaction.user.id;
     const member: JackpotMember | null = interaction.inCachedGuild() ? interaction.member : null;
     return runAnimatedGame({
-      userId,
-      busy: () => interaction.reply(errorReply(stillRolling)),
       // Settled before the first frame: the reels below only dress up a result already decided.
       settle: () =>
         spin(

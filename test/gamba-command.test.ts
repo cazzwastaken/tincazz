@@ -6,13 +6,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 import { createClient } from '../src/client.js';
 import { openDatabase } from '../src/db/index.js';
 import { spins } from '../src/db/schema.js';
-import {
-  clearBudgets,
-  clearBusy,
-  setFrameDelay,
-  stillRolling,
-  tryBegin,
-} from '../src/features/animation/index.js';
+import { clearBudgets, setFrameDelay } from '../src/features/animation/index.js';
 import { findWallet } from '../src/features/economy/index.js';
 import { clearActiveCards, isActiveCard } from '../src/features/gamba/index.js';
 import { setJackpotRole } from '../src/features/settings/store.js';
@@ -78,13 +72,12 @@ describe('gamba', () => {
   beforeEach(() => {
     container.db = openDatabase(':memory:');
     setFrameDelay(0);
-    clearBusy();
     clearBudgets();
+    clearActiveCards();
   });
 
   afterEach(() => {
     setFrameDelay(undefined);
-    clearBusy();
     vi.restoreAllMocks();
     syncBuiltinESMExports();
   });
@@ -237,18 +230,27 @@ describe('gamba', () => {
       expect(json(message.spinReply.mock.calls[0])).toContain("couldn't assign the role");
     });
 
-    it('while the same user is still rolling gets the busy text and settles nothing', async () => {
-      tryBegin('1');
-      const message = await run('?gamba 10');
-
-      expect(message.reply).toHaveBeenCalledWith(stillRolling);
-      expect(findWallet(container.db, '2', '1')).toBeUndefined();
-    });
-
-    it('releases the lock after the roll', async () => {
-      mockRandomInt(0, 3, 6);
-      await run('?gamba');
-      await vi.waitFor(() => expect(tryBegin('1')).toBe(true));
+    it('settles another ?gamba while the first reply is pending', async () => {
+      mockRandomInt(0, 3, 6, 0, 3, 6);
+      let release: () => void = () => undefined;
+      const pending = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const first = makeMessage(client, '?gamba 10');
+      first.reply.mockImplementationOnce(async () => {
+        await pending;
+        return { reply: first.spinReply };
+      });
+      client.emit(Events.MessageCreate, first as never);
+      try {
+        await vi.waitFor(() => expect(first.reply).toHaveBeenCalledTimes(1));
+        const second = await run('?gamba 10');
+        expect(json(first.reply.mock.calls[0])).toContain('balance 990');
+        expect(json(second.reply.mock.calls[0])).toContain('balance 980');
+        expect(findWallet(container.db, '2', '1')?.balance).toBe(980);
+      } finally {
+        release();
+      }
     });
 
     it('keeps the roll when the follow-up fails', async () => {
@@ -328,7 +330,6 @@ describe('gamba', () => {
     });
 
     it('makes the newest card the only live one', async () => {
-      clearActiveCards();
       mockRandomInt(0, 3, 6);
       await runSettled({ bet: '10' });
 
@@ -344,9 +345,8 @@ describe('gamba', () => {
       expect(options.flags & MessageFlags.Ephemeral).toBeTruthy();
     });
 
-    it('refuses a second /gamba while one is rolling, then lands the first result', async () => {
-      setFrameDelay(40);
-      mockRandomInt(0, 3, 6);
+    it('settles overlapping /gamba spins and keeps the newest card active', async () => {
+      mockRandomInt(0, 3, 6, 0, 3, 6);
       vi.spyOn(client.channels, 'fetch').mockResolvedValue({
         type: 0,
         isDMBased: () => false,
@@ -356,14 +356,36 @@ describe('gamba', () => {
         makeChatInput(client, { commandName: 'gamba', userId: '1', options: { bet: '10' } });
       const first = make();
       const second = make();
+      const olderCard = '1100000000000000000';
+      const newerCard = '1100000000000000001';
+      let release: () => void = () => undefined;
+      const pending = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      first.reply.mockImplementationOnce(async () => {
+        await pending;
+        return { resource: { message: { id: olderCard, reply: first.announce } } };
+      });
+      second.reply.mockResolvedValueOnce({
+        resource: { message: { id: newerCard, reply: second.announce } },
+      });
       client.emit(Events.InteractionCreate, first as never);
-      client.emit(Events.InteractionCreate, second as never);
+      try {
+        await vi.waitFor(() => expect(first.reply).toHaveBeenCalledTimes(1));
+        client.emit(Events.InteractionCreate, second as never);
+        await vi.waitFor(() => expect(second.editReply).toHaveBeenCalledTimes(2), {
+          timeout: 2000,
+        });
+        expect(json(second.editReply.mock.calls.at(-1))).toContain('balance 980');
+      } finally {
+        release();
+      }
       await vi.waitFor(() => expect(first.editReply).toHaveBeenCalledTimes(2), { timeout: 2000 });
 
-      expect(json(second.reply.mock.calls[0])).toContain(stillRolling);
-      expect(second.editReply).not.toHaveBeenCalled();
-      expect(findWallet(container.db, '2', '1')?.balance).toBe(990);
+      expect(findWallet(container.db, '2', '1')?.balance).toBe(980);
       expect(json(first.editReply.mock.calls.at(-1))).toContain('balance 990');
+      expect(isActiveCard('1', newerCard)).toBe(true);
+      expect(isActiveCard('1', olderCard)).toBe(false);
     });
 
     it('announces a default-bet triple with a winner-only ping', async () => {

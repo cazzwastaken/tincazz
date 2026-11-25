@@ -55,8 +55,8 @@ The SQLite database is created under `./data/` on first start.
    migration in `drizzle/` with it.
 7. If you add an environment variable, add it to the zod schema in `src/config/env.ts` **and** to
    `.env.example` in the same commit. Read config only through `parseEnv`.
-8. Games run through the shared animation flow: `runAnimatedGame` (busy lock, settle, error text,
-   show) with a `GameSurface` for slash and prefix commands, and a single transactional settle in
+8. Games run through the shared animation flow: `runAnimatedGame` (settle, error text, show,
+   and a lock for existing card updates) with a `GameSurface` for slash and prefix commands, and a single transactional settle in
    the feature that uses `settleStake` (bet, then payouts) from `src/features/economy/`. Do not
    hand-roll the bet and payout ledger steps.
 9. Guild specifics (log channels, auto-roles, the jackpot role, game channels, the Hall of Fame

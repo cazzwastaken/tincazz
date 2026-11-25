@@ -64,7 +64,7 @@ describe('gamba buttons', () => {
   async function click(customId: string, userId = '1', messageId = 'm1') {
     const interaction = makeButton(client, { customId, userId, messageId });
     client.emit(Events.InteractionCreate, interaction as never);
-    // Either a private refusal, or the animation through its last edit and the lock released.
+    // Either a private refusal, or the animation through its last edit and the card update finished.
     await vi.waitFor(
       () => {
         const landed =
@@ -75,9 +75,9 @@ describe('gamba buttons', () => {
       { timeout: 2000 },
     );
     await vi.waitFor(() => {
-      expect(tryBegin(userId)).toBe(true);
+      expect(tryBegin(interaction.message.id)).toBe(true);
     });
-    end(userId);
+    end(interaction.message.id);
     return interaction;
   }
 
@@ -190,8 +190,8 @@ describe('gamba buttons', () => {
     expect(interaction.reply).not.toHaveBeenCalled();
   });
 
-  it('refuses a press while the same user is still rolling and settles nothing', async () => {
-    tryBegin('1');
+  it('refuses a press while the same card is being updated and settles nothing', async () => {
+    tryBegin('m1');
     const interaction = makeButton(client, { customId: 'gamba:again:1:100', userId: '1' });
     client.emit(Events.InteractionCreate, interaction as never);
     await vi.waitFor(() => expect(interaction.reply).toHaveBeenCalledTimes(1), { timeout: 2000 });

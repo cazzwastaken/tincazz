@@ -2,7 +2,7 @@ import { container } from '@sapphire/framework';
 
 declare module '@sapphire/pieces' {
   interface Container {
-    /** Users with an animation in flight. Lost on restart. */
+    /** Cards with an update in flight. Lost on restart. */
     animationBusy?: Set<string>;
   }
 }
@@ -13,23 +13,23 @@ const busy = (): Set<string> => {
   return container.animationBusy;
 };
 
-/** Claims the user's animation slot: true only for the first caller until `end`. */
-export function tryBegin(userId: string): boolean {
-  const users = busy();
-  if (users.has(userId)) {
+/** Claims the card for an update: true only for the first caller until `end`. */
+export function tryBegin(messageId: string): boolean {
+  const cards = busy();
+  if (cards.has(messageId)) {
     return false;
   }
-  users.add(userId);
+  cards.add(messageId);
   return true;
 }
 
-export function end(userId: string): void {
-  busy().delete(userId);
+export function end(messageId: string): void {
+  busy().delete(messageId);
 }
 
 export function clearBusy(): void {
   busy().clear();
 }
 
-/** Ephemeral text for a user who starts a game while their last one is still animating. */
-export const stillRolling = 'Still rolling… wait for your last one to land.';
+/** Ephemeral text for a click on a card that is already being updated. */
+export const stillRolling = 'This card is still updating. Try again in a moment.';

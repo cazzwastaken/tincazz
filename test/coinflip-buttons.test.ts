@@ -9,7 +9,6 @@ import { flips, pots } from '../src/db/schema.js';
 import {
   clearBudgets,
   clearBusy,
-  end,
   setFrameDelay,
   stillRolling,
   tryBegin,
@@ -188,8 +187,8 @@ describe('coinflip buttons', () => {
       expect(flipCount()).toBe(0);
     });
 
-    it('a Flip again click while the same user is animating gets the busy text and settles nothing', async () => {
-      tryBegin('1');
+    it('a Flip again click while the same card is being updated gets the busy text and settles nothing', async () => {
+      tryBegin('m1');
       const interaction = await click(again, '1');
 
       const [options] = interaction.reply.mock.calls[0] as unknown as [{ flags: number }];
@@ -263,26 +262,32 @@ describe('coinflip buttons', () => {
       expect(flipCount()).toBe(1);
     });
 
-    it('keeps the challenge live when a busy acceptor clicks, and settles a later accept', async () => {
+    it('accepts a challenge while another card is being updated', async () => {
       mockRandomInt(1);
       getOrCreateWallet(container.db, '2', '1', 1);
       getOrCreateWallet(container.db, '2', '3', 1);
-      tryBegin('3');
-      const busy = await click(challengeId('accept'), '3');
-
-      const [options] = busy.reply.mock.calls[0] as unknown as [{ flags: number }];
-      expect(json(options)).toContain(stillRolling);
-      expect(options.flags & MessageFlags.Ephemeral).toBeTruthy();
-      expect(busy.update).not.toHaveBeenCalled();
-      expect(flipCount()).toBe(0);
-      expect(balance('1')).toBe(startingBalance);
-      expect(balance('3')).toBe(startingBalance);
-
-      end('3');
-      const interaction = await click(challengeId('accept'), '3');
-      expect(json(interaction.update.mock.calls[0])).toContain('<@1> vs <@3> · 100 each');
-      expect(await flipResult(interaction)).toContain('<@3> wins **194**');
-      expect(flipCount()).toBe(1);
+      const again = encodeFlipAgainId({ userId: '3', bet: 10, side: 'heads' });
+      const first = makeButton(client, { customId: again, userId: '3', messageId: 'm2' });
+      first.channelId = '4';
+      let release: () => void = () => undefined;
+      const pending = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      first.update.mockImplementationOnce(async () => {
+        await pending;
+        return undefined;
+      });
+      client.emit(Events.InteractionCreate, first as never);
+      try {
+        await vi.waitFor(() => expect(first.update).toHaveBeenCalledTimes(1));
+        const accepted = await click(challengeId('accept'), '3');
+        expect(json(accepted.update.mock.calls[0])).toContain('<@1> vs <@3> · 100 each');
+        expect(await flipResult(accepted)).toContain('<@3> wins **194**');
+      } finally {
+        release();
+      }
+      expect(await flipResult(first)).toContain(again);
+      expect(flipCount()).toBe(2);
     });
 
     it('sends a third user away from a targeted challenge', async () => {

@@ -6,13 +6,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 import { createClient } from '../src/client.js';
 import { openDatabase } from '../src/db/index.js';
 import { flips, ledger } from '../src/db/schema.js';
-import {
-  clearBudgets,
-  clearBusy,
-  setFrameDelay,
-  stillRolling,
-  tryBegin,
-} from '../src/features/animation/index.js';
+import { clearBudgets, setFrameDelay } from '../src/features/animation/index.js';
 import {
   cannotChallengeBot,
   cannotChallengeSelf,
@@ -99,13 +93,11 @@ describe('?coinflip', () => {
     container.db = openDatabase(':memory:');
     clearChallenges();
     setFrameDelay(0);
-    clearBusy();
     clearBudgets();
   });
 
   afterEach(() => {
     clearChallenges();
-    clearBusy();
     setFrameDelay(undefined);
     vi.useRealTimers();
     vi.restoreAllMocks();
@@ -169,25 +161,6 @@ describe('?coinflip', () => {
         expect(message.sent.edit).toHaveBeenCalledTimes(flipAnimation.stages.length),
       );
       expect(flipRows()).toMatchObject([{ mode: 'bot', bet: 10, challengerSide: 'heads' }]);
-    });
-
-    it('?cf all while busy gets the busy text and settles nothing', async () => {
-      tryBegin(author);
-      const message = await run('?cf all');
-
-      expect(firstReply(message)).toBe(stillRolling);
-      expect(message.sent.edit).not.toHaveBeenCalled();
-      expect(flipRows()).toHaveLength(0);
-      expect(findWallet(container.db, '2', author)).toBeUndefined();
-    });
-
-    it('releases the busy lock after a flip', async () => {
-      mockRandomInt(0);
-      const message = await run('?cf 10');
-      await vi.waitFor(() =>
-        expect(message.sent.edit).toHaveBeenCalledTimes(flipAnimation.stages.length),
-      );
-      await vi.waitFor(() => expect(tryBegin(author)).toBe(true));
     });
 
     it('replies in plain text to a bad bet', async () => {

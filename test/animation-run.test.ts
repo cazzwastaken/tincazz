@@ -1,18 +1,22 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { clearBusy, runAnimatedGame, tryBegin } from '../src/features/animation/index.js';
+import {
+  clearBusy,
+  runAnimatedGame,
+  stillRolling,
+  tryBegin,
+} from '../src/features/animation/index.js';
 
 afterEach(() => clearBusy());
 
 function game(overrides: Partial<Parameters<typeof runAnimatedGame<number>>[0]> = {}) {
   const calls = {
-    busy: vi.fn(async () => 'busy'),
     reject: vi.fn(async (text: string) => `rejected:${text}`),
     show: vi.fn(async (value: number) => `shown:${value}`),
   };
   return {
     calls,
     options: {
-      userId: 'u',
+      messageId: 'm1',
       settle: () => 5,
       errorText: () => undefined,
       ...calls,
@@ -25,17 +29,23 @@ describe('runAnimatedGame', () => {
   it('settles, shows the settled value and frees the slot', async () => {
     const { calls, options } = game();
     expect(await runAnimatedGame(options)).toBe('shown:5');
-    expect(calls.busy).not.toHaveBeenCalled();
-    expect(tryBegin('u')).toBe(true);
+    expect(calls.reject).not.toHaveBeenCalled();
+    expect(tryBegin('m1')).toBe(true);
   });
 
-  it('answers busy without settling while the user is animating', async () => {
-    tryBegin('u');
+  it('answers busy without settling while the same card is being updated', async () => {
+    tryBegin('m1');
     const settle = vi.fn(() => 1);
     const { calls, options } = game({ settle });
-    expect(await runAnimatedGame(options)).toBe('busy');
+    expect(await runAnimatedGame(options)).toBe(`rejected:${stillRolling}`);
     expect(settle).not.toHaveBeenCalled();
     expect(calls.show).not.toHaveBeenCalled();
+  });
+
+  it('settles new plays and updates other cards while a card update is pending', async () => {
+    tryBegin('m1');
+    expect(await runAnimatedGame(game({ messageId: undefined }).options)).toBe('shown:5');
+    expect(await runAnimatedGame(game({ messageId: 'm2' }).options)).toBe('shown:5');
   });
 
   it('rejects an explained settle error without showing, and frees the slot', async () => {
@@ -47,7 +57,7 @@ describe('runAnimatedGame', () => {
     });
     expect(await runAnimatedGame(options)).toBe('rejected:poor');
     expect(calls.show).not.toHaveBeenCalled();
-    expect(tryBegin('u')).toBe(true);
+    expect(tryBegin('m1')).toBe(true);
   });
 
   it('rethrows an unexplained settle error and frees the slot', async () => {
@@ -57,7 +67,7 @@ describe('runAnimatedGame', () => {
       },
     });
     await expect(runAnimatedGame(options)).rejects.toThrow('boom');
-    expect(tryBegin('u')).toBe(true);
+    expect(tryBegin('m1')).toBe(true);
   });
 
   it('does not explain an error thrown while showing', async () => {
@@ -66,6 +76,6 @@ describe('runAnimatedGame', () => {
     calls.show.mockRejectedValueOnce(new Error('discord'));
     await expect(runAnimatedGame(options)).rejects.toThrow('discord');
     expect(errorText).not.toHaveBeenCalled();
-    expect(tryBegin('u')).toBe(true);
+    expect(tryBegin('m1')).toBe(true);
   });
 });
