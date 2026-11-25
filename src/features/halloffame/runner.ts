@@ -539,14 +539,15 @@ export function createHallRunner(deps: HallRunnerDeps): HallRunner {
     lastSync.set(key, now());
     lastCount.set(key, now());
     breakdowns.set(key, tally.score().perEmoji);
-    // An early exit counted only enough people to qualify: refine the count and breakdown later.
-    if (tallied.early || tallied.truncated) {
-      debouncer.schedule(
-        key,
-        { guildId, channelId, messageId, reaction: true, edit: false, refresh: false },
-        config.peakCooldownMs,
-      );
-    }
+    // An edit of the original while this was `publishing` was ignored, so always look again (an
+    // unchanged card is not edited). An early exit counted only enough people to qualify: refine
+    // the count and breakdown too, once the reactions' own cooldown has passed.
+    const refine = tallied.early || tallied.truncated;
+    debouncer.schedule(
+      key,
+      { guildId, channelId, messageId, reaction: refine, edit: true, refresh: false },
+      config.editCooldownMs,
+    );
   }
 
   /* ------------------------------------------------------------------------ sync */

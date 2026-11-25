@@ -176,3 +176,41 @@ describe('a source channel deleted while an induction is under way', () => {
     expect(h.fake.log.fetchMessage).toBe(0);
   });
 });
+
+describe('an edit that arrives while the claim is publishing', () => {
+  it('is picked up once the card is recorded', async () => {
+    const h = harness(db, vi);
+    h.fake.addMessage();
+    h.fake.react(messageId, '⭐', people(0, 5));
+    let release: () => void = () => undefined;
+    h.fake.sendGate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    h.add('2000');
+    await vi.advanceTimersByTimeAsync(hallOfFame.debounceMs);
+    expect(entry()?.status).toBe('publishing');
+
+    const message = h.fake.messages.get(messageId);
+    if (message) message.facts.content = 'edited while posting';
+    h.runner.onMessageUpdate(guildId, messageId);
+    release();
+    await h.runner.idle();
+    expect(entry()?.status).toBe('posted');
+    expect(JSON.stringify(h.fake.log.send[0]?.post.card.toJSON())).not.toContain('edited while');
+
+    await h.settle(hallOfFame.editCooldownMs);
+    expect(JSON.stringify(h.fake.log.edit.at(-1)?.post.card.toJSON())).toContain(
+      'edited while posting',
+    );
+  });
+
+  it('costs no edit when nothing changed', async () => {
+    const h = harness(db, vi);
+    h.fake.addMessage();
+    h.fake.react(messageId, '⭐', people(0, 5));
+    h.add('2000');
+    await h.settle();
+    await h.settle(hallOfFame.peakCooldownMs);
+    expect(h.fake.log.edit).toHaveLength(0);
+  });
+});
