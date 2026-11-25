@@ -98,6 +98,10 @@ describe('truncateText', () => {
     );
   });
 
+  it('keeps spoiler text hidden when the cut falls inside inline code', () => {
+    expect(quoteExcerpt('|| secret `|| classifiedxxxxxxxx` ||', 28)).toBe('> || secret…||');
+  });
+
   it('leaves a closed fence alone', () => {
     const text = `\`\`\`\ncode\n\`\`\`\n${'x'.repeat(100)}`;
     const out = truncateText(text, 50);

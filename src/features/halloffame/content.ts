@@ -56,7 +56,10 @@ function fenceCount(text: string): number {
  * unclosed one runs to the end, since a cut closes it again) and an inline code span hide theirs,
  * and `\|` is not a marker. The one tokenizer behind truncation, `hideSpoilers` and embed media.
  */
-function spoilerMarkerIndexes(text: string): number[] {
+function spoilerMarkerIndexes(
+  text: string,
+  inlineSpans?: { start: number; end: number }[],
+): number[] {
   const found: number[] = [];
   let i = 0;
   while (i < text.length) {
@@ -66,6 +69,7 @@ function spoilerMarkerIndexes(text: string): number[] {
     } else if (text[i] === '`') {
       const run = text[i + 1] === '`' ? '``' : '`';
       const end = text.indexOf(run, i + run.length);
+      if (end !== -1) inlineSpans?.push({ start: i, end: end + run.length });
       i = end === -1 ? i + run.length : end + run.length;
     } else if (text[i] === '\\') {
       i += 2;
@@ -105,9 +109,14 @@ export function truncateText(text: string, max: number): string {
   if (max <= 0) return '';
   if (text.length <= max) return text;
 
+  const inlineSpans: { start: number; end: number }[] = [];
+  spoilerMarkerIndexes(text, inlineSpans);
   let room = max - ellipsis.length;
   for (;;) {
-    const kept = text.slice(0, cutPoint(text, Math.max(0, room))).trimEnd();
+    const cut = cutPoint(text, Math.max(0, room));
+    const span = inlineSpans.find(({ start, end }) => start < cut && cut < end);
+    // An incomplete span can turn the pipes in its code into a spoiler delimiter.
+    const kept = text.slice(0, span?.start ?? cut).trimEnd();
     const closers = closersFor(kept);
     const excess = kept.length + ellipsis.length + closers.length - max;
     if (excess <= 0) return kept + ellipsis + closers;

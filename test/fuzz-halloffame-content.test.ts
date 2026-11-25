@@ -98,6 +98,21 @@ describe('fuzz: hall of fame content', () => {
     );
   });
 
+  it('keeps spoiler text hidden around cut single- and double-backtick spans', () => {
+    fc.assert(
+      fc.property(
+        fc.constantFrom('`', '``'),
+        fc.integer({ min: 1, max: 80 }),
+        fc.integer({ min: 1, max: 100 }),
+        (delimiter, length, max) => {
+          const input = `start ||secret ${delimiter}|| ${'x'.repeat(length)}${delimiter} tail||`;
+          const visible = hideSpoilers(truncateText(input, max));
+          expect(visible).not.toMatch(/secret|x|tail/u);
+        },
+      ),
+    );
+  });
+
   it('is idempotent on its own output', () => {
     fc.assert(
       fc.property(text, fc.integer({ min: 1, max: 60 }), (input, max) => {
