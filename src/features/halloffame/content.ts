@@ -334,7 +334,8 @@ export function classifySticker(sticker: StickerFacts): HallSticker {
     case StickerFormatType.APNG:
       return { name, url: `https://cdn.discordapp.com/stickers/${sticker.id}.png` };
     case StickerFormatType.GIF:
-      return { name, url: `https://cdn.discordapp.com/stickers/${sticker.id}.gif` };
+      // The plain CDN serves a GIF sticker's first frame at best: the media proxy plays it.
+      return { name, url: `https://media.discordapp.net/stickers/${sticker.id}.gif` };
     default:
       return { name, url: undefined };
   }

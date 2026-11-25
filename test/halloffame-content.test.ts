@@ -19,6 +19,7 @@ import {
   stableUrl,
   truncateText,
 } from '../src/features/halloffame/index.js';
+import { isAllowedHost } from '../src/features/imaging/urls.js';
 
 const attachment = (name: string, size = 1000, contentType: string | null = 'image/png') => ({
   id: name,
@@ -261,8 +262,13 @@ describe('stickers', () => {
       'https://cdn.discordapp.com/stickers/1.png',
     );
     expect(classifySticker({ id: '1', name: 'a', format: StickerFormatType.GIF }).url).toBe(
-      'https://cdn.discordapp.com/stickers/1.gif',
+      'https://media.discordapp.net/stickers/1.gif',
     );
+    // Every sticker image host must stay on the imaging allowlist.
+    for (const format of [StickerFormatType.PNG, StickerFormatType.GIF]) {
+      const url = classifySticker({ id: '1', name: 'a', format }).url ?? '';
+      expect(isAllowedHost(new URL(url).hostname)).toBe(true);
+    }
     expect(classifySticker({ id: '1', name: 'a', format: StickerFormatType.Lottie })).toEqual({
       name: 'a',
       url: undefined,
