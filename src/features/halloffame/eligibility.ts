@@ -18,6 +18,22 @@ export interface ChannelFacts {
    * are left out. Undefined when it could not be resolved, which is never safe to post from or into.
    */
   audience: readonly string[] | undefined;
+  /**
+   * The explicit View Channel overwrites, resolved from the parent for a thread. Roles with
+   * Administrator and the bot itself are left out. Undefined when it could not be resolved, which
+   * is never safe to post from or into.
+   */
+  overwrites: ViewOverwrites | undefined;
+}
+
+/** The channel's own View Channel permission overwrites, by id. */
+export interface ViewOverwrites {
+  /** Roles (`@everyone` included) and members that an overwrite denies View Channel. */
+  denied: readonly string[];
+  /** The roles among `denied`, without `@everyone`. */
+  deniedRoles: readonly string[];
+  /** Roles other than `@everyone` that an overwrite explicitly allows View Channel. */
+  allowedRoles: readonly string[];
 }
 
 export interface AuthorFacts {
@@ -90,14 +106,29 @@ export function channelEligibility(
 }
 
 /**
- * Whether everyone who can see the hall could already see the source. Every id in the hall's
- * audience must be in the source's, and an audience that is unknown never qualifies. It is
- * conservative: it compares who is allowed in each channel, not who actually holds the roles.
+ * Whether everyone who can see the hall could already see the source. It fails closed, so an
+ * unknown audience or unknown overwrites never qualify, and it asks for three things:
+ *
+ * 1. every id in the hall's audience is in the source's (who is let in);
+ * 2. every role or member the source denies View Channel is denied it on the hall too (a deny
+ *    that Discord combines per member, which the audience of single roles cannot show: someone
+ *    holding a gating role and a restricted role is locked out of the source but not the hall);
+ * 3. when the source denies a role View Channel, every role the hall explicitly allows is also
+ *    explicitly allowed on the source, because a role allow overwrite beats the role denies.
+ *
+ * It compares overwrites, not who actually holds which roles, so it can refuse more than needed.
  */
 export function audienceCovers(source: ChannelFacts, hall: ChannelFacts): boolean {
-  if (!source.audience || !hall.audience) return false;
+  if (!source.audience || !hall.audience || !source.overwrites || !hall.overwrites) return false;
   const seen = new Set(source.audience);
-  return hall.audience.every((id) => seen.has(id));
+  if (!hall.audience.every((id) => seen.has(id))) return false;
+  const hallDenied = new Set(hall.overwrites.denied);
+  if (!source.overwrites.denied.every((id) => hallDenied.has(id))) return false;
+  if (source.overwrites.deniedRoles.length > 0) {
+    const sourceAllowed = new Set(source.overwrites.allowedRoles);
+    if (!hall.overwrites.allowedRoles.every((id) => sourceAllowed.has(id))) return false;
+  }
+  return true;
 }
 
 /**
@@ -179,7 +210,7 @@ export const guardNotes: readonly GuardNote[] = [
   {
     reason: 'audience-mismatch',
     title: 'Private channels',
-    text: "A message is only posted into a hall that nobody can see who couldn't already see the original, so staff or role-only talk never reaches a wider audience. This check is conservative: exempt a channel to keep it out for good.",
+    text: "A message is only posted into a hall that nobody can see who couldn't already see the original: every role or member let into the hall must be let into the channel, and every role or member the channel hides itself from (a View Channel deny) must be hidden from the hall too. The check compares channel permissions, not who holds which roles, so it errs on the side of refusing: exempt a channel to keep it out for good.",
   },
   {
     reason: 'bot-author',

@@ -17,6 +17,7 @@ import {
   type RESTGetAPIChannelMessagesResult,
   RESTJSONErrorCodes,
   ReactionType,
+  type Role,
   Routes,
 } from 'discord.js';
 import { downloadImage } from '../imaging/fetch.js';
@@ -143,34 +144,54 @@ function mapReaction(reaction: APIReaction, guild: Guild | undefined): HallReact
 }
 
 /**
- * Who can view the channel (the ids of `ChannelFacts.audience`), or undefined when that cannot be
- * worked out. Roles are judged on their own permissions in the channel, so a server where
- * @everyone is locked out everywhere and a "Member" role gets in shows exactly that role. Roles
- * with Administrator see everything and are left out, and so are the bot's own role and member
- * overwrite. Members with an explicit allow overwrite are listed by id.
+ * Who can view the channel and what its View Channel overwrites say (`ChannelFacts.audience` and
+ * `overwrites`), or undefined for both when that cannot be worked out. Roles are judged on their
+ * own permissions in the channel, so a server where @everyone is locked out everywhere and a
+ * "Member" role gets in shows exactly that role. Discord combines the role overwrites of a member,
+ * so a role is also judged by its denies: every role or member with a View Channel deny overwrite
+ * is listed, for the guard to require the same deny on the hall. Roles with Administrator and the
+ * bot's own role and member overwrite are left out. Members with an explicit allow overwrite are
+ * listed in the audience by id.
  */
-function viewAudience(guild: Guild, base: Channel | null, botId: string): string[] | undefined {
-  if (base === null || base.isDMBased() || !('permissionsFor' in base)) return undefined;
-  if (!('permissionOverwrites' in base) || guild.roles.cache.size === 0) return undefined;
+function viewAccess(
+  guild: Guild,
+  base: Channel | null,
+  botId: string,
+): Pick<ChannelFacts, 'audience' | 'overwrites'> {
+  const unknown = { audience: undefined, overwrites: undefined };
+  if (base === null || base.isDMBased() || !('permissionsFor' in base)) return unknown;
+  if (!('permissionOverwrites' in base) || guild.roles.cache.size === 0) return unknown;
+  const hidden = (role: Role | undefined) =>
+    role !== undefined &&
+    (role.permissions.has(PermissionFlagsBits.Administrator) || role.tags?.botId === botId);
   const audience: string[] = [];
   for (const role of guild.roles.cache.values()) {
-    if (role.permissions.has(PermissionFlagsBits.Administrator) || role.tags?.botId === botId) {
-      continue;
-    }
+    if (hidden(role)) continue;
     const perms = base.permissionsFor(role, false);
-    if (perms === null) return undefined;
+    if (perms === null) return unknown;
     if (perms.has(PermissionFlagsBits.ViewChannel)) audience.push(role.id);
   }
+  const denied: string[] = [];
+  const deniedRoles: string[] = [];
+  const allowedRoles: string[] = [];
   for (const overwrite of base.permissionOverwrites.cache.values()) {
-    if (
-      overwrite.type === OverwriteType.Member &&
-      overwrite.id !== botId &&
-      overwrite.allow.has(PermissionFlagsBits.ViewChannel)
-    ) {
-      audience.push(overwrite.id);
+    const allows = overwrite.allow.has(PermissionFlagsBits.ViewChannel);
+    const denies = overwrite.deny.has(PermissionFlagsBits.ViewChannel);
+    if (overwrite.type === OverwriteType.Member) {
+      if (overwrite.id === botId) continue;
+      if (allows) audience.push(overwrite.id);
+      if (denies) denied.push(overwrite.id);
+      continue;
     }
+    // A role that was deleted from the cache is kept: not knowing it is not a reason to skip it.
+    if (hidden(guild.roles.cache.get(overwrite.id))) continue;
+    if (denies) {
+      denied.push(overwrite.id);
+      if (overwrite.id !== guild.id) deniedRoles.push(overwrite.id);
+    }
+    if (allows && overwrite.id !== guild.id) allowedRoles.push(overwrite.id);
   }
-  return audience;
+  return { audience, overwrites: { denied, deniedRoles, allowedRoles } };
 }
 
 function channelFacts(
@@ -191,7 +212,7 @@ function channelFacts(
     isPrivateThread: channel.type === ChannelType.PrivateThread,
     nsfw,
     // An unresolved parent cannot be proven safe, so its audience stays unknown.
-    audience: viewAudience(guild, base, botId),
+    ...viewAccess(guild, base, botId),
   };
 }
 
@@ -215,6 +236,7 @@ export function createHallDiscord(client: Client<true>): HallDiscord {
         isPrivateThread: channel.type === ChannelType.PrivateThread,
         nsfw: false,
         audience: undefined,
+        overwrites: undefined,
       };
     }
     return channelFacts(guild, channel, parent, client.user.id);

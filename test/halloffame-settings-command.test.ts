@@ -435,7 +435,7 @@ describe('/settings show', () => {
     expect(result.text).toContain('**Hall of Fame exempt:** none');
     expect(result.text).toContain('private threads');
     expect(result.text).toContain('age-restricted channels');
-    expect(result.text).toContain('smaller audience than the hall');
+    expect(result.text).toContain('errs on the side of refusing');
     expect(result.text).not.toContain('⚠️');
   });
 

@@ -16,6 +16,7 @@ const channel = (over: Partial<ChannelFacts> = {}): ChannelFacts => ({
   isPrivateThread: false,
   nsfw: false,
   audience: ['everyone'],
+  overwrites: { denied: [], deniedRoles: [], allowedRoles: [] },
   ...over,
 });
 const hall = channel({ id: 'hall' });
@@ -135,6 +136,57 @@ describe('hall of fame eligibility', () => {
   it('counts a member who can see the hall but not the source', () => {
     const hallForOne = channel({ id: 'hall', audience: ['staff', 'user:5'] });
     expect(check(channel({ audience: ['staff'] }), { hall: hallForOne })).toEqual({
+      ok: false,
+      reason: 'audience-mismatch',
+    });
+  });
+
+  it('needs the hall to repeat every View deny of the source', () => {
+    const deny = (denied: string[], deniedRoles: string[] = [], allowedRoles: string[] = []) => ({
+      overwrites: { denied, deniedRoles, allowedRoles },
+    });
+    const source = channel(deny(['restricted', 'user:5'], ['restricted']));
+    expect(check(source)).toEqual({ ok: false, reason: 'audience-mismatch' });
+    expect(check(source, { hall: channel({ id: 'hall', ...deny(['restricted']) }) })).toEqual({
+      ok: false,
+      reason: 'audience-mismatch',
+    });
+    expect(
+      check(source, { hall: channel({ id: 'hall', ...deny(['user:5', 'restricted', 'extra']) }) }),
+    ).toEqual({ ok: true });
+  });
+
+  it('does not let a role allow on the hall beat a role deny the source has', () => {
+    const source = channel({
+      overwrites: { denied: ['restricted'], deniedRoles: ['restricted'], allowedRoles: [] },
+    });
+    const hallWith = (allowedRoles: string[]) =>
+      channel({
+        id: 'hall',
+        overwrites: { denied: ['restricted'], deniedRoles: ['restricted'], allowedRoles },
+      });
+    expect(check(source, { hall: hallWith(['staff']) })).toEqual({
+      ok: false,
+      reason: 'audience-mismatch',
+    });
+    const grantsStaff = channel({
+      overwrites: {
+        denied: ['restricted'],
+        deniedRoles: ['restricted'],
+        allowedRoles: ['staff'],
+      },
+    });
+    expect(check(grantsStaff, { hall: hallWith(['staff']) })).toEqual({ ok: true });
+    // Without a role deny on the source the allow is harmless.
+    expect(check(channel(), { hall: hallWith(['staff']) })).toEqual({ ok: true });
+  });
+
+  it('fails closed when the overwrites are unknown', () => {
+    expect(check(channel({ overwrites: undefined }))).toEqual({
+      ok: false,
+      reason: 'audience-mismatch',
+    });
+    expect(check(channel(), { hall: channel({ id: 'hall', overwrites: undefined }) })).toEqual({
       ok: false,
       reason: 'audience-mismatch',
     });

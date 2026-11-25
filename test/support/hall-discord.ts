@@ -34,6 +34,7 @@ export const publicChannel = (id: string, over: Partial<ChannelFacts> = {}): Cha
   nsfw: false,
   // @everyone (its id is the guild id) can view.
   audience: [guildId],
+  overwrites: { denied: [], deniedRoles: [], allowedRoles: [] },
   ...over,
 });
 

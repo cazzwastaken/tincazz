@@ -174,7 +174,7 @@ describe('hall of fame discord adapter', () => {
       roles: ReturnType<typeof role>[];
       /** Role id to whether the role can view the channel. */
       views: Record<string, boolean>;
-      overwrites?: Array<{ id: string; type: OverwriteType; allow: bigint }>;
+      overwrites?: Array<{ id: string; type: OverwriteType; allow: bigint; deny?: bigint }>;
       type?: number;
     }
 
@@ -197,7 +197,12 @@ describe('hall of fame discord adapter', () => {
           cache: new Map(
             (setup.overwrites ?? []).map((o) => [
               o.id,
-              { id: o.id, type: o.type, allow: { has: (f: bigint) => (o.allow & f) === f } },
+              {
+                id: o.id,
+                type: o.type,
+                allow: { has: (f: bigint) => (o.allow & f) === f },
+                deny: { has: (f: bigint) => ((o.deny ?? 0n) & f) === f },
+              },
             ]),
           ),
         },

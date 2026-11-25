@@ -198,10 +198,14 @@ ID (see `features/gamba/custom-ids.ts`), so handlers must ignore IDs they cannot
   fetched over REST. It needs no new intent: Guilds, GuildMessages and GuildMessageReactions are
   already on. The guards (audience, NSFW to non-NSFW, private threads) live in `eligibility.ts` and
   are explained to users from `guardNotes`. The audience guard compares who can view each channel
-  (roles, `@everyone` included, and members with an allow overwrite, from `viewAudience` in
-  `discord.ts`): a message is posted only when everyone who sees the hall could already see the
-  source, and unknown audiences fail closed. It is conservative, not a guarantee: exempt channels
-  are the hard block for private channels.
+  (roles, `@everyone` included, and members with an allow overwrite, from `viewAccess` in
+  `discord.ts`, using the parent's overwrites for a thread): a message is posted only when everyone
+  who sees the hall could already see the source, every role or member whose View Channel the
+  source denies by overwrite is denied on the hall too (role denies combine per member in Discord,
+  so judging roles one at a time misses them), and the hall allows no role by overwrite that the
+  source does not when the source denies a role. Unknown audiences or overwrites fail closed. It is
+  conservative, not a guarantee: exempt channels are the hard block for private channels.
+  `test/halloffame-permissions.test.ts` checks it against discord.js' own permission math.
 - **`Partials.Message`** (`src/client.ts`) lets `messageDelete` and `messageDeleteBulk` include an
   uncached honeypot card so it can be re-posted. Do not remove it.
 - Pending screening joins persist until role assignment or departure. The hourly job recovers completions missed while offline.
