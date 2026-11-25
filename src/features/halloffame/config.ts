@@ -34,6 +34,12 @@ export const hallOfFame = {
   /** Tracked messages whose "reactions needed before refetching" counter is remembered. */
   counterCacheSize: 5000,
   counterTtlMs: 30 * minute,
+  /**
+   * Authors (bots, apps, webhooks) already seen on a message, so their later reactions are dropped
+   * before any fetch. Whether an id is a bot never changes, so this can be long.
+   */
+  botAuthorCacheSize: 2000,
+  botAuthorTtlMs: 6 * 60 * minute,
   /** A posted entry is re-evaluated for a higher peak at most this often. */
   peakCooldownMs: 30 * second,
   /** A posted entry is redrawn for an edit of the original at most this often (deferred, not dropped). */

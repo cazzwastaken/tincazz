@@ -36,6 +36,12 @@ function fakeClient() {
     user: { id: '900' },
     rest,
     guilds: { cache: new Map([['10', guild]]) },
+    users: {
+      cache: new Map([
+        ['801', { bot: true }],
+        ['802', { bot: false }],
+      ]),
+    },
     channels: {
       cache: new Map([['20', { isDMBased: () => false, guild, isThread: () => false }]]),
     },
@@ -126,6 +132,65 @@ describe('hall of fame discord adapter', () => {
       // A guild without the emoji shows it as plain text the card will not print.
       { emoji: 'foreign:66', key: 'foreign:66', normal: 4 },
     ]);
+  });
+
+  it('knows bots from the cached users only, and never calls an unknown user a bot', () => {
+    const { client, rest } = fakeClient();
+    const discord = createHallDiscord(client);
+    expect(discord.isKnownBotUser('801')).toBe(true);
+    expect(discord.isKnownBotUser('900')).toBe(true);
+    expect(discord.isKnownBotUser('802')).toBe(false);
+    expect(discord.isKnownBotUser('12345')).toBe(false);
+    expect(rest.get).not.toHaveBeenCalled();
+  });
+
+  describe('marks what is not a person writing', () => {
+    const apiMessage = (over: Record<string, unknown>) => ({
+      id: '100',
+      channel_id: '20',
+      timestamp: '2026-11-24T00:00:00.000Z',
+      type: 0,
+      content: 'hello',
+      author: { id: '1', username: 'cazz', global_name: 'Cazz', avatar: null, bot: false },
+      attachments: [],
+      embeds: [],
+      ...over,
+    });
+    const author = async (over: Record<string, unknown>) => {
+      const { client, rest } = fakeClient();
+      rest.get.mockResolvedValue(apiMessage(over));
+      return (await createHallDiscord(client).fetchMessage('10', '20', '100')).author;
+    };
+
+    it('leaves a person alone', async () => {
+      expect(await author({})).toMatchObject({ bot: false, webhook: false });
+    });
+
+    it.each([
+      ['a bot user', { author: { id: '5', username: 'b', bot: true } }],
+      ['this bot', { author: { id: '900', username: 'tincazz' } }],
+      ['an app owned message', { application_id: '5' }],
+      ['an interaction response', { interaction_metadata: { id: '7', type: 2 } }],
+      ['the old interaction field', { interaction: { id: '7', type: 2 } }],
+    ])('flags %s as a bot', async (_name, over) => {
+      expect((await author(over)).bot).toBe(true);
+    });
+
+    it.each([
+      ['a webhook message', { webhook_id: '55' }],
+      ['an announcement followed into the channel', { flags: MessageFlags.IsCrosspost }],
+      [
+        'a crosspost among other flags',
+        { flags: MessageFlags.IsCrosspost | MessageFlags.SuppressEmbeds },
+      ],
+    ])('flags %s as a webhook', async (_name, over) => {
+      expect((await author(over)).webhook).toBe(true);
+    });
+
+    it('does not take a published announcement of a person for a webhook', async () => {
+      // `Crossposted` is the flag of the message that was published, in its own channel.
+      expect((await author({ flags: MessageFlags.Crossposted })).webhook).toBe(false);
+    });
   });
 
   it('turns discord errors into tagged ones', async () => {

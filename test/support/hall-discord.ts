@@ -60,6 +60,8 @@ type Fault = HallErrorKind | undefined;
 /** An in-memory stand-in for Discord that records everything the runner does. */
 export class FakeHall implements HallDiscord {
   public readonly botId = botId;
+  /** Users the (cached) gateway data already shows to be bots or apps. */
+  public readonly knownBots = new Set<string>();
   public readonly channels = new Map<string, HallChannelInfo>();
   public readonly messages = new Map<string, HallSourceMessage>();
   public readonly reactors = new Map<string, Reactor[]>();
@@ -96,6 +98,10 @@ export class FakeHall implements HallDiscord {
   public constructor() {
     this.channels.set(sourceChannelId, channelInfo(sourceChannelId, 'memes'));
     this.channels.set(hallChannelId, channelInfo(hallChannelId, 'hall'));
+  }
+
+  public isKnownBotUser(userId: string) {
+    return userId === botId || this.knownBots.has(userId);
   }
 
   public peekChannel(_guildId: string, channelId: string) {

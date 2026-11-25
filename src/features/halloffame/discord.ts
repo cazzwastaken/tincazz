@@ -312,8 +312,18 @@ export function createHallDiscord(client: Client<true>): HallDiscord {
           avatarUrl: author.avatar
             ? client.rest.cdn.avatar(author.id, author.avatar, avatarOptions)
             : client.rest.cdn.defaultAvatar(Number((BigInt(author.id) >> 22n) % 6n)),
-          bot: author.bot === true,
-          webhook: api.webhook_id !== undefined,
+          // An app's reply (a slash command or button response) has an application behind it even
+          // when the author object says nothing, and a message copied into a channel by following
+          // an announcement channel is a webhook post flagged as a crosspost.
+          bot:
+            author.bot === true ||
+            author.id === client.user.id ||
+            api.application_id !== undefined ||
+            api.interaction !== undefined ||
+            api.interaction_metadata !== undefined,
+          webhook:
+            api.webhook_id !== undefined ||
+            ((api.flags ?? 0) & MessageFlags.IsCrosspost) === MessageFlags.IsCrosspost,
         },
         facts: {
           ...snapshotFacts(api),
@@ -418,8 +428,14 @@ export function createHallDiscord(client: Client<true>): HallDiscord {
     return downloadImage(check, { fetch });
   }
 
+  /** From the caches only: users seen on the gateway (members included) carry the bot flag. */
+  function isKnownBotUser(userId: string): boolean {
+    return userId === client.user.id || client.users.cache.get(userId)?.bot === true;
+  }
+
   return {
     botId: client.user.id,
+    isKnownBotUser,
     peekChannel,
     channel,
     fetchMessage,

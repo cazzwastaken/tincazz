@@ -67,7 +67,9 @@ export interface HallSourceAuthor {
   /** Global display name, else the username. */
   displayName: string;
   avatarUrl: string;
+  /** A bot or app user, an application's reply (interaction or app-owned message) or this bot. */
   bot: boolean;
+  /** Sent through a webhook, which includes announcements followed into the channel. */
   webhook: boolean;
 }
 
@@ -116,6 +118,13 @@ export interface HallRecentMessage {
  */
 export interface HallDiscord {
   readonly botId: string;
+  /**
+   * Whether the user is known, without a request, to be a bot or app (or this bot itself): from the
+   * cached users and members. Best effort: false means "unknown", never "human", so the check on
+   * the fetched message stays the source of truth. A synchronous call so a reaction can be dropped
+   * before anything is fetched.
+   */
+  isKnownBotUser(userId: string): boolean;
   /** The channel's facts from the cache only, or undefined when it is not cached. */
   peekChannel(guildId: string, channelId: string): ChannelFacts | undefined;
   channel(guildId: string, channelId: string): Promise<HallChannelInfo>;

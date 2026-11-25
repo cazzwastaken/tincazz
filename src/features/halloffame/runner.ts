@@ -144,6 +144,11 @@ export function createHallRunner(deps: HallRunnerDeps): HallRunner {
     config.counterTtlMs,
     now,
   );
+  /**
+   * Authors that turned out to be bots, apps or webhooks (or this bot): a fetch only ever has to
+   * find that out once, then every later reaction on their messages is dropped unread.
+   */
+  const botAuthors = new TtlLru<true>(config.botAuthorCacheSize, config.botAuthorTtlMs, now);
   const failures = new Map<string, number>();
   /**
    * Source channels (and parents of threads) that were deleted a moment ago. An induction that
@@ -168,6 +173,22 @@ export function createHallRunner(deps: HallRunnerDeps): HallRunner {
       return false;
     }
     return true;
+  };
+
+  /** Whether an author is known to be a bot, an app, a webhook or this bot, without a request. */
+  const isKnownBot = (userId: string) =>
+    userId === discord.botId ||
+    botAuthors.get(userId) !== undefined ||
+    discord.isKnownBotUser(userId);
+
+  /**
+   * Whether a fetched message was written by a bot, an app, a webhook or this bot, as the
+   * eligibility guards see it. Remembers the author, so their next reactions skip the fetch.
+   */
+  const authorFacts = (message: HallSourceMessage) => {
+    const bot = message.author.bot || message.author.id === discord.botId;
+    if (bot || message.author.webhook) botAuthors.set(message.author.id, true);
+    return { bot, webhook: message.author.webhook };
   };
 
   const sourceDeleted = (channelId: string, parentId: string | undefined) =>
@@ -262,7 +283,12 @@ export function createHallRunner(deps: HallRunnerDeps): HallRunner {
         config.reactorPageSize,
       );
       if (users.length >= config.reactorPageSize) truncated = true;
-      tally.add(reaction.emoji, users);
+      // Bots never count (the API flags them); this bot's own seeding reactions, such as a poll's,
+      // are left out by id too in case a user object ever came without the flag.
+      tally.add(
+        reaction.emoji,
+        users.filter((user) => user.id !== discord.botId),
+      );
     }
     return { tally, early, truncated };
   }
@@ -418,7 +444,7 @@ export function createHallRunner(deps: HallRunnerDeps): HallRunner {
       potId,
       source.facts,
       hall.facts,
-      { bot: message.author.bot, webhook: message.author.webhook },
+      authorFacts(message),
       message.type,
     );
     if (!after.ok) {
@@ -622,7 +648,7 @@ export function createHallRunner(deps: HallRunnerDeps): HallRunner {
             honeypot(db, guildId).channelId,
             source.facts,
             hall.facts,
-            { bot: message.author.bot, webhook: message.author.webhook },
+            authorFacts(message),
             message.type,
           )
         : undefined;
@@ -711,8 +737,12 @@ export function createHallRunner(deps: HallRunnerDeps): HallRunner {
     const { guildId, channelId, messageId } = event;
     if (event.burst || event.isBot || event.userId === discord.botId) return;
     if (event.messageAuthorId !== undefined) {
-      // Self-reactions never count; reactions on our own cards (an old hall) are not worth a fetch.
-      if (event.messageAuthorId === event.userId || event.messageAuthorId === discord.botId) return;
+      // Self-reactions never count.
+      if (event.messageAuthorId === event.userId) return;
+      // Bots, apps and webhooks are never inducted, and neither is this bot's own polls,
+      // giveaways and cards. Judged from what is already known; an author not known yet is
+      // found out by the first fetch and remembered (`botAuthors`).
+      if (isKnownBot(event.messageAuthorId)) return;
     }
     const settings = hallSettings(db, guildId);
     if (settings.channelId === undefined) return;
