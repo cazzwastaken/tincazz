@@ -81,6 +81,8 @@ export class FakeHall implements HallDiscord {
     fetchRecent?: Fault;
     fetchReactors?: Fault;
   } = {};
+  /** With a `send` fault: the card is created before the call fails, as when a response is lost. */
+  public sendCreatesBeforeFault = false;
   /** Awaited at the start of every send, to hold a post open. */
   public sendGate: Promise<void> | undefined;
   /** Runs while a send is in flight, after the message was created. */
@@ -129,11 +131,13 @@ export class FakeHall implements HallDiscord {
 
   public async sendHall(channelId: string, post: HallPost) {
     await this.sendGate;
-    if (this.faults.send) throw new HallDiscordError(this.faults.send);
+    const fault = this.faults.send;
+    if (fault && !this.sendCreatesBeforeFault) throw new HallDiscordError(fault);
     const id = String(this.nextId++);
     this.posted.set(id, { channelId, post });
     this.log.send.push({ channelId, post, id });
     this.duringSend?.();
+    if (fault) throw new HallDiscordError(fault);
     return id;
   }
 

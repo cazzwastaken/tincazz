@@ -319,6 +319,26 @@ export function createHallRunner(deps: HallRunnerDeps): HallRunner {
 
   /* ---------------------------------------------------------------------- induct */
 
+  /**
+   * After a send that may or may not have reached Discord: the id of our card in the hall when it
+   * did. Otherwise undefined, and the claim stays `publishing` for the hourly recovery (which
+   * checks again once the claim is stale) so a retry cannot post twice.
+   */
+  async function adoptAfterAmbiguousSend(claim: HallEntry): Promise<string | undefined> {
+    try {
+      const found = await findPostedCard(claim);
+      if (found === undefined) {
+        logger.warn(
+          `Hall of Fame cannot tell whether the card of ${claim.messageId} was sent, keeping the claim`,
+        );
+      }
+      return found;
+    } catch (error) {
+      logger.warn(`Hall of Fame could not look for the card of ${claim.messageId}`, error);
+      return undefined;
+    }
+  }
+
   async function induct(job: HallJob): Promise<void> {
     const { guildId, channelId, messageId } = job;
     const key = keyOf(guildId, messageId);
@@ -362,7 +382,9 @@ export function createHallRunner(deps: HallRunnerDeps): HallRunner {
       const kind = hallErrorKind(error);
       // A deleted message says nothing about the channel.
       if (kind === 'unknown-channel' || kind === 'forbidden') noteFailure(channelId);
-      else if (kind === 'other') logger.warn(`Hall of Fame could not fetch ${messageId}`, error);
+      else if (kind === 'other' || kind === 'rejected') {
+        logger.warn(`Hall of Fame could not fetch ${messageId}`, error);
+      }
       return;
     }
 
@@ -421,9 +443,10 @@ export function createHallRunner(deps: HallRunnerDeps): HallRunner {
     );
     if (claim.kind !== 'claimed') return;
 
-    let hallMessageId: string | undefined;
+    let input: HallCardInput;
+    let post: HallPost;
     try {
-      const input = await cardInput(message, {
+      input = await cardInput(message, {
         guildId,
         peak: tally.distinct,
         threshold,
@@ -431,8 +454,34 @@ export function createHallRunner(deps: HallRunnerDeps): HallRunner {
         channelName: source.name,
       });
       const files = attachImages(input, await downloadImages(input.body.images));
-      const post: HallPost = { card: hallCard(input), files, nonce: messageId.slice(0, 25) };
+      post = { card: hallCard(input), files, nonce: messageId.slice(0, 25) };
+    } catch (error) {
+      // Nothing was sent yet, so the claim can go.
+      releaseHallClaim(db, guildId, messageId);
+      logger.warn(`Hall of Fame could not post message ${messageId}`, error);
+      return;
+    }
+
+    let hallMessageId: string;
+    try {
       hallMessageId = await discord.sendHall(hallChannelId, post);
+    } catch (error) {
+      const kind = hallErrorKind(error);
+      if (kind === 'forbidden') noteFailure(hallChannelId);
+      logger.warn(`Hall of Fame could not post message ${messageId}`, error);
+      if (kind === 'forbidden' || kind === 'unknown-channel' || kind === 'rejected') {
+        // Discord answered with a refusal: no message exists, so the next reaction may retry.
+        releaseHallClaim(db, guildId, messageId);
+        return;
+      }
+      // A timeout, reset or server error: Discord may have created the card. Keep the claim (a
+      // second post could be a duplicate) and look for our own card right away.
+      const found = await adoptAfterAmbiguousSend(claim.entry);
+      if (found === undefined) return;
+      hallMessageId = found;
+    }
+
+    try {
       const posted = markHallPosted(
         db,
         guildId,
@@ -446,10 +495,9 @@ export function createHallRunner(deps: HallRunnerDeps): HallRunner {
         return;
       }
     } catch (error) {
-      if (hallMessageId !== undefined) await discardHallMessage({ hallChannelId, hallMessageId });
+      await discardHallMessage({ hallChannelId, hallMessageId });
       releaseHallClaim(db, guildId, messageId);
-      if (hallErrorKind(error) === 'forbidden') noteFailure(hallChannelId);
-      logger.warn(`Hall of Fame could not post message ${messageId}`, error);
+      logger.warn(`Hall of Fame could not record message ${messageId}`, error);
       return;
     }
 
@@ -561,7 +609,7 @@ export function createHallRunner(deps: HallRunnerDeps): HallRunner {
       if (kind === 'unknown-message') {
         markHallMessagesRemoved(db, [hallMessageId], now());
         forget(key);
-      } else if (kind === 'other') {
+      } else if (kind === 'other' || kind === 'rejected') {
         logger.warn(`Hall of Fame could not edit hall message ${hallMessageId}`, error);
       } else {
         logger.debug(`Hall of Fame could not edit hall message ${hallMessageId} (${kind})`);

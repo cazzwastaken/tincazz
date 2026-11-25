@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { closeDatabase, type Db, openDatabase } from '../src/db/index.js';
 import {
   addHallExempt,
+  claimHallEntry,
   getHallEntry,
   hallOfFame,
   setHallChannel,
@@ -406,21 +407,119 @@ describe('hall of fame induction', () => {
     expect(entry()).toBeUndefined();
   });
 
-  it('releases the claim when the send fails, so it can be retried', async () => {
+  it.each(['rejected', 'unknown-channel', 'forbidden'] as const)(
+    'releases the claim when Discord refuses the send (%s), so it can be retried',
+    async (kind) => {
+      const h = harness(db, vi);
+      h.fake.addMessage();
+      h.fake.react(messageId, '⭐', people(0, 6));
+      h.fake.faults.send = kind;
+      h.add('2000');
+      await h.settle();
+      expect(entry()).toBeUndefined();
+      expect(h.warn).toHaveBeenCalled();
+
+      h.fake.faults.send = undefined;
+      h.runner.forgetFailures();
+      h.add('2001');
+      await h.settle();
+      expect(entry()?.status).toBe('posted');
+      expect(h.fake.log.send).toHaveLength(1);
+    },
+  );
+
+  describe('a send whose outcome is unknown (timeout, reset, 5xx)', () => {
+    it('adopts the card Discord did create, and never posts it twice', async () => {
+      const h = harness(db, vi);
+      h.fake.addMessage();
+      h.fake.react(messageId, '⭐', people(0, 6));
+      h.fake.faults.send = 'other';
+      h.fake.sendCreatesBeforeFault = true;
+      h.add('2000');
+      await h.settle();
+      const sentId = h.fake.log.send[0]?.id;
+      expect(entry()).toMatchObject({ status: 'posted', hallMessageId: sentId, peakCount: 6 });
+
+      h.fake.faults.send = undefined;
+      h.add('2001');
+      await h.settle(hallOfFame.peakCooldownMs);
+      expect(h.fake.log.send).toHaveLength(1);
+      expect(h.fake.posted.size).toBe(1);
+    });
+
+    it('keeps the claim when no card is found, so a later reaction cannot post twice', async () => {
+      const h = harness(db, vi);
+      h.fake.addMessage();
+      h.fake.react(messageId, '⭐', people(0, 6));
+      h.fake.faults.send = 'other';
+      h.add('2000');
+      await h.settle();
+      expect(entry()?.status).toBe('publishing');
+      expect(h.fake.log.send).toHaveLength(0);
+
+      // The send works again, but the row is still claimed: nothing is posted.
+      h.fake.faults.send = undefined;
+      h.add('2001');
+      await h.settle();
+      expect(h.fake.log.send).toHaveLength(0);
+      expect(entry()?.status).toBe('publishing');
+
+      // The hourly recovery releases it once it is stale and the scan finds nothing.
+      await vi.advanceTimersByTimeAsync(hallOfFame.publishStaleMs + 1);
+      await h.runner.recover();
+      expect(entry()).toBeUndefined();
+      h.add('2002');
+      await h.settle();
+      expect(entry()?.status).toBe('posted');
+      expect(h.fake.log.send).toHaveLength(1);
+    });
+
+    it('keeps the claim when the scan fails too, and recovery adopts the card later', async () => {
+      const h = harness(db, vi);
+      h.fake.addMessage();
+      h.fake.react(messageId, '⭐', people(0, 6));
+      h.fake.faults.send = 'other';
+      h.fake.sendCreatesBeforeFault = true;
+      h.fake.faults.fetchRecent = 'other';
+      h.add('2000');
+      await h.settle();
+      expect(entry()?.status).toBe('publishing');
+      expect(h.warn).toHaveBeenCalled();
+
+      h.fake.faults.send = undefined;
+      h.fake.faults.fetchRecent = undefined;
+      h.add('2001');
+      await h.settle();
+      expect(h.fake.log.send).toHaveLength(1);
+
+      await h.runner.recover({ all: true });
+      expect(entry()).toMatchObject({
+        status: 'posted',
+        hallMessageId: h.fake.log.send[0]?.id,
+      });
+    });
+  });
+
+  it('never posts a message whose claim is already publishing', async () => {
     const h = harness(db, vi);
     h.fake.addMessage();
     h.fake.react(messageId, '⭐', people(0, 6));
-    h.fake.faults.send = 'other';
+    claimHallEntry(
+      db,
+      {
+        guildId,
+        messageId,
+        channelId: sourceChannelId,
+        parentChannelId: undefined,
+        authorId,
+        hallChannelId,
+      },
+      t0,
+    );
     h.add('2000');
     await h.settle();
-    expect(entry()).toBeUndefined();
-    expect(h.warn).toHaveBeenCalled();
-
-    h.fake.faults.send = undefined;
-    h.add('2001');
-    await h.settle();
-    expect(entry()?.status).toBe('posted');
-    expect(h.fake.log.send).toHaveLength(1);
+    expect(h.fake.log.send).toHaveLength(0);
+    expect(entry()?.status).toBe('publishing');
   });
 
   it('remembers a hall channel that refuses the send', async () => {

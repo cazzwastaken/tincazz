@@ -57,11 +57,17 @@ describe('hall of fame discord adapter', () => {
     expect(classifyHallError(apiError(403, RESTJSONErrorCodes.MissingPermissions))).toBe(
       'forbidden',
     );
-    // Other 404s are not proof that a message or channel is gone.
-    expect(classifyHallError(apiError(404, RESTJSONErrorCodes.UnknownUser))).toBe('other');
-    expect(classifyHallError(apiError(404, 0))).toBe('other');
+    // Other 4xx answers are refusals (nothing was created) but not proof that anything is gone.
+    expect(classifyHallError(apiError(404, RESTJSONErrorCodes.UnknownUser))).toBe('rejected');
+    expect(classifyHallError(apiError(404, 0))).toBe('rejected');
+    expect(classifyHallError(apiError(400, RESTJSONErrorCodes.InvalidFormBodyOrContentType))).toBe(
+      'rejected',
+    );
+    // A server error, a timeout or a reset may have created the message: not a definite answer.
     expect(classifyHallError(apiError(500, 0))).toBe('other');
+    expect(classifyHallError(apiError(502, 0))).toBe('other');
     expect(classifyHallError(new Error('network'))).toBe('other');
+    expect(classifyHallError(new DOMException('aborted', 'AbortError'))).toBe('other');
   });
 
   it('maps a message with reactions, a reply and a forward', async () => {

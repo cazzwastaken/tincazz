@@ -3,8 +3,18 @@ import type { MessageFacts } from './content.js';
 import type { ChannelFacts } from './eligibility.js';
 import type { ReactionCount, Reactor } from './score.js';
 
-/** What went wrong with a Discord call, closed so the runner never needs discord.js error classes. */
-export type HallErrorKind = 'unknown-message' | 'unknown-channel' | 'forbidden' | 'other';
+/**
+ * What went wrong with a Discord call, closed so the runner never needs discord.js error classes.
+ * `rejected` is any other 4xx answer (such as an invalid form body): Discord looked at the request
+ * and refused it, so nothing was created. `other` is everything else (timeouts, resets, 5xx), where
+ * the request may or may not have gone through.
+ */
+export type HallErrorKind =
+  | 'unknown-message'
+  | 'unknown-channel'
+  | 'forbidden'
+  | 'rejected'
+  | 'other';
 
 export class HallDiscordError extends Error {
   // Not a parameter property: Node's type stripping (used to load pieces in tests) rejects those.

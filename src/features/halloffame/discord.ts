@@ -51,6 +51,7 @@ export function classifyHallError(error: unknown): HallErrorKind {
   ) {
     return 'forbidden';
   }
+  if (error.status >= 400 && error.status < 500) return 'rejected';
   return 'other';
 }
 

@@ -203,6 +203,10 @@ You can ignore this unless something looks slow or missing.
   hourly): Tincazz looks through the last 300 messages of the hall channel for its own card for that
   message and adopts it, or, if there is none, releases the reservation so the message can be
   inducted by its next reaction. If it cannot check, it waits rather than risk a duplicate.
+  The same goes for a send that ends in a timeout, a reset connection or a server error, where
+  Discord may or may not have created the card: Tincazz looks for its card at once, and if it
+  cannot tell, it keeps the reservation (no new post for that message) until the hourly check
+  settles it. Only a clear refusal from Discord, such as missing permissions, frees it immediately.
 - **Reactions while offline** are not scanned. A message that reached the threshold while the bot
   was down is inducted when its next reaction arrives.
 
