@@ -49,9 +49,9 @@ Every card is a single Components V2 message in the hall channel:
   the pictures are **copied** into the hall post and stay for as long as the post does. Pictures
   marked as spoilers stay spoilers. A picture that cannot be copied is left out and the card says
   so. Stickers are shown by their permanent image (a Lottie sticker, which has none, by name), and
-  images and GIFs from links (Discord, Tenor and Giphy only) are shown from the link, through
-  Discord's image proxy and not copied, so they can change or disappear if the linked site
-  changes the image.
+  the image or GIF of a link in the message (from any site) is shown through Discord's image
+  proxy: the bot never downloads or copies it, it only points the post at Discord's proxied
+  copy. A linked image can therefore change or disappear if the linked site changes it.
 - Other attachments are listed by name (the first five, then "+N more files"); they are not
   copied. A file marked as a spoiler is listed as "spoiler file", without its name.
 - A footer with the peak number of people and the three most used emoji (custom emoji from other

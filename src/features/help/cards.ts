@@ -292,7 +292,7 @@ function hallOfFamePage(): Page {
       ].join('\n'),
       [
         '### The post',
-        `A card with the author, the channel and when it was sent, the text, up to ${maxImages} pictures (uploaded ones are copied, so they never expire; stickers and images from links share those slots and are shown from their link, not copied), replies and forwards, and a link back. Other files are listed by name.`,
+        `A card with the author, the channel and when it was sent, the text, up to ${maxImages} pictures (uploaded ones are copied, so they never expire; stickers and images from links share those slots and are shown through Discord's proxy, not copied, so a linked image can change if its site does), replies and forwards, and a link back. Other files are listed by name.`,
         `The footer shows the **peak** number of people and the top emoji. The icon grows with it: ${tierLadder()} the threshold. Taking reactions off later does not remove a post.`,
         'Editing the original updates the post, and deleting the original removes it (while the bot is online). If staff delete a post, it is not posted again.',
       ].join('\n'),
@@ -303,7 +303,7 @@ function hallOfFamePage(): Page {
         `\`/settings halloffame set channel:#hall threshold:${defaultThreshold}\` picks the channel and posts an intro card there.`,
         '`/settings halloffame threshold count:8` changes the count (not retroactive). `clear` stops new posts and keeps old ones.',
         `\`exempt\` / \`unexempt\` skip a channel or a whole category (up to ${maxExemptChannels}). \`/settings show\` lists it all.`,
-        'The bot needs View Channel, Send Messages, Attach Files and Read Message History in the hall, and View Channel and Read Message History where messages are posted.',
+        'The bot needs View Channel, Send Messages, Attach Files and Read Message History in the hall, and View Channel and Read Message History in the channels messages come from.',
       ].join('\n'),
     ],
   };

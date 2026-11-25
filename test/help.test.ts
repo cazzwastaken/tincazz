@@ -115,6 +115,9 @@ describe('help pages', () => {
     expect(text).toContain('**people**, not reactions');
     expect(text).toContain('Messages from bots, apps and webhooks');
     expect(text).toContain('/settings halloffame set');
+    // The read permissions are for the channels messages come from, not for the hall.
+    expect(text).toContain('Read Message History in the channels messages come from');
+    expect(text).toContain("through Discord's proxy");
     expect(text).toContain('not retroactive');
     for (const tier of hallTiers) expect(text).toContain(tier.emoji);
     // Every silent skip is explained, except the two about the channel not being set up.

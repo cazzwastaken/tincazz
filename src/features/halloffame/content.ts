@@ -401,10 +401,12 @@ function allowedMedia(media: EmbedMediaFacts | null | undefined): string | undef
 }
 
 /**
- * The images and GIFs of link embeds, by URL, up to `limit`. Only hosts from the imaging allowlist
- * are kept (the proxied URL when there is one), so a hall post never points at a page that can
- * change after the fact. A GIF embed (Tenor, Giphy) contributes its thumbnail. A link inside a
- * `||spoiler||` stays a spoiler (see `afterSpoilerMarker`).
+ * The images and GIFs of link embeds, by URL, up to `limit`. The bot never downloads these: the
+ * card points at Discord's proxy copy (`images-ext-*.discordapp.net`, which serves a link of any
+ * site) or at Discord, Tenor and Giphy themselves. Only hosts on the imaging allowlist are kept,
+ * the proxied URL when there is one. Such an image can still change if the linked site changes
+ * it. A GIF embed (Tenor, Giphy) contributes its thumbnail. A link inside a `||spoiler||` stays a
+ * spoiler (see `afterSpoilerMarker`).
  */
 export function pickEmbedMedia(
   embeds: readonly EmbedFacts[],
