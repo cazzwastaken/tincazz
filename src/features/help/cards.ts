@@ -294,7 +294,7 @@ function hallOfFamePage(): Page {
         '### The post',
         `A card with the author, the channel and when it was sent, the text, up to ${maxImages} pictures (copied, so they never expire), replies and forwards, and a link back. Other files are listed by name.`,
         `The footer shows the **peak** number of people and the top emoji. The icon grows with it: ${tierLadder()} the threshold. Taking reactions off later does not remove a post.`,
-        'Editing the original updates the post, and deleting the original removes it. If staff delete a post, it is not posted again.',
+        'Editing the original updates the post, and deleting the original removes it (while the bot is online). If staff delete a post, it is not posted again.',
       ].join('\n'),
       `### Never posted\n${hallSkips()}`,
       [

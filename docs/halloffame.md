@@ -143,17 +143,23 @@ the way to hard-block a private channel, and nothing else overrides it.
 
 ## After the post
 
-- **Edits**: when the original is edited, the post is redrawn within a few seconds, so the hall
-  never keeps text its author changed. An edit that changes nothing visible, such as a link
-  preview that finished loading, does not touch the post. The pictures are copied again, and a
-  picture the author removed disappears.
-- **Deleted originals**: deleting the original (or bulk deleting it, or deleting its channel or
-  thread, or the channel or forum a thread belongs to) deletes the hall post too. Nothing stays in the hall that its author removed.
+- **Edits**: when the original is edited, the post is redrawn within a few seconds. An edit that
+  changes nothing visible, such as a link preview that finished loading, does not touch the post.
+  The pictures are copied again, and a picture the author removed disappears. This stops for a post
+  that is frozen (see below), and an edit made while the bot was offline is only picked up by the
+  next edit or reaction.
+- **Deleted originals**: while the bot is online, deleting the original (or bulk deleting it, or
+  deleting its channel or thread, or the channel or forum a thread belongs to) deletes the hall post
+  too. This is driven by Discord's delete events, so an original deleted **while the bot was
+  offline** is not noticed at the next start: the post is only checked again when its original
+  gets an edit or a reaction, and a deleted message can get neither. Such a post stays until staff
+  delete it by hand.
 - **Deleted hall posts**: if staff delete a post from the hall, Tincazz remembers and never posts
   that message again, whatever happens to its reactions.
-- **Changed or deleted source**: if the channel later becomes private, age-restricted or exempt,
-  the post stays as it is and later edits are not copied into it. Deleting the original still
-  removes it.
+- **Changed source**: if the channel later becomes private (see the audience check above),
+  age-restricted or exempt, the post is **frozen**: it stays as it is and later edits and new
+  reactions are not copied into it. Nothing removes a frozen post except deleting the original
+  while the bot is online or staff deleting the post, so staff delete it by hand if it should go.
 - **Changing the hall channel**: posts in the old channel stay there and keep following edits and
   deletions. New inductions go to the new channel, and a message that is already in the old hall is
   not posted again.
