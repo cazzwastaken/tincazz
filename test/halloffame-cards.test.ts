@@ -264,6 +264,19 @@ describe('hallCard hostile content', () => {
     expect(reply).not.toContain('<');
   });
 
+  it('never prints the text of a spoiler in a reply preview', () => {
+    const { card } = render({
+      reply: { authorName: 'B', snippet: 'so ||the butler|| did it and ||another' },
+    });
+    const reply =
+      allText(card)
+        .split('\n')
+        .find((line) => line.includes('replying')) ?? '';
+    expect(reply).toContain('so spoiler did it and spoiler');
+    expect(reply).not.toContain('butler');
+    expect(reply).not.toContain('another');
+  });
+
   it('inlineText flattens and escapes', () => {
     expect(inlineText('a\nb\tc', 10)).toBe('a b c');
     expect(inlineText('*_~|`[]()\\', 20)).toBe('\\*\\_\\~\\|\\`\\[\\]\\(\\)\\\\');

@@ -18,6 +18,7 @@ import {
   bodyHashParts,
   bodyIsEmpty,
   type HallImage,
+  hideSpoilers,
   type MessageBody,
   quoteExcerpt,
   renderHash,
@@ -250,7 +251,7 @@ function footerLine(input: HallCardInput, emoji: string): string {
 
 function replyLine(reply: HallCardReply): string {
   const name = inlineText(reply.authorName, maxNameLength) || 'someone';
-  const snippet = inlineText(reply.snippet, hallOfFame.maxReplySnippetLength);
+  const snippet = inlineText(hideSpoilers(reply.snippet), hallOfFame.maxReplySnippetLength);
   return snippet === ''
     ? `-# ↩️ replying to **${name}**`
     : `-# ↩️ replying to **${name}**: ${snippet}`;

@@ -33,10 +33,15 @@ const piece = fc.oneof(
 );
 const text = fc.array(piece, { maxLength: 40 }).map((parts) => parts.join(''));
 
-/** The kept part of a truncated text: without the ellipsis and any fence closer. */
+/** The kept part of a truncated text: without the ellipsis and any fence or spoiler closer. */
 function keptPrefix(result: string): string {
-  if (result.endsWith('…\n```')) return result.slice(0, -'…\n```'.length);
-  return result.slice(0, -1);
+  return result.replace(/…(?:\n```)?(?:\n?\|\|)?$/u, '');
+}
+
+/** `||` markers outside code fences, for text without backslashes or single backticks. */
+function spoilerMarkers(value: string): number {
+  const outside = value.replace(/```[\s\S]*?(?:```|$)/gu, ' ');
+  return (outside.match(/\|\|/gu) ?? []).length;
 }
 
 /** No lone surrogate halves (the lib target predates String.isWellFormed). */
@@ -59,7 +64,7 @@ describe('fuzz: hall of fame content', () => {
           expect(out).toBe('');
           return;
         }
-        expect(out.endsWith('…') || out.endsWith('…\n```')).toBe(true);
+        expect(/…(?:\n```)?(?:\n?\|\|)?$/u.test(out)).toBe(true);
         const kept = keptPrefix(out);
         expect(input.startsWith(kept)).toBe(true);
         for (const match of input.matchAll(tokenPattern)) {
@@ -70,6 +75,24 @@ describe('fuzz: hall of fame content', () => {
         expect((out.match(/```/gu) ?? []).length % 2).toBe(0);
       }),
       { numRuns: 1000 },
+    );
+  });
+
+  it('never leaves a spoiler open after a cut, and never hides from a preview', () => {
+    const spoilerPiece = fc.oneof(
+      fc.string({ maxLength: 8 }).map((value) => value.replace(/[\\`]/gu, '')),
+      fc.constantFrom('||', '|', ' ', '\n', '```', '```js\n', '😀', '<@123456789012345678>', '…'),
+    );
+    const spoilerText = fc.array(spoilerPiece, { maxLength: 40 }).map((parts) => parts.join(''));
+    fc.assert(
+      fc.property(spoilerText, fc.integer({ min: 1, max: 60 }), (input, max) => {
+        const out = truncateText(input, max);
+        expect(out.length).toBeLessThanOrEqual(max);
+        if (input.length > max) expect(spoilerMarkers(out) % 2).toBe(0);
+        const hidden = replySnippet(input, false, 400);
+        expect(hidden).not.toContain('||');
+      }),
+      { numRuns: 2000 },
     );
   });
 

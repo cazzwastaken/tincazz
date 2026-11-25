@@ -52,21 +52,66 @@ function fenceCount(text: string): number {
 }
 
 /**
+ * How many `||` markers `text` has outside code. A code fence (an unclosed one runs to the end,
+ * since a cut closes it again) and an inline code span hide theirs, and `\|` is not a marker.
+ */
+function spoilerMarkers(text: string): number {
+  let count = 0;
+  let i = 0;
+  while (i < text.length) {
+    if (text.startsWith(fence, i)) {
+      const end = text.indexOf(fence, i + fence.length);
+      i = end === -1 ? text.length : end + fence.length;
+    } else if (text[i] === '`') {
+      const run = text[i + 1] === '`' ? '``' : '`';
+      const end = text.indexOf(run, i + run.length);
+      i = end === -1 ? i + run.length : end + run.length;
+    } else if (text[i] === '\\') {
+      i += 2;
+    } else if (text.startsWith('||', i)) {
+      count += 1;
+      i += 2;
+    } else {
+      i += 1;
+    }
+  }
+  return count;
+}
+
+/**
+ * What a cut `kept` needs after its ellipsis so the rest of the card renders normally: the code
+ * fence closed on its own line, then the spoiler closed (an open `||` would hide, or worse show,
+ * everything that follows).
+ */
+function closersFor(kept: string): string {
+  const closeFence = fenceCount(kept) % 2 === 1;
+  const closeSpoiler = spoilerMarkers(kept) % 2 === 1;
+  return (closeFence ? `\n${fence}` : '') + (closeSpoiler ? (closeFence ? '\n||' : '||') : '');
+}
+
+/**
  * Cuts `text` to at most `max` UTF-16 units (at least Discord's own count) and marks the cut with
  * an ellipsis. The cut is on a code point boundary, never inside a mention or custom emoji, and a
- * code fence left open by the cut is closed again, so the rest of the card renders normally.
+ * code fence or `||spoiler||` left open by the cut is closed again, so the rest of the card renders
+ * normally.
  */
 export function truncateText(text: string, max: number): string {
   if (max <= 0) return '';
   if (text.length <= max) return text;
 
-  const prefix = text.slice(0, cutPoint(text, max - ellipsis.length)).trimEnd();
-  if (fenceCount(prefix) % 2 === 0) return prefix + ellipsis;
+  let room = max - ellipsis.length;
+  for (;;) {
+    const kept = text.slice(0, cutPoint(text, Math.max(0, room))).trimEnd();
+    const closers = closersFor(kept);
+    const excess = kept.length + ellipsis.length + closers.length - max;
+    if (excess <= 0) return kept + ellipsis + closers;
+    room = Math.min(room, kept.length) - excess;
+  }
+}
 
-  const closer = `\n${fence}`;
-  const room = Math.max(0, max - ellipsis.length - closer.length);
-  const shorter = text.slice(0, cutPoint(text, room)).trimEnd();
-  return fenceCount(shorter) % 2 === 0 ? shorter + ellipsis : shorter + ellipsis + closer;
+/** Replaces every `||spoiler||` (an unclosed `||` hides the rest) with a word, for a preview. */
+export function hideSpoilers(text: string): string {
+  return text.replace(/\|\|[\s\S]*?(?:\|\||$)/gu, 'spoiler');
 }
 
 /**
@@ -106,13 +151,16 @@ export function quoteExcerpt(
   return quotedEllipsis.length <= maxQuoted ? quotedEllipsis : '';
 }
 
-/** A one line preview of the message a reply answers; empty when there is nothing to show. */
+/**
+ * A one line preview of the message a reply answers; empty when there is nothing to show. Spoilers
+ * are hidden before anything is cut or escaped (an escaped `||` would print the secret).
+ */
 export function replySnippet(
   text: string,
   hasMedia = false,
   max: number = hallOfFame.maxReplySnippetLength,
 ): string {
-  const flat = text.replace(/`{3,}/gu, '').replace(/\s+/gu, ' ').trim();
+  const flat = hideSpoilers(text.replace(/`{3,}/gu, '')).replace(/\s+/gu, ' ').trim();
   if (flat === '') return hasMedia ? '📎 attachment' : '';
   return truncateText(flat, max);
 }
@@ -260,7 +308,8 @@ export function planAttachments(
         spoiler: isSpoilerName(attachment.name),
       });
     } else {
-      names.push(safeFileName(attachment.name));
+      // A spoiler's name is hidden on Discord too (a file named SPOILER_plans.zip).
+      names.push(isSpoilerName(attachment.name) ? 'spoiler file' : safeFileName(attachment.name));
     }
   }
   const files = names.slice(0, caps.maxAttachmentNames);

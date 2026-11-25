@@ -75,6 +75,28 @@ describe('truncateText', () => {
     expect((out.match(/```/gu) ?? []).length % 2).toBe(0);
   });
 
+  it('closes a spoiler the cut left open', () => {
+    const out = truncateText('||the butler did it, and then some more words||', 20);
+    expect(out).toBe('||the butler did…||');
+    expect(out.length).toBeLessThanOrEqual(20);
+    expect(truncateText(`||a|| ||b ${'x'.repeat(40)}`, 14)).toBe('||a|| ||b x…||');
+  });
+
+  it('closes a spoiler cut inside a word, and a spoiler before an open fence after the fence', () => {
+    expect(truncateText('||secret|| tail', 10)).toBe('||secre…||');
+    const out = truncateText(`||a\n\`\`\`js\n${'code;'.repeat(30)}`, 40);
+    expect(out.endsWith('…\n```\n||')).toBe(true);
+    expect(out.length).toBeLessThanOrEqual(40);
+  });
+
+  it('does not count markers in code or escaped ones', () => {
+    expect(truncateText(`\`||\` ${'x'.repeat(40)}`, 20)).toBe(`\`||\` ${'x'.repeat(14)}…`);
+    expect(truncateText(`\\||a ${'x'.repeat(40)}`, 20)).toBe(`\\||a ${'x'.repeat(14)}…`);
+    expect(truncateText(`\`\`\`\n||\n\`\`\`\n${'x'.repeat(40)}`, 20)).toBe(
+      `\`\`\`\n||\n\`\`\`\n${'x'.repeat(8)}…`,
+    );
+  });
+
   it('leaves a closed fence alone', () => {
     const text = `\`\`\`\ncode\n\`\`\`\n${'x'.repeat(100)}`;
     const out = truncateText(text, 50);
@@ -117,7 +139,22 @@ describe('quoting', () => {
   });
 });
 
+describe('quoting a cut spoiler', () => {
+  it('closes the spoiler on the last quoted line', () => {
+    const out = quoteExcerpt(`||secret\n${'word '.repeat(50)}`, 40, 80);
+    expect(out.endsWith('…||')).toBe(true);
+    expect(out.length).toBeLessThanOrEqual(80);
+  });
+});
+
 describe('replySnippet', () => {
+  it('hides spoilers, closed or not', () => {
+    expect(replySnippet('so ||the butler|| did it')).toBe('so spoiler did it');
+    expect(replySnippet('a ||one|| b ||two|| c')).toBe('a spoiler b spoiler c');
+    expect(replySnippet('sneaky ||open ended')).toBe('sneaky spoiler');
+    expect(replySnippet('||multi\nline||')).toBe('spoiler');
+  });
+
   it('flattens whitespace and truncates', () => {
     expect(replySnippet('hello\n\n  world')).toBe('hello world');
     expect(replySnippet('x'.repeat(200)).length).toBe(hallOfFame.maxReplySnippetLength);
@@ -144,6 +181,14 @@ describe('attachments', () => {
     ]);
     expect(plan.files).toEqual(['c.zip', 'd.mp4']);
     expect(plan.moreFiles).toBe(0);
+  });
+
+  it('does not print the name of a spoiler file it lists', () => {
+    const plan = planAttachments([
+      attachment('SPOILER_plans.zip', 10, 'application/zip'),
+      attachment('ok.zip', 10, 'application/zip'),
+    ]);
+    expect(plan.files).toEqual(['spoiler file', 'ok.zip']);
   });
 
   it('falls back to the extension without a content type', () => {

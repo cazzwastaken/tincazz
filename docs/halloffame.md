@@ -35,8 +35,10 @@ Every card is a single Components V2 message in the hall channel:
 - A **HALL OF FAME** header, the author's display name, `@username` and avatar, the original
   channel and when the message was sent.
 - The message text as a quote, cut at 1,500 characters (a cut code block is closed again).
-  Mentions and `@everyone` in it never ping anyone.
-- For a reply, a line saying who it replied to with a short snippet. For a forward, a "Forwarded
+  Mentions and `@everyone` in it never ping anyone. A `||spoiler||` stays a spoiler, and one the
+  cut leaves open is closed again.
+- For a reply, a line saying who it replied to with a short snippet (a spoiler in it shows as the
+  word "spoiler"). For a forward, a "Forwarded
   message" line and the forwarded text. A native poll shows as a note with its question.
 - Up to 4 pictures (PNG, JPEG, GIF and WebP, 8 MB in total). Discord's picture links expire, so
   the pictures are **copied** into the hall post and stay for as long as the post does. Pictures
@@ -45,7 +47,8 @@ Every card is a single Components V2 message in the hall channel:
   images and GIFs from links (Discord, Tenor and Giphy only) are shown from the link, through
   Discord's image proxy and not copied, so they can change or disappear if the linked site
   changes the image.
-- Other attachments are listed by name (the first five, then "+N more files"); they are not copied.
+- Other attachments are listed by name (the first five, then "+N more files"); they are not
+  copied. A file marked as a spoiler is listed as "spoiler file", without its name.
 - A footer with the peak number of people and the three most used emoji (custom emoji from other
   servers are left out of the breakdown but still counted), then two buttons: **Jump to message**
   and the original channel.
