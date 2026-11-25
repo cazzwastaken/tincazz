@@ -288,7 +288,7 @@ function hallOfFamePage(): Page {
       [
         '### What it is',
         `When **${defaultThreshold}** or more different people react to a message (staff can set ${minThreshold} to ${maxThreshold}), Tincazz posts it in the server's Hall of Fame channel. Nothing to run: just react.`,
-        'It counts **people**, not reactions. Someone reacting with five emoji counts once, and the author, bots and super reactions never count.',
+        "It counts **people**, not reactions. Someone reacting with five emoji counts once, and the author, bots and super reactions never count. Messages from bots, apps and webhooks (this bot's own polls, giveaways and cards too) are never posted, whatever reacted to them.",
       ].join('\n'),
       [
         '### The post',

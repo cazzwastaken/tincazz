@@ -418,7 +418,7 @@ export function hallIntroCard(
     accents.gold,
     '## 🏛️ Hall of Fame',
     `<@${idPart(actorId)}> made <#${idPart(channelId)}> the Hall of Fame. A message that **${safeThreshold.toLocaleString('en-US')}** or more different people react to is posted here with its author, its pictures and a link back.`,
-    `The count is **people**, not reactions: one person counts once however many emoji they use, and the author and bots never count. The number on a card is its peak, so taking reactions off later does not remove it. Changing the threshold is not retroactive.`,
+    `The count is **people**, not reactions: one person counts once however many emoji they use, and the author and bots never count. Messages from bots, apps and webhooks, this bot's own polls, giveaways and cards included, are never posted. The number on a card is its peak, so taking reactions off later does not remove it. Changing the threshold is not retroactive.`,
     `### What is never posted\n${skips}`,
     `-# Staff can change this with /settings halloffame.`,
   );

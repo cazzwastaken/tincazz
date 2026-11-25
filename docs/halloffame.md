@@ -13,13 +13,18 @@ A message is inducted when **N different people** have reacted to it, where N is
 
 - One person who reacts with five different emoji counts once.
 - The author's own reactions never count.
-- Bots never count.
+- Bots and apps never count, including this bot's own reactions (a poll's, for one).
 - Super reactions (the animated "burst" ones) never count.
 
 Only normal messages and replies are inducted (forwarded messages too, showing what was forwarded).
-Joins, boosts, pins, command results and other system messages are not, and neither are messages
-written by bots or sent through webhooks. That keeps poll cards, giveaway posts and reaction-role
-messages out of the hall.
+Joins, boosts, pins, command results and other system messages are not.
+
+**Messages from bots, apps and webhooks are never inducted**, however many people react to them.
+That covers bots and apps (including a user-installed app's replies to commands), webhooks,
+announcements followed into a channel, and Tincazz's own polls, giveaways, game results and Hall of
+Fame cards. It keeps poll cards, giveaway posts and reaction-role messages out of the hall. A
+message that was inducted before and is now known to come from one of them is left as it is: it is
+not redrawn or recounted, and it is still removed when the original is deleted.
 
 A message is inducted at most once. The card keeps the **peak** number of people: the count never
 goes down, so taking reactions off later does not remove a post. It can go up, and the card is
@@ -125,7 +130,7 @@ in the intro card, in `/settings show` and in `/help halloffame`.
 | Private threads   | The hall cannot tell who was invited to them.                                                                                                                                                      |
 | Age-restricted    | A message from an age-restricted channel is skipped unless the hall channel is age-restricted too.                                                                                                 |
 | Private channels  | A message is only posted into a hall that nobody can open who couldn't open the original channel (View Channel), and the hall repeats the source's denies (see below; there are known exceptions). |
-| Bots and webhooks | Messages written by bots, or sent through webhooks.                                                                                                                                                |
+| Bots and webhooks | Messages written by bots and apps (this bot included), or sent through webhooks (followed announcements too). Bot reactions never count either.                                                    |
 | System messages   | Only normal messages and replies count, not joins, boosts, pins or command results.                                                                                                                |
 
 A thread follows its parent channel for the age-restriction and private-channel checks. If the bot
@@ -251,7 +256,8 @@ If a message does not show up, check in this order:
    allows a role by overwrite that a channel denying a role does not), age-restricted
    channels (while the hall is not), private threads, exempt channels and categories, the hall
    itself and the honeypot are never inducted.
-4. **Is the message eligible?** Messages by bots and webhooks and system messages are skipped.
+4. **Is the message eligible?** Messages by bots, apps and webhooks (including Tincazz's own polls,
+   giveaways and cards) and system messages are skipped.
 5. **Permissions.** The bot needs View Channel and Read Message History in the source channel, and
    View Channel, Send Messages, Attach Files and Read Message History in the hall. A channel that refused the bot is
    skipped for 10 minutes. After fixing the hall's permissions, run `/settings halloffame set` for it

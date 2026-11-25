@@ -196,7 +196,12 @@ ID (see `features/gamba/custom-ids.ts`), so handlers must ignore IDs they cannot
   remembered as unreadable for 10 minutes). Reactions, edits and deletes come from raw gateway
   events (`halloffame-events.ts`), so uncached messages work, and the message and its reactors are
   fetched over REST. It needs no new intent: Guilds, GuildMessages and GuildMessageReactions are
-  already on. The guards (audience, NSFW to non-NSFW, private threads) live in `eligibility.ts` and
+  already on. Messages from bots, apps and webhooks (including this bot's own polls, giveaways and
+  cards) are never inducted and bot reactions never count: `onReactionAdd` drops reactions whose
+  `messageAuthorId` is a known bot (`HallDiscord.isKnownBotUser`, cached users only, best effort, plus the
+  authors a fetch already showed to be bots), and the fetched message stays the source of truth
+  (`bot`, `webhook` and the message type in `eligibility.ts`, set up in `fetchMessage`). Keep
+  `test/halloffame-bots.test.ts` passing when touching any of it. The guards (audience, NSFW to non-NSFW, private threads) live in `eligibility.ts` and
   are explained to users from `guardNotes`. The audience guard compares who can view each channel
   (roles, `@everyone` included, and members with an allow overwrite, from `viewAccess` in
   `discord.ts`, using the parent's overwrites for a thread): a message is posted only when everyone

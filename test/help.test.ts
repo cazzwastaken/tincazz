@@ -113,6 +113,7 @@ describe('help pages', () => {
     expect(text).toContain(`up to ${hallOfFame.maxImages} pictures`);
     expect(text).toContain(`up to ${hallOfFame.maxExemptChannels}`);
     expect(text).toContain('**people**, not reactions');
+    expect(text).toContain('Messages from bots, apps and webhooks');
     expect(text).toContain('/settings halloffame set');
     expect(text).toContain('not retroactive');
     for (const tier of hallTiers) expect(text).toContain(tier.emoji);

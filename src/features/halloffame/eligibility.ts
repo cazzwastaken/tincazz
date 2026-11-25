@@ -232,13 +232,13 @@ export const guardNotes: readonly GuardNote[] = [
   },
   {
     reason: 'bot-author',
-    title: 'Bots',
-    text: 'Messages written by bots are never inducted.',
+    title: 'Bots and apps',
+    text: "Messages written by bots and apps are never inducted, this bot's own polls, giveaways and cards included, and bots never count as reactions.",
   },
   {
     reason: 'webhook-author',
     title: 'Webhooks',
-    text: 'Messages sent through webhooks are never inducted.',
+    text: 'Messages sent through webhooks, announcements followed into a channel included, are never inducted.',
   },
   {
     reason: 'message-type',
