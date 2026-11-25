@@ -139,8 +139,11 @@ the bot itself are never counted. A message is inducted only when all of these h
    (with `@everyone`) whose permissions in a channel include View Channel, plus every member with
    their own View Channel allow overwrite there, and the hall's list must be inside the source's.
    So in a server where `@everyone` is locked out everywhere, a staff channel is never posted into
-   a members-only hall, and a member who has a personal allow on the hall but not on the source
-   blocks it too.
+   a members-only hall. One exception keeps a normal server working: a member the hall lets in by
+   their own allow overwrite is fine when `@everyone` can see the source, the source does not deny
+   that member and the source denies no role (Discord applies `@everyone`, then the role
+   overwrites, which can then only allow, then the member's own, so that member can open the source
+   whatever roles they hold). Otherwise such a member blocks the induction.
 2. **Who is shut out.** Every role (`@everyone` included) or member that the source denies View
    Channel with an overwrite is denied it on the hall too. Discord combines a member's roles, so
    this cannot be seen from one role at a time: someone with a `Member` role and a `Restricted`
@@ -231,7 +234,8 @@ If a message does not show up, check in this order:
    counts once however many emoji they use. A new reaction triggers the check, so there is a delay
    of a few seconds (up to 30).
 3. **Is the channel skipped?** Private channels (when someone can see the hall who cannot see the
-   channel, or the channel denies View Channel to a role or member the hall does not deny), age-restricted
+   channel, the channel denies View Channel to a role or member the hall does not deny, or the hall
+   allows a role by overwrite that a channel denying a role does not), age-restricted
    channels (while the hall is not), private threads, exempt channels and categories, the hall
    itself and the honeypot are never inducted.
 4. **Is the message eligible?** Messages by bots and webhooks and system messages are skipped.
@@ -240,11 +244,18 @@ If a message does not show up, check in this order:
    skipped for 10 minutes. After fixing the hall's permissions, run `/settings halloffame set` for it again to clear that at once; a source channel is tried again after the 10 minutes.
 6. **Was it posted before?** If staff deleted the post, it is never posted again. A message
    already in an older hall channel is not posted again either.
-7. **Nothing from any channel gets in?** A role or member that can see the hall through an explicit
-   allow overwrite, and cannot see the sources, stops every induction (the hall's list must be inside
-   each source's). Remove that overwrite from the hall, or give it the same access on the sources.
-   A source whose View Channel denies the hall does not repeat has the same effect on that channel
-   alone.
+7. **Nothing from any channel gets in?** Look at who can see the hall through an explicit allow
+   overwrite (`/settings show` does not list them; open the hall's permissions). The hall's list
+   must be inside each source's:
+   - A **role** the hall allows that the source does not let in blocks it (rule 1). In a server
+     where `@everyone` can see the source, a **member** allowed by name on the hall is fine unless
+     the source denies that member or denies any role.
+   - When a source denies any role View Channel, a role the hall allows by overwrite must be
+     allowed on that source by overwrite too (rule 3), or the two channels would not open for the
+     same people.
+   - A source whose View Channel denies the hall does not repeat is skipped on its own (rule 2).
+
+   Remove the extra overwrite from the hall, or give it the same access on the sources.
 8. **Threshold changes** are not retroactive: an old message needs a new reaction to be looked at
    again.
 

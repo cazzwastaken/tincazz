@@ -8,6 +8,7 @@ const overwrites = fc.record({
   denied: fc.uniqueArray(audienceIds, { maxLength: 4 }),
   deniedRoles: fc.uniqueArray(audienceIds, { maxLength: 3 }),
   allowedRoles: fc.uniqueArray(audienceIds, { maxLength: 3 }),
+  allowedMembers: fc.uniqueArray(audienceIds, { maxLength: 2 }),
 });
 const facts = fc.record({
   id,
@@ -17,6 +18,7 @@ const facts = fc.record({
   isPrivateThread: fc.boolean(),
   nsfw: fc.boolean(),
   audience: fc.option(fc.array(audienceIds, { maxLength: 4 }), { nil: undefined }),
+  everyoneId: fc.option(fc.constant('everyone'), { nil: undefined }),
   overwrites: fc.option(overwrites, { nil: undefined }),
 }) satisfies fc.Arbitrary<ChannelFacts>;
 
@@ -50,7 +52,18 @@ describe('fuzz: hall of fame eligibility', () => {
           // Everyone who can see the hall could already see the source, and unknowns never pass.
           expect(source.audience).toBeDefined();
           expect(hall?.audience).toBeDefined();
-          for (const who of hall?.audience ?? []) expect(source.audience).toContain(who);
+          // The one exception: a member the hall lets in by name, while everyone sees the source,
+          // the source denies neither that member nor any role.
+          const everyoneOpens =
+            source.everyoneId !== undefined &&
+            source.audience?.includes(source.everyoneId) === true &&
+            source.overwrites?.deniedRoles.length === 0;
+          for (const who of hall?.audience ?? []) {
+            if (source.audience?.includes(who)) continue;
+            expect(everyoneOpens).toBe(true);
+            expect(hall?.overwrites?.allowedMembers).toContain(who);
+            expect(source.overwrites?.denied).not.toContain(who);
+          }
           // Whoever the source hides itself from (a View deny) is hidden from the hall too.
           expect(source.overwrites).toBeDefined();
           expect(hall?.overwrites).toBeDefined();

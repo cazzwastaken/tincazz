@@ -16,7 +16,8 @@ const channel = (over: Partial<ChannelFacts> = {}): ChannelFacts => ({
   isPrivateThread: false,
   nsfw: false,
   audience: ['everyone'],
-  overwrites: { denied: [], deniedRoles: [], allowedRoles: [] },
+  everyoneId: 'everyone',
+  overwrites: { denied: [], deniedRoles: [], allowedRoles: [], allowedMembers: [] },
   ...over,
 });
 const hall = channel({ id: 'hall' });
@@ -138,6 +139,61 @@ describe('hall of fame eligibility', () => {
     expect(check(channel({ audience: ['staff'] }), { hall: hallForOne })).toEqual({
       ok: false,
       reason: 'audience-mismatch',
+    });
+  });
+
+  describe('a member the hall lets in by name', () => {
+    const named = (over: Partial<ChannelFacts['overwrites'] & object> = {}) =>
+      channel({
+        id: 'hall',
+        audience: ['everyone', 'user:5'],
+        overwrites: {
+          denied: [],
+          deniedRoles: [],
+          allowedRoles: [],
+          allowedMembers: ['user:5'],
+          ...over,
+        },
+      });
+
+    it('is covered while everyone can see the source and it denies no role', () => {
+      expect(check(channel(), { hall: named() })).toEqual({ ok: true });
+    });
+
+    it('is not covered when the source denies that member', () => {
+      const source = channel({
+        overwrites: { denied: ['user:5'], deniedRoles: [], allowedRoles: [] },
+      });
+      expect(check(source, { hall: named({ denied: ['user:5'] }) })).toEqual({
+        ok: false,
+        reason: 'audience-mismatch',
+      });
+    });
+
+    it('is not covered when the source denies a role (the member may hold it)', () => {
+      const source = channel({
+        overwrites: { denied: ['restricted'], deniedRoles: ['restricted'], allowedRoles: [] },
+      });
+      const hall = named({ denied: ['restricted'], deniedRoles: ['restricted'] });
+      expect(check(source, { hall })).toEqual({ ok: false, reason: 'audience-mismatch' });
+    });
+
+    it('is not covered when everyone cannot see the source', () => {
+      const gated = channel({ audience: ['member'] });
+      expect(check(gated, { hall: named() })).toEqual({ ok: false, reason: 'audience-mismatch' });
+      const unknownEveryone = channel({ everyoneId: undefined });
+      expect(check(unknownEveryone, { hall: named() })).toEqual({
+        ok: false,
+        reason: 'audience-mismatch',
+      });
+    });
+
+    it('is not covered when the audience entry is not known to be a member', () => {
+      const roleLike = named({ allowedMembers: [] });
+      expect(check(channel(), { hall: roleLike })).toEqual({
+        ok: false,
+        reason: 'audience-mismatch',
+      });
     });
   });
 

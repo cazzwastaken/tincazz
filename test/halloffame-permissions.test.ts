@@ -81,6 +81,48 @@ describe('hall of fame guard with discord.js permission math', () => {
     expect(await verdict(setup, denyRestricted, denyRestricted)).toEqual({ ok: true });
   });
 
+  it('accepts a member allow on the hall in a default server, where everyone sees the source', async () => {
+    const setup = realGuild({ [guildId]: { view: true } });
+    const named = [person('5', { allow: view })];
+    const source = realChannel(setup, '20');
+    const hall = realChannel(setup, '30', named);
+    expect(canView(setup, hall, '5', [])).toBe(true);
+    expect(canView(setup, source, '5', [])).toBe(true);
+    expect(await verdict(setup, [], named)).toEqual({ ok: true });
+    // A source that grants the same member by name is just as fine.
+    expect(await verdict(setup, named, named)).toEqual({ ok: true });
+  });
+
+  it('still refuses a member allow on the hall when the source is gated', async () => {
+    const setup = realGuild({ [guildId]: { view: false }, member: { view: true } });
+    const named = [person('5', { allow: view })];
+    const source = realChannel(setup, '20');
+    const hall = realChannel(setup, '30', named);
+    expect(canView(setup, hall, '5', [])).toBe(true);
+    expect(canView(setup, source, '5', [])).toBe(false);
+    expect(await verdict(setup, [], named)).toEqual({ ok: false, reason: 'audience-mismatch' });
+  });
+
+  it('still refuses a member allow on the hall when the source denies a role or the member', async () => {
+    const setup = realGuild({ [guildId]: { view: true }, restricted: { view: false } });
+    const named = [person('5', { allow: view })];
+    const denyRole = [role('restricted', { deny: view })];
+    // The member holds the restricted role: locked out of the source, let into the hall by name.
+    expect(canView(setup, realChannel(setup, '20', denyRole), '5', ['restricted'])).toBe(false);
+    expect(
+      canView(setup, realChannel(setup, '30', [...denyRole, ...named]), '5', ['restricted']),
+    ).toBe(true);
+    expect(await verdict(setup, denyRole, [...denyRole, ...named])).toEqual({
+      ok: false,
+      reason: 'audience-mismatch',
+    });
+    const denyMember = [person('5', { deny: view })];
+    expect(await verdict(setup, denyMember, named)).toEqual({
+      ok: false,
+      reason: 'audience-mismatch',
+    });
+  });
+
   it('treats a deny on @everyone like any other', async () => {
     const setup = realGuild({ [guildId]: { view: true }, member: { view: false } });
     const hidden = [role(guildId, { deny: view }), role('member', { allow: view })];
@@ -154,7 +196,12 @@ describe('hall of fame guard with discord.js permission math', () => {
       ],
       '20',
     );
-    expect(facts.overwrites).toEqual({ denied: [], deniedRoles: [], allowedRoles: [] });
+    expect(facts.overwrites).toEqual({
+      denied: [],
+      deniedRoles: [],
+      allowedRoles: [],
+      allowedMembers: [],
+    });
   });
 
   it('never lets anyone read the hall who cannot read the source (random overwrites)', async () => {

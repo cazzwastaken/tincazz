@@ -158,8 +158,8 @@ function viewAccess(
   guild: Guild,
   base: Channel | null,
   botId: string,
-): Pick<ChannelFacts, 'audience' | 'overwrites'> {
-  const unknown = { audience: undefined, overwrites: undefined };
+): Pick<ChannelFacts, 'audience' | 'overwrites' | 'everyoneId'> {
+  const unknown = { audience: undefined, overwrites: undefined, everyoneId: undefined };
   if (base === null || base.isDMBased() || !('permissionsFor' in base)) return unknown;
   if (!('permissionOverwrites' in base) || guild.roles.cache.size === 0) return unknown;
   const hidden = (role: Role | undefined) =>
@@ -175,12 +175,16 @@ function viewAccess(
   const denied: string[] = [];
   const deniedRoles: string[] = [];
   const allowedRoles: string[] = [];
+  const allowedMembers: string[] = [];
   for (const overwrite of base.permissionOverwrites.cache.values()) {
     const allows = overwrite.allow.has(PermissionFlagsBits.ViewChannel);
     const denies = overwrite.deny.has(PermissionFlagsBits.ViewChannel);
     if (overwrite.type === OverwriteType.Member) {
       if (overwrite.id === botId) continue;
-      if (allows) audience.push(overwrite.id);
+      if (allows) {
+        audience.push(overwrite.id);
+        allowedMembers.push(overwrite.id);
+      }
       if (denies) denied.push(overwrite.id);
       continue;
     }
@@ -192,7 +196,11 @@ function viewAccess(
     }
     if (allows && overwrite.id !== guild.id) allowedRoles.push(overwrite.id);
   }
-  return { audience, overwrites: { denied, deniedRoles, allowedRoles } };
+  return {
+    audience,
+    overwrites: { denied, deniedRoles, allowedRoles, allowedMembers },
+    everyoneId: guild.id,
+  };
 }
 
 function channelFacts(
