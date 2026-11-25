@@ -888,6 +888,16 @@ export function createHallRunner(deps: HallRunnerDeps): HallRunner {
       }
       if (found === undefined) {
         releaseHallClaim(db, guildId, messageId);
+        // Reactions that arrived while it was `publishing` were dropped: look again, and induct
+        // the message when it still qualifies.
+        debouncer.schedule(key, {
+          guildId,
+          channelId: entry.channelId,
+          messageId,
+          reaction: true,
+          edit: false,
+          refresh: false,
+        });
         return;
       }
       const adopted = markHallPosted(

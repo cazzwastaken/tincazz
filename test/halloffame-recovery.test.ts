@@ -66,6 +66,27 @@ describe('hall of fame recovery', () => {
     expect(entry()?.status).toBe('posted');
   });
 
+  it('inducts a message again at once when its card was never sent and it still qualifies', async () => {
+    const h = await crashedAfterSend();
+    h.fake.posted.clear();
+    await h.runner.recover();
+    expect(entry()).toBeUndefined();
+    // Reactions that came during the claim were dropped: no new reaction is needed.
+    await h.settle();
+    expect(entry()?.status).toBe('posted');
+    expect(h.fake.log.send).toHaveLength(2);
+  });
+
+  it('does not induct a released message that no longer qualifies', async () => {
+    const h = await crashedAfterSend();
+    h.fake.posted.clear();
+    h.fake.react(messageId, '⭐', people(0, 2));
+    await h.runner.recover();
+    await h.settle();
+    expect(entry()).toBeUndefined();
+    expect(h.fake.log.send).toHaveLength(1);
+  });
+
   it('leaves a fresh claim alone unless everything is abandoned, as at startup', async () => {
     const h = await crashedAfterSend(1_000);
     h.fake.posted.clear();
