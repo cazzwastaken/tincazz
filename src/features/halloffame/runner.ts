@@ -624,13 +624,16 @@ export function createHallRunner(deps: HallRunnerDeps): HallRunner {
     // An edit alone only redraws the card from the message, with the stored peak and breakdown,
     // at most every `editCooldownMs`, and counts nothing unless the breakdown is not known (after
     // a restart): that one-off count is allowed at once.
-    const wantsCount = job.reaction || job.refresh;
+    const wantsCount =
+      (job.reaction || job.refresh) && hallSettings(db, guildId).channelId !== undefined;
+    if (!wantsCount && !job.edit) return;
     const lastCounted = lastCount.get(key);
     const countAt = lastCounted === undefined ? 0 : lastCounted + config.peakCooldownMs;
     const lastRun = lastSync.get(key);
     const editAt = lastRun === undefined ? 0 : lastRun + config.editCooldownMs;
     const known = breakdowns.get(key);
-    const recount = (wantsCount && now() >= countAt) || (job.edit && known === undefined);
+    const countsForEdit = job.edit && known === undefined;
+    const recount = (wantsCount && now() >= countAt) || countsForEdit;
     const redraw = !recount && job.edit && now() >= editAt;
     if (!recount && !redraw) {
       const soonest = Math.min(
@@ -687,10 +690,8 @@ export function createHallRunner(deps: HallRunnerDeps): HallRunner {
       return;
     }
 
-    let peak: number;
-    let perEmoji: readonly EmojiCount[];
-    if (recount) {
-      let tallied: Tallied;
+    let tallied: Tallied | undefined;
+    if (recount && (countsForEdit || hallSettings(db, guildId).channelId !== undefined)) {
       try {
         tallied = await tallyReactors(message, undefined);
       } catch (error) {
@@ -698,6 +699,12 @@ export function createHallRunner(deps: HallRunnerDeps): HallRunner {
         logger.warn(`Hall of Fame could not count the reactions on ${messageId}`, error);
         return;
       }
+    }
+
+    let peak: number;
+    let perEmoji: readonly EmojiCount[];
+    // Clearing the hall can also race a count that was already awaiting Discord.
+    if (tallied && (countsForEdit || hallSettings(db, guildId).channelId !== undefined)) {
       // Peak only ever rises, whatever order syncs finish in.
       const bumped = bumpHallPeak(db, guildId, messageId, tallied.tally.distinct, now());
       if (!bumped?.hallMessageId) return;
@@ -706,7 +713,7 @@ export function createHallRunner(deps: HallRunnerDeps): HallRunner {
       breakdowns.set(key, perEmoji);
     } else {
       const current = getHallEntry(db, guildId, messageId);
-      if (current?.status !== 'posted' || !known) return;
+      if (!job.edit || current?.status !== 'posted' || !known) return;
       peak = current.peakCount;
       perEmoji = known;
     }

@@ -601,6 +601,39 @@ describe('hall of fame sync', () => {
     expect(entry()?.peakCount).toBe(5);
   });
 
+  it('skips the queued induction recount if staff clear the hall before it runs', async () => {
+    const h = harness(db, vi);
+    h.fake.addMessage();
+    h.fake.react(messageId, '⭐', people(0, 5));
+    h.add('2000');
+    await h.settle();
+    expect(entry()?.peakCount).toBe(5);
+
+    const counted = h.fake.log.fetchReactors;
+    setHallChannel(db, guildId, null, t0);
+    h.fake.react(messageId, '⭐', people(0, 9));
+    await h.settle(hallOfFame.peakCooldownMs + hallOfFame.editCooldownMs);
+    expect(h.fake.log.fetchReactors).toBe(counted);
+    expect(entry()?.peakCount).toBe(5);
+  });
+
+  it('discards a reaction recount that was in flight when staff cleared the hall', async () => {
+    const h = await posted();
+    const edits = h.fake.log.edit.length;
+    h.fake.react(messageId, '⭐', people(0, 9));
+    const fetchReactors = h.fake.fetchReactors.bind(h.fake);
+    vi.spyOn(h.fake, 'fetchReactors').mockImplementationOnce(async (...args) => {
+      const reactors = await fetchReactors(...args);
+      setHallChannel(db, guildId, null, t0);
+      return reactors;
+    });
+    h.add('3000');
+    await h.settle();
+
+    expect(h.fake.log.edit).toHaveLength(edits);
+    expect(entry()?.peakCount).toBe(5);
+  });
+
   it('forgets the entries of a deleted hall channel', async () => {
     const h = await posted();
     expect(h.runner.onHallChannelDeleted(hallChannelId)).toHaveLength(1);
