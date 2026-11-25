@@ -174,7 +174,8 @@ You can ignore this unless something looks slow or missing.
   are dropped, and the next reaction on them tries again. Posted cards are refreshed at most every
   30 seconds. Discord's rate limits are handled by the library, which waits and retries.
 - **No access, no retries.** If Discord refuses access to a channel, it is skipped for 10 minutes.
-  Picking a different hall channel with `set` clears that memory for the new channel at once.
+  Running `/settings halloffame set` for a hall channel, including the one already set, clears that
+  memory for it at once, so after fixing permissions just run it again.
 - **One post per message.** Tincazz reserves the message in its database before sending anything,
   so two reactions at the same time, or a restart in the middle, cannot produce two posts.
 - **Restarts and crashes.** Everything that matters is stored in the database. If the bot stops
@@ -199,7 +200,7 @@ If a message does not show up, check in this order:
 4. **Is the message eligible?** Messages by bots and webhooks and system messages are skipped.
 5. **Permissions.** The bot needs View Channel and Read Message History in the source channel, and
    View Channel, Send Messages and Attach Files in the hall. A channel that refused the bot is
-   skipped for 10 minutes, so after fixing the permissions give it a little while.
+   skipped for 10 minutes. After fixing the hall's permissions, run `/settings halloffame set` for it again to clear that at once; a source channel is tried again after the 10 minutes.
 6. **Was it posted before?** If staff deleted the post, it is never posted again. A message
    already in an older hall channel is not posted again either.
 7. **Threshold changes** are not retroactive: an old message needs a new reaction to be looked at

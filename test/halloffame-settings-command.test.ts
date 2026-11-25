@@ -149,7 +149,8 @@ describe('/settings halloffame set', () => {
       `<#70> is already the Hall of Fame channel with a threshold of ${hallOfFame.defaultThreshold} people.`,
     );
     expect(hall.send).not.toHaveBeenCalled();
-    expect(runner.forgetFailures).not.toHaveBeenCalled();
+    // Re-running it after fixing permissions must not leave the channel marked unreadable.
+    expect(runner.forgetFailures).toHaveBeenCalledWith('70');
     const bare = await run('set', { channel: hall });
     expect(bare.text).toContain('is already the Hall of Fame channel');
   });
@@ -162,6 +163,7 @@ describe('/settings halloffame set', () => {
     expect(result.text).toContain('threshold is now 9 people');
     expect(hall.send).not.toHaveBeenCalled();
     expect(hallSettings(container.db, '2')).toEqual({ channelId: '70', threshold: 9 });
+    expect(runner.forgetFailures).toHaveBeenCalledWith('70');
     await wait(50);
     expect(logged(log)).toContain('changed the threshold from 5 to 9 people');
     expect(logged(log)).not.toContain('set the Hall of Fame');

@@ -134,6 +134,8 @@ export async function hallSetCommand(
   const threshold = asked ?? current.threshold;
 
   if (current.channelId === channel.id) {
+    // Staff run this again after fixing permissions: let the channel be tried right away.
+    forgetHallFailures(channel.id);
     if (threshold === current.threshold) {
       return interaction.reply(errorReply(hallAlreadySet(channel.id, current.threshold)));
     }
