@@ -145,6 +145,11 @@ export function createHallRunner(deps: HallRunnerDeps): HallRunner {
     now,
   );
   const failures = new Map<string, number>();
+  /**
+   * Source channels (and parents of threads) that were deleted a moment ago. An induction that
+   * read its message before the delete event must not claim, or keep, a card for it.
+   */
+  const deletedChannels = new TtlLru<true>(1000, config.deletedChannelMemoryMs, now);
   let stopped = false;
 
   /* ------------------------------------------------------------ failure memory */
@@ -164,6 +169,10 @@ export function createHallRunner(deps: HallRunnerDeps): HallRunner {
     }
     return true;
   };
+
+  const sourceDeleted = (channelId: string, parentId: string | undefined) =>
+    deletedChannels.get(channelId) !== undefined ||
+    (parentId !== undefined && deletedChannels.get(parentId) !== undefined);
 
   /* -------------------------------------------------------------- queue plumbing */
 
@@ -457,6 +466,11 @@ export function createHallRunner(deps: HallRunnerDeps): HallRunner {
       now(),
     );
     if (claim.kind !== 'claimed') return;
+    if (sourceDeleted(channelId, source.facts.parentId)) {
+      // The channel went while this induction was under way: its delete event found no row.
+      releaseHallClaim(db, guildId, messageId);
+      return;
+    }
 
     let input: HallCardInput;
     let post: HallPost;
@@ -494,6 +508,12 @@ export function createHallRunner(deps: HallRunnerDeps): HallRunner {
       const found = await adoptAfterAmbiguousSend(claim.entry);
       if (found === undefined) return;
       hallMessageId = found;
+    }
+
+    if (sourceDeleted(channelId, source.facts.parentId)) {
+      await discardHallMessage({ hallChannelId, hallMessageId });
+      releaseHallClaim(db, guildId, messageId);
+      return;
     }
 
     try {
@@ -784,7 +804,10 @@ export function createHallRunner(deps: HallRunnerDeps): HallRunner {
   }
 
   async function onSourceChannelDeleted(channelId: string) {
-    failures.delete(channelId);
+    // Remembered before anything else: an induction that read its message already will find no
+    // row to delete, so it has to see this itself. Reactions that arrive meanwhile are dropped.
+    deletedChannels.set(channelId, true);
+    noteFailure(channelId);
     // A claim still `publishing` may have a card that nothing records: its row stays until the
     // card has been looked for.
     const claims = publishingHallEntriesBySourceChannel(db, channelId);

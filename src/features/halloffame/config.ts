@@ -40,6 +40,8 @@ export const hallOfFame = {
   editCooldownMs: 10 * second,
   /** A channel that answered 403/404 is skipped for this long. */
   failureMemoryMs: 10 * minute,
+  /** A deleted source channel is remembered this long, for an induction already under way. */
+  deletedChannelMemoryMs: 10 * minute,
   /** A claim still `publishing` this long after it was made is recovered at startup and hourly. */
   publishStaleMs: 5 * minute,
   /** How often abandoned claims are looked for, besides once at startup. */

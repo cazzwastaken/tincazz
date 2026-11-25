@@ -2,7 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { closeDatabase, type Db, openDatabase } from '../src/db/index.js';
 import { getHallEntry, hallOfFame } from '../src/features/halloffame/index.js';
 import {
+  channelInfo,
   guildId,
+  type Harness,
   harness,
   messageId,
   people,
@@ -99,5 +101,78 @@ describe('a source deleted while its claim is still publishing', () => {
     await h.settle(hallOfFame.editCooldownMs);
     expect(h.fake.posted.size).toBe(0);
     expect(entry()).toBeUndefined();
+  });
+});
+
+describe('a source channel deleted while an induction is under way', () => {
+  async function deletedAfterRead(h: Harness, deleteId: string) {
+    let deleting: Promise<unknown> | undefined;
+    h.fake.afterFetchMessage = () => {
+      h.fake.afterFetchMessage = undefined;
+      deleting = h.runner.onSourceChannelDeleted(deleteId);
+    };
+    h.add('2000');
+    await h.settle();
+    await deleting;
+    await h.settle(hallOfFame.editCooldownMs);
+  }
+
+  it('does not claim or post for a channel that was deleted after the read', async () => {
+    const h = harness(db, vi);
+    h.fake.addMessage();
+    h.fake.react(messageId, '⭐', people(0, 6));
+    await deletedAfterRead(h, sourceChannelId);
+    expect(h.fake.log.send).toHaveLength(0);
+    expect(h.fake.posted.size).toBe(0);
+    expect(entry()).toBeUndefined();
+  });
+
+  it('does the same for a thread whose parent channel was deleted', async () => {
+    const h = harness(db, vi);
+    const thread = '21';
+    h.fake.channels.set(
+      thread,
+      channelInfo(thread, 'a thread', { isThread: true, parentId: sourceChannelId }),
+    );
+    h.fake.addMessage({ channelId: thread });
+    h.fake.react(messageId, '⭐', people(0, 6));
+    h.add('2000', { channelId: thread });
+    let deleting: Promise<unknown> | undefined;
+    h.fake.afterFetchMessage = () => {
+      h.fake.afterFetchMessage = undefined;
+      deleting = h.runner.onSourceChannelDeleted(sourceChannelId);
+    };
+    await h.settle();
+    await deleting;
+    await h.settle(hallOfFame.editCooldownMs);
+    expect(h.fake.log.send).toHaveLength(0);
+    expect(entry()).toBeUndefined();
+  });
+
+  it('removes the card of a channel deleted while the card was being sent', async () => {
+    const h = harness(db, vi);
+    h.fake.addMessage();
+    h.fake.react(messageId, '⭐', people(0, 6));
+    let deleting: Promise<unknown> | undefined;
+    h.fake.duringSend = () => {
+      h.fake.duringSend = undefined;
+      deleting = h.runner.onSourceChannelDeleted(sourceChannelId);
+    };
+    h.add('2000');
+    await h.settle();
+    await deleting;
+    await h.settle(hallOfFame.editCooldownMs);
+    expect(h.fake.posted.size).toBe(0);
+    expect(entry()).toBeUndefined();
+  });
+
+  it('drops reactions on the deleted channel afterwards', async () => {
+    const h = harness(db, vi);
+    h.fake.addMessage();
+    h.fake.react(messageId, '⭐', people(0, 6));
+    await h.runner.onSourceChannelDeleted(sourceChannelId);
+    h.add('2000');
+    await h.settle();
+    expect(h.fake.log.fetchMessage).toBe(0);
   });
 });
