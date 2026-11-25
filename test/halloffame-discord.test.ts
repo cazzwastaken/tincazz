@@ -5,6 +5,7 @@ import {
   OverwriteType,
   PermissionFlagsBits,
   RESTJSONErrorCodes,
+  Routes,
   TextDisplayBuilder,
 } from 'discord.js';
 import fc from 'fast-check';
@@ -143,9 +144,23 @@ describe('hall of fame discord adapter', () => {
       string,
       { query: URLSearchParams },
     ];
-    expect(route).toContain('/reactions/cat%3A55');
+    expect(route).toBe(Routes.channelMessageReaction('20', '100', 'cat:55'));
     expect(options.query.get('type')).toBe('0');
     expect(options.query.get('limit')).toBe('100');
+  });
+
+  it('encodes unicode reaction keys and leaves a custom emoji colon alone', async () => {
+    const { client, rest } = fakeClient();
+    rest.get.mockResolvedValue([]);
+    const discord = createHallDiscord(client);
+    await discord.fetchReactors('20', '100', '⭐', 100);
+    await discord.fetchReactors('20', '100', '_:66', 100);
+    const routes = rest.get.mock.calls.map((call) => (call as unknown as [string])[0]);
+    // What discord.js builds from `Emoji#identifier`: the name encoded for unicode, `name:id` as is
+    // for a custom emoji (`Routes` escapes it, so it must not be encoded a second time).
+    expect(routes[0]).toBe(Routes.channelMessageReaction('20', '100', encodeURIComponent('⭐')));
+    expect(routes[1]).toBe(Routes.channelMessageReaction('20', '100', '_:66'));
+    expect(routes[1]).not.toContain('%25');
   });
 
   describe('channel audience', () => {

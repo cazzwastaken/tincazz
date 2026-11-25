@@ -197,7 +197,9 @@ function channelFacts(
 
 /** The discord.js implementation of what the Hall of Fame needs from Discord. */
 export function createHallDiscord(client: Client<true>): HallDiscord {
-  const encode = (key: string) => encodeURIComponent(key);
+  // Like discord.js (`Emoji#identifier`): only a unicode name is encoded here. A custom emoji is
+  // handed over as `name:id`, and `Routes` escapes it once (encoding it here would do it twice).
+  const encode = (key: string) => (key.includes(':') ? key : encodeURIComponent(key));
 
   function peekChannel(guildId: string, channelId: string): ChannelFacts | undefined {
     const guild = client.guilds.cache.get(guildId);
