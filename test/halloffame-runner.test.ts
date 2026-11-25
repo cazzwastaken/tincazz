@@ -377,6 +377,18 @@ describe('hall of fame induction', () => {
     expect(entry()).toBeUndefined();
     expect(h.fake.log.send).toHaveLength(0);
     expect(h.warn).toHaveBeenCalled();
+
+    // The hall also needs Read Message History, to find its own card again after a crash.
+    h.runner.forgetFailures();
+    h.warn.mockClear();
+    const noHallHistory = channelInfo(hallChannelId, 'hall');
+    noHallHistory.can.readHistory = false;
+    h.fake.channels.set(hallChannelId, noHallHistory);
+    h.add('2002');
+    await h.settle();
+    expect(entry()).toBeUndefined();
+    expect(h.fake.log.send).toHaveLength(0);
+    expect(h.warn).toHaveBeenCalledWith(expect.stringContaining('Read Message History'));
   });
 
   it('exits the count early and refines the peak after the cooldown', async () => {

@@ -381,10 +381,10 @@ export function createHallRunner(deps: HallRunnerDeps): HallRunner {
       noteFailure(channelId);
       return;
     }
-    if (!hall.can.view || !hall.can.send || !hall.can.attachFiles) {
+    if (!hall.can.view || !hall.can.send || !hall.can.attachFiles || !hall.can.readHistory) {
       noteFailure(hallChannelId);
       logger.warn(
-        `Hall of Fame channel ${hallChannelId} needs View Channel, Send Messages and Attach Files`,
+        `Hall of Fame channel ${hallChannelId} needs View Channel, Send Messages, Attach Files and Read Message History`,
       );
       return;
     }
