@@ -11,8 +11,13 @@ export interface ChannelFacts {
   isPrivateThread: boolean;
   /** Already resolved from the parent for a thread. */
   nsfw: boolean;
-  /** Whether @everyone can view the channel; resolved from the parent for a thread. */
-  everyoneCanView: boolean;
+  /**
+   * Who can view the channel, resolved from the parent for a thread: the ids of the roles
+   * (`@everyone` included, its id is the guild id) whose own permissions let them view it, and of
+   * members with an explicit overwrite that lets them. Roles with Administrator and the bot itself
+   * are left out. Undefined when it could not be resolved, which is never safe to post from or into.
+   */
+  audience: readonly string[] | undefined;
 }
 
 export interface AuthorFacts {
@@ -33,7 +38,7 @@ export type IneligibleReason =
   | 'exempt'
   | 'private-thread'
   | 'nsfw-to-sfw'
-  | 'private-to-public'
+  | 'audience-mismatch'
   | 'bot-author'
   | 'webhook-author'
   | 'message-type';
@@ -85,9 +90,20 @@ export function channelEligibility(
 }
 
 /**
- * Whether a message may be inducted. Never lets private content reach a public hall (a private
- * thread, or a channel @everyone cannot view, into a hall @everyone can), and never lets NSFW
- * content reach a hall that is not NSFW.
+ * Whether everyone who can see the hall could already see the source. Every id in the hall's
+ * audience must be in the source's, and an audience that is unknown never qualifies. It is
+ * conservative: it compares who is allowed in each channel, not who actually holds the roles.
+ */
+export function audienceCovers(source: ChannelFacts, hall: ChannelFacts): boolean {
+  if (!source.audience || !hall.audience) return false;
+  const seen = new Set(source.audience);
+  return hall.audience.every((id) => seen.has(id));
+}
+
+/**
+ * Whether a message may be inducted. Never lets a message reach a hall that someone can see who
+ * could not see the source (private threads are never inducted, and the hall's audience must be
+ * within the source's), and never lets NSFW content reach a hall that is not NSFW.
  */
 export function eligibility(
   settings: EligibilitySettings,
@@ -105,7 +121,7 @@ export function eligibility(
   // Without the hall's facts nothing can be proven safe, so refuse.
   if (!hall) return no('hall-unavailable');
   if (source.nsfw && !hall.nsfw) return no('nsfw-to-sfw');
-  if (!source.everyoneCanView && hall.everyoneCanView) return no('private-to-public');
+  if (!audienceCovers(source, hall)) return no('audience-mismatch');
   if (author.bot) return no('bot-author');
   if (author.webhook) return no('webhook-author');
   if (!isInductableMessageType(messageType)) return no('message-type');
@@ -161,9 +177,9 @@ export const guardNotes: readonly GuardNote[] = [
     text: 'Messages from an age-restricted channel are skipped unless the hall channel is age-restricted too.',
   },
   {
-    reason: 'private-to-public',
+    reason: 'audience-mismatch',
     title: 'Private channels',
-    text: 'Messages from a channel @everyone cannot see are skipped when @everyone can see the hall channel, so private talk never becomes public.',
+    text: "A message is only posted into a hall that nobody can see who couldn't already see the original, so staff or role-only talk never reaches a wider audience. This check is conservative: exempt a channel to keep it out for good.",
   },
   {
     reason: 'bot-author',

@@ -598,7 +598,7 @@ export function createHallRunner(deps: HallRunnerDeps): HallRunner {
       isThread: false,
       isPrivateThread: false,
       nsfw: false,
-      everyoneCanView: true,
+      audience: undefined,
     };
     const verdict = channelEligibility(
       settings,

@@ -196,8 +196,12 @@ ID (see `features/gamba/custom-ids.ts`), so handlers must ignore IDs they cannot
   remembered as unreadable for 10 minutes). Reactions, edits and deletes come from raw gateway
   events (`halloffame-events.ts`), so uncached messages work, and the message and its reactors are
   fetched over REST. It needs no new intent: Guilds, GuildMessages and GuildMessageReactions are
-  already on. Messages never leak into the wrong audience: the guards (private to public, NSFW to
-  non-NSFW, private threads) live in `eligibility.ts` and are explained to users from `guardNotes`.
+  already on. The guards (audience, NSFW to non-NSFW, private threads) live in `eligibility.ts` and
+  are explained to users from `guardNotes`. The audience guard compares who can view each channel
+  (roles, `@everyone` included, and members with an allow overwrite, from `viewAudience` in
+  `discord.ts`): a message is posted only when everyone who sees the hall could already see the
+  source, and unknown audiences fail closed. It is conservative, not a guarantee: exempt channels
+  are the hard block for private channels.
 - **`Partials.Message`** (`src/client.ts`) lets `messageDelete` and `messageDeleteBulk` include an
   uncached honeypot card so it can be re-posted. Do not remove it.
 - Pending screening joins persist until role assignment or departure. The hourly job recovers completions missed while offline.

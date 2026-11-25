@@ -2,6 +2,8 @@ import {
   ContainerBuilder,
   DiscordAPIError,
   MessageFlags,
+  OverwriteType,
+  PermissionFlagsBits,
   RESTJSONErrorCodes,
   TextDisplayBuilder,
 } from 'discord.js';
@@ -144,6 +146,144 @@ describe('hall of fame discord adapter', () => {
     expect(route).toContain('/reactions/cat%3A55');
     expect(options.query.get('type')).toBe('0');
     expect(options.query.get('limit')).toBe('100');
+  });
+
+  describe('channel audience', () => {
+    const view = PermissionFlagsBits.ViewChannel;
+    const role = (id: string, permissions: bigint, over: Record<string, unknown> = {}) => ({
+      id,
+      permissions: { has: (flag: bigint) => (permissions & flag) === flag },
+      ...over,
+    });
+    interface Setup {
+      roles: ReturnType<typeof role>[];
+      /** Role id to whether the role can view the channel. */
+      views: Record<string, boolean>;
+      overwrites?: Array<{ id: string; type: OverwriteType; allow: bigint }>;
+      type?: number;
+    }
+
+    function facts(setup: Setup, thread?: { parentId: string; type: number }) {
+      const base = {
+        id: 'p1',
+        guildId: '10',
+        type: 0,
+        nsfw: false,
+        parentId: null,
+        name: 'base',
+        isDMBased: () => false,
+        isThread: () => false,
+        permissionsFor: (who: { id?: string } | undefined, checkAdmin?: boolean) => {
+          expect(checkAdmin).not.toBe(true);
+          if (who?.id === '900') return { has: () => true };
+          return { has: (flag: bigint) => flag === view && setup.views[who?.id ?? ''] === true };
+        },
+        permissionOverwrites: {
+          cache: new Map(
+            (setup.overwrites ?? []).map((o) => [
+              o.id,
+              { id: o.id, type: o.type, allow: { has: (f: bigint) => (o.allow & f) === f } },
+            ]),
+          ),
+        },
+      };
+      const found = thread
+        ? {
+            ...base,
+            id: 't1',
+            type: thread.type,
+            parentId: thread.parentId,
+            parent: base,
+            isThread: () => true,
+          }
+        : base;
+      const guild = {
+        roles: { cache: new Map(setup.roles.map((r) => [r.id, r])) },
+        members: { me: { id: '900' } },
+      };
+      const client = {
+        user: { id: '900' },
+        guilds: { cache: new Map([['10', guild]]) },
+        channels: { fetch: async () => found },
+      };
+      return createHallDiscord(client as never)
+        .channel('10', found.id)
+        .then((info) => info.facts);
+    }
+
+    const everyone = role('10', 0n);
+    const member = role('member', 0n);
+    const staff = role('staff', 0n);
+
+    it('lists the roles that can view the channel, @everyone included', async () => {
+      const open = await facts({
+        roles: [everyone, member, staff],
+        views: { '10': true, member: true, staff: true },
+      });
+      expect(open.audience).toEqual(['10', 'member', 'staff']);
+      // @everyone locked out, a Member role let in: only that role is the audience.
+      const members = await facts({
+        roles: [everyone, member, staff],
+        views: { member: true },
+      });
+      expect(members.audience).toEqual(['member']);
+    });
+
+    it('leaves out administrators and the bot itself', async () => {
+      const admin = role('admin', PermissionFlagsBits.Administrator);
+      const mine = role('bot-role', 0n, { tags: { botId: '900' } });
+      const other = role('other-bot', 0n, { tags: { botId: '901' } });
+      const result = await facts({
+        roles: [everyone, admin, mine, other, staff],
+        views: { admin: true, 'bot-role': true, 'other-bot': true, staff: true },
+      });
+      expect(result.audience).toEqual(['other-bot', 'staff']);
+    });
+
+    it('adds members with an explicit allow overwrite, except the bot', async () => {
+      const result = await facts({
+        roles: [everyone],
+        views: {},
+        overwrites: [
+          { id: '5', type: OverwriteType.Member, allow: view },
+          { id: '6', type: OverwriteType.Member, allow: 0n },
+          { id: '900', type: OverwriteType.Member, allow: view },
+          { id: 'staff', type: OverwriteType.Role, allow: view },
+        ],
+      });
+      expect(result.audience).toEqual(['5']);
+    });
+
+    it('gives a thread the audience of its parent', async () => {
+      const result = await facts(
+        { roles: [everyone, member], views: { member: true } },
+        { parentId: 'p1', type: 11 },
+      );
+      expect(result).toMatchObject({ isThread: true, parentId: 'p1' });
+      expect(result.audience).toEqual(['member']);
+    });
+
+    it('leaves the audience unknown when the parent of a thread is missing', async () => {
+      const guild = { roles: { cache: new Map([['10', everyone]]) }, members: { me: {} } };
+      const thread = {
+        id: 't1',
+        guildId: '10',
+        type: 11,
+        parentId: 'p1',
+        parent: null,
+        name: 't',
+        isDMBased: () => false,
+        isThread: () => true,
+        permissionsFor: () => ({ has: () => true }),
+      };
+      const client = {
+        user: { id: '900' },
+        guilds: { cache: new Map([['10', guild]]) },
+        channels: { fetch: async (id: string) => (id === 't1' ? thread : null) },
+      };
+      const info = await createHallDiscord(client as never).channel('10', 't1');
+      expect(info.facts.audience).toBeUndefined();
+    });
   });
 
   it('sends with a nonce and lists exactly the uploaded files, in a sends and in edits', async () => {

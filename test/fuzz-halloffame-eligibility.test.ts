@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { type ChannelFacts, eligibility } from '../src/features/halloffame/index.js';
 
 const id = fc.constantFrom('a', 'b', 'c', 'hall', 'pot', 'cat');
+const audienceIds = fc.constantFrom('everyone', 'member', 'staff', 'user:1');
 const facts = fc.record({
   id,
   parentId: fc.option(id, { nil: undefined }),
@@ -10,11 +11,11 @@ const facts = fc.record({
   isThread: fc.boolean(),
   isPrivateThread: fc.boolean(),
   nsfw: fc.boolean(),
-  everyoneCanView: fc.boolean(),
+  audience: fc.option(fc.array(audienceIds, { maxLength: 4 }), { nil: undefined }),
 }) satisfies fc.Arbitrary<ChannelFacts>;
 
 describe('fuzz: hall of fame eligibility', () => {
-  it('never allows private to public, NSFW to SFW or a private thread', () => {
+  it('never allows a wider audience, NSFW to SFW or a private thread', () => {
     fc.assert(
       fc.property(
         fc.option(id, { nil: undefined }),
@@ -40,7 +41,10 @@ describe('fuzz: hall of fame eligibility', () => {
           expect(hallId).toBeDefined();
           expect(source.isPrivateThread).toBe(false);
           if (source.nsfw) expect(hall?.nsfw).toBe(true);
-          if (hall?.everyoneCanView) expect(source.everyoneCanView).toBe(true);
+          // Everyone who can see the hall could already see the source, and unknowns never pass.
+          expect(source.audience).toBeDefined();
+          expect(hall?.audience).toBeDefined();
+          for (const who of hall?.audience ?? []) expect(source.audience).toContain(who);
           expect(bot || webhook).toBe(false);
           expect([0, 19]).toContain(type);
           expect(source.id).not.toBe(hallId);

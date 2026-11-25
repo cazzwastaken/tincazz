@@ -383,10 +383,25 @@ describe('hall of fame sync', () => {
       const h = await posted();
       h.fake.channels.set(
         sourceChannelId,
-        channelInfo(sourceChannelId, 'memes', { everyoneCanView: false }),
+        channelInfo(sourceChannelId, 'memes', { audience: ['staff-role'] }),
       );
       await edited(h);
-      frozen(h, 'private-to-public');
+      frozen(h, 'audience-mismatch');
+    });
+
+    it('stops copying edits once a role that cannot see the source can see the hall', async () => {
+      const h = await posted();
+      // The source is for staff only, and a members-only hall would show it to members.
+      h.fake.channels.set(
+        sourceChannelId,
+        channelInfo(sourceChannelId, 'staff', { audience: ['staff'] }),
+      );
+      h.fake.channels.set(
+        hallChannelId,
+        channelInfo(hallChannelId, 'hall', { audience: ['member'] }),
+      );
+      await edited(h);
+      frozen(h, 'audience-mismatch');
     });
 
     it('stops copying edits once the channel is age-restricted and the hall is not', async () => {

@@ -15,7 +15,7 @@ const channel = (over: Partial<ChannelFacts> = {}): ChannelFacts => ({
   isThread: false,
   isPrivateThread: false,
   nsfw: false,
-  everyoneCanView: true,
+  audience: ['everyone'],
   ...over,
 });
 const hall = channel({ id: 'hall' });
@@ -103,13 +103,64 @@ describe('hall of fame eligibility', () => {
   });
 
   it('never leaks a private channel into a public hall', () => {
-    expect(check(channel({ everyoneCanView: false }))).toEqual({
+    const staff = channel({ audience: ['staff'] });
+    expect(check(staff)).toEqual({ ok: false, reason: 'audience-mismatch' });
+    const privateHall = channel({ id: 'hall', audience: ['staff'] });
+    expect(check(staff, { hall: privateHall })).toEqual({ ok: true });
+    // A public channel lists every role that inherits the view from @everyone, staff included.
+    const open = channel({ audience: ['everyone', 'member', 'staff'] });
+    expect(check(open, { hall: privateHall })).toEqual({ ok: true });
+  });
+
+  it('compares roles, so a staff channel never reaches a hall only members can see', () => {
+    // @everyone is locked out everywhere: a staff channel and a members-only hall both look
+    // "not public", but members can see the hall and cannot see the staff channel.
+    const staff = channel({ audience: ['staff'] });
+    const membersHall = channel({ id: 'hall', audience: ['member'] });
+    expect(check(staff, { hall: membersHall })).toEqual({
       ok: false,
-      reason: 'private-to-public',
+      reason: 'audience-mismatch',
     });
-    const privateHall = channel({ id: 'hall', everyoneCanView: false });
-    expect(check(channel({ everyoneCanView: false }), { hall: privateHall })).toEqual({ ok: true });
-    expect(check(channel(), { hall: privateHall })).toEqual({ ok: true });
+    expect(check(channel({ audience: ['member', 'staff'] }), { hall: membersHall })).toEqual({
+      ok: true,
+    });
+    // Anyone who can see the hall must be able to see the source.
+    const wide = channel({ id: 'hall', audience: ['member', 'staff', 'guest'] });
+    expect(check(channel({ audience: ['member', 'staff'] }), { hall: wide })).toEqual({
+      ok: false,
+      reason: 'audience-mismatch',
+    });
+  });
+
+  it('counts a member who can see the hall but not the source', () => {
+    const hallForOne = channel({ id: 'hall', audience: ['staff', 'user:5'] });
+    expect(check(channel({ audience: ['staff'] }), { hall: hallForOne })).toEqual({
+      ok: false,
+      reason: 'audience-mismatch',
+    });
+  });
+
+  it('fails closed when an audience is unknown', () => {
+    const blind = { audience: undefined };
+    expect(check(channel(blind))).toEqual({ ok: false, reason: 'audience-mismatch' });
+    expect(check(channel(), { hall: channel({ id: 'hall', ...blind }) })).toEqual({
+      ok: false,
+      reason: 'audience-mismatch',
+    });
+    // Even two unknowns, and even a hall nobody can see.
+    expect(check(channel(blind), { hall: channel({ id: 'hall', ...blind }) })).toEqual({
+      ok: false,
+      reason: 'audience-mismatch',
+    });
+    expect(check(channel(blind), { hall: channel({ id: 'hall', audience: [] }) })).toEqual({
+      ok: false,
+      reason: 'audience-mismatch',
+    });
+    expect(
+      check(channel({ audience: [] }), { hall: channel({ id: 'hall', audience: [] }) }),
+    ).toEqual({
+      ok: true,
+    });
   });
 
   it('refuses bots, webhooks and non message types', () => {
@@ -148,7 +199,7 @@ describe('hall of fame eligibility', () => {
       'exempt',
       'private-thread',
       'nsfw-to-sfw',
-      'private-to-public',
+      'audience-mismatch',
       'bot-author',
       'webhook-author',
       'message-type',

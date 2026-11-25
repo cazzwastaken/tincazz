@@ -11,6 +11,7 @@ import {
   type Guild,
   MessageFlags,
   MessageType,
+  OverwriteType,
   PermissionFlagsBits,
   type RESTGetAPIChannelMessageReactionUsersResult,
   type RESTGetAPIChannelMessagesResult,
@@ -141,16 +142,46 @@ function mapReaction(reaction: APIReaction, guild: Guild | undefined): HallReact
   return { emoji: usable ? `<${animated ? 'a' : ''}:${name}:${id}>` : key, key, normal };
 }
 
-function channelFacts(guild: Guild, channel: Channel, parent: Channel | null): ChannelFacts {
+/**
+ * Who can view the channel (the ids of `ChannelFacts.audience`), or undefined when that cannot be
+ * worked out. Roles are judged on their own permissions in the channel, so a server where
+ * @everyone is locked out everywhere and a "Member" role gets in shows exactly that role. Roles
+ * with Administrator see everything and are left out, and so are the bot's own role and member
+ * overwrite. Members with an explicit allow overwrite are listed by id.
+ */
+function viewAudience(guild: Guild, base: Channel | null, botId: string): string[] | undefined {
+  if (base === null || base.isDMBased() || !('permissionsFor' in base)) return undefined;
+  if (!('permissionOverwrites' in base) || guild.roles.cache.size === 0) return undefined;
+  const audience: string[] = [];
+  for (const role of guild.roles.cache.values()) {
+    if (role.permissions.has(PermissionFlagsBits.Administrator) || role.tags?.botId === botId) {
+      continue;
+    }
+    const perms = base.permissionsFor(role, false);
+    if (perms === null) return undefined;
+    if (perms.has(PermissionFlagsBits.ViewChannel)) audience.push(role.id);
+  }
+  for (const overwrite of base.permissionOverwrites.cache.values()) {
+    if (
+      overwrite.type === OverwriteType.Member &&
+      overwrite.id !== botId &&
+      overwrite.allow.has(PermissionFlagsBits.ViewChannel)
+    ) {
+      audience.push(overwrite.id);
+    }
+  }
+  return audience;
+}
+
+function channelFacts(
+  guild: Guild,
+  channel: Channel,
+  parent: Channel | null,
+  botId: string,
+): ChannelFacts {
   const isThread = channel.isThread();
   const base = isThread ? parent : channel;
   const nsfw = base !== null && 'nsfw' in base && base.nsfw === true;
-  // An unresolved parent cannot be proven public, so it counts as private.
-  const view =
-    base !== null && !base.isDMBased() && 'permissionsFor' in base
-      ? (base.permissionsFor(guild.roles.everyone, false)?.has(PermissionFlagsBits.ViewChannel) ??
-        false)
-      : false;
   const categoryId = base !== null && 'parentId' in base ? (base.parentId ?? undefined) : undefined;
   return {
     id: channel.id,
@@ -159,7 +190,8 @@ function channelFacts(guild: Guild, channel: Channel, parent: Channel | null): C
     isThread,
     isPrivateThread: channel.type === ChannelType.PrivateThread,
     nsfw,
-    everyoneCanView: view,
+    // An unresolved parent cannot be proven safe, so its audience stays unknown.
+    audience: viewAudience(guild, base, botId),
   };
 }
 
@@ -180,10 +212,10 @@ export function createHallDiscord(client: Client<true>): HallDiscord {
         isThread: true,
         isPrivateThread: channel.type === ChannelType.PrivateThread,
         nsfw: false,
-        everyoneCanView: true,
+        audience: undefined,
       };
     }
-    return channelFacts(guild, channel, parent);
+    return channelFacts(guild, channel, parent, client.user.id);
   }
 
   async function channel(guildId: string, channelId: string): Promise<HallChannelInfo> {
@@ -202,7 +234,7 @@ export function createHallDiscord(client: Client<true>): HallDiscord {
       const mine = found.permissionsFor(me);
       const has = (flag: bigint) => mine?.has(flag) ?? false;
       return {
-        facts: channelFacts(guild, found, parent),
+        facts: channelFacts(guild, found, parent, client.user.id),
         name: found.name,
         can: {
           view: has(PermissionFlagsBits.ViewChannel),

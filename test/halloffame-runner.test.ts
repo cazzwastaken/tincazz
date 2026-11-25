@@ -213,7 +213,7 @@ describe('hall of fame induction', () => {
 
     h.fake.channels.set(
       sourceChannelId,
-      channelInfo(sourceChannelId, 'staff', { everyoneCanView: false }),
+      channelInfo(sourceChannelId, 'staff', { audience: ['staff-role'] }),
     );
     h.add('2000');
     await h.settle();
@@ -227,13 +227,40 @@ describe('hall of fame induction', () => {
     // Private into a private hall, nsfw into an nsfw hall: allowed.
     h.fake.channels.set(
       sourceChannelId,
-      channelInfo(sourceChannelId, 'staff', { everyoneCanView: false }),
+      channelInfo(sourceChannelId, 'staff', { audience: ['staff-role'] }),
     );
     h.fake.channels.set(
       hallChannelId,
-      channelInfo(hallChannelId, 'hall', { everyoneCanView: false }),
+      channelInfo(hallChannelId, 'hall', { audience: ['staff-role'] }),
     );
     h.add('2002');
+    await h.settle(hallOfFame.maxWaitMs);
+    expect(h.fake.log.send).toHaveLength(1);
+  });
+
+  it('never posts a staff channel into a hall only members can see', async () => {
+    const h = harness(db, vi);
+    h.fake.addMessage();
+    h.fake.react(messageId, '⭐', people(0, 6));
+    // @everyone is locked out everywhere: staff and members are different roles.
+    h.fake.channels.set(
+      sourceChannelId,
+      channelInfo(sourceChannelId, 'staff', { audience: ['staff'] }),
+    );
+    h.fake.channels.set(
+      hallChannelId,
+      channelInfo(hallChannelId, 'hall', { audience: ['member'] }),
+    );
+    h.add('2100');
+    await h.settle();
+    expect(h.fake.log.send).toHaveLength(0);
+
+    // A source that members can see is fine.
+    h.fake.channels.set(
+      sourceChannelId,
+      channelInfo(sourceChannelId, 'chat', { audience: ['member', 'staff'] }),
+    );
+    h.add('2101');
     await h.settle(hallOfFame.maxWaitMs);
     expect(h.fake.log.send).toHaveLength(1);
   });

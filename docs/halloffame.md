@@ -112,19 +112,34 @@ is missing a permission.
 These checks are automatic and silent: nothing tells the people who reacted. They are also listed
 in the intro card, in `/settings show` and in `/help halloffame`.
 
-| What              | Why                                                                                                                       |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| The hall itself   | Messages in the hall channel (and its threads) are never inducted again.                                                  |
-| The honeypot      | The honeypot channel is never inducted.                                                                                   |
-| Exempt channels   | A channel staff exempted, a thread of one, or a channel in an exempt category.                                            |
-| Private threads   | The hall cannot tell who was invited to them.                                                                             |
-| Age-restricted    | A message from an age-restricted channel is skipped unless the hall channel is age-restricted too.                        |
-| Private channels  | A channel that `@everyone` cannot see is skipped when `@everyone` can see the hall, so private talk never becomes public. |
-| Bots and webhooks | Messages written by bots, or sent through webhooks.                                                                       |
-| System messages   | Only normal messages and replies count, not joins, boosts, pins or command results.                                       |
+| What              | Why                                                                                                         |
+| ----------------- | ----------------------------------------------------------------------------------------------------------- |
+| The hall itself   | Messages in the hall channel (and its threads) are never inducted again.                                    |
+| The honeypot      | The honeypot channel is never inducted.                                                                     |
+| Exempt channels   | A channel staff exempted, a thread of one, or a channel in an exempt category.                              |
+| Private threads   | The hall cannot tell who was invited to them.                                                               |
+| Age-restricted    | A message from an age-restricted channel is skipped unless the hall channel is age-restricted too.          |
+| Private channels  | A message is only posted into a hall that nobody can see who couldn't already see the original (see below). |
+| Bots and webhooks | Messages written by bots, or sent through webhooks.                                                         |
+| System messages   | Only normal messages and replies count, not joins, boosts, pins or command results.                         |
 
 A thread follows its parent channel for the age-restriction and private-channel checks. If the bot
 cannot resolve the hall channel, nothing is inducted.
+
+**How the private-channel check works.** Tincazz lists who can see a channel: every role (with
+`@everyone`) whose permissions in that channel include View Channel, plus every member with their
+own View Channel permission overwrite there. Roles with Administrator, who see everything, and the
+bot itself are not counted. A message is inducted only when everyone on the hall's list is also on
+the source channel's list. So in a server where `@everyone` is locked out everywhere, a staff
+channel is never posted into a members-only hall, and a member who has a personal overwrite on the
+hall but not on the source channel blocks it too. If either list cannot be worked out, nothing is
+inducted.
+
+The check is **conservative**: it compares who is allowed in, not who actually holds a role, so it
+can skip a message that would have been safe (for example when a role can see the hall but is
+denied the source channel, even if nobody in it reacts). It is a safety net, not a guarantee about
+your permission setup. To keep a channel out of the hall for certain, **exempt it**: exempting is
+the way to hard-block a private channel, and nothing else overrides it.
 
 ## After the post
 
@@ -178,7 +193,7 @@ If a message does not show up, check in this order:
 2. **Enough different people?** The author, bots and super reactions do not count, and one person
    counts once however many emoji they use. A new reaction triggers the check, so there is a delay
    of a few seconds (up to 30).
-3. **Is the channel skipped?** Private channels (while the hall is public), age-restricted
+3. **Is the channel skipped?** Private channels (when someone can see the hall who cannot see the channel), age-restricted
    channels (while the hall is not), private threads, exempt channels and categories, the hall
    itself and the honeypot are never inducted.
 4. **Is the message eligible?** Messages by bots and webhooks and system messages are skipped.

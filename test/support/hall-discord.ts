@@ -32,7 +32,8 @@ export const publicChannel = (id: string, over: Partial<ChannelFacts> = {}): Cha
   isThread: false,
   isPrivateThread: false,
   nsfw: false,
-  everyoneCanView: true,
+  // @everyone (its id is the guild id) can view.
+  audience: [guildId],
   ...over,
 });
 
