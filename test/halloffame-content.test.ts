@@ -156,6 +156,19 @@ describe('replySnippet', () => {
     expect(replySnippet('||multi\nline||')).toBe('spoiler');
   });
 
+  it('does not pair a code or escaped || with a real spoiler', () => {
+    // An inline code span, an escaped pipe and a fence each hold a literal || that is not a marker.
+    expect(replySnippet('`||` ||the butler did it||')).not.toContain('butler');
+    expect(replySnippet('a \\|| b ||the butler did it||')).not.toContain('butler');
+    expect(replySnippet('```||```||secret||')).not.toContain('secret');
+    expect(replySnippet('`||` ||the butler did it||')).toBe('`| |` spoiler');
+    expect(replySnippet('a \\|| b ||the butler did it||')).toBe('a \\| | b spoiler');
+    expect(replySnippet('```||```||secret||')).toBe('| |spoiler');
+    // An unclosed one still hides the rest, and a fenced pair is plain text.
+    expect(replySnippet('x ||a `||` b')).toBe('x spoiler');
+    expect(replySnippet('```\n||not a spoiler||\n``` end')).toBe('| |not a spoiler| | end');
+  });
+
   it('flattens whitespace and truncates', () => {
     expect(replySnippet('hello\n\n  world')).toBe('hello world');
     expect(replySnippet('x'.repeat(200)).length).toBe(hallOfFame.maxReplySnippetLength);
@@ -320,6 +333,26 @@ describe('embed media', () => {
     expect(media?.spoiler).toBe(true);
     const [plain] = pickEmbedMedia([{ type: 'image', url, image: { url } }], `look ${url}`, 1);
     expect(plain?.spoiler).toBe(false);
+  });
+
+  it('flags media after an escaped or coded || that is followed by a real spoiler', () => {
+    const url = 'https://example.com/cat.png';
+    const proxy = 'https://images-ext-1.discordapp.net/external/h/cat.png';
+    const embed = { type: 'image', url, image: { url, proxyUrl: proxy } };
+    const spoiler = (content: string) => pickEmbedMedia([embed], content, 1)[0]?.spoiler;
+    expect(spoiler(`a \\|| b ||${url}||`)).toBe(true);
+    expect(spoiler(`\`||\` ||${url}||`)).toBe(true);
+    expect(spoiler(`||secret|| ${url}`)).toBe(true);
+    // Only an escaped or coded || is no spoiler at all.
+    expect(spoiler(`a \\|| b ${url}`)).toBe(false);
+    expect(spoiler(`\`||\` ${url}`)).toBe(false);
+    // A link Discord rewrote cannot be placed: any marker in the message counts.
+    expect(
+      pickEmbedMedia([{ ...embed, url: 'https://example.com/other' }], '||x|| y', 1)[0]?.spoiler,
+    ).toBe(true);
+    expect(
+      pickEmbedMedia([{ ...embed, url: 'https://example.com/other' }], 'x y', 1)[0]?.spoiler,
+    ).toBe(false);
   });
 });
 

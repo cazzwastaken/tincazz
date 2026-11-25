@@ -52,11 +52,12 @@ function fenceCount(text: string): number {
 }
 
 /**
- * How many `||` markers `text` has outside code. A code fence (an unclosed one runs to the end,
- * since a cut closes it again) and an inline code span hide theirs, and `\|` is not a marker.
+ * Where the `||` markers of `text` are: the string index of each, in order. A code fence (an
+ * unclosed one runs to the end, since a cut closes it again) and an inline code span hide theirs,
+ * and `\|` is not a marker. The one tokenizer behind truncation, `hideSpoilers` and embed media.
  */
-function spoilerMarkers(text: string): number {
-  let count = 0;
+function spoilerMarkerIndexes(text: string): number[] {
+  const found: number[] = [];
   let i = 0;
   while (i < text.length) {
     if (text.startsWith(fence, i)) {
@@ -69,13 +70,18 @@ function spoilerMarkers(text: string): number {
     } else if (text[i] === '\\') {
       i += 2;
     } else if (text.startsWith('||', i)) {
-      count += 1;
+      found.push(i);
       i += 2;
     } else {
       i += 1;
     }
   }
-  return count;
+  return found;
+}
+
+/** How many `||` markers `text` has outside code. */
+function spoilerMarkers(text: string): number {
+  return spoilerMarkerIndexes(text).length;
 }
 
 /**
@@ -109,9 +115,22 @@ export function truncateText(text: string, max: number): string {
   }
 }
 
-/** Replaces every `||spoiler||` (an unclosed `||` hides the rest) with a word, for a preview. */
+/**
+ * Replaces every `||spoiler||` with a word, for a preview. Markers inside code and escaped ones
+ * (`\|`) are not spoilers, as on Discord; an unclosed `||` hides everything after it.
+ */
 export function hideSpoilers(text: string): string {
-  return text.replace(/\|\|[\s\S]*?(?:\|\||$)/gu, 'spoiler');
+  const markers = spoilerMarkerIndexes(text);
+  if (markers.length === 0) return text;
+  let out = '';
+  let from = 0;
+  for (let i = 0; i < markers.length; i += 2) {
+    const open = markers[i] as number;
+    const close = markers[i + 1];
+    out += `${text.slice(from, open)}spoiler`;
+    from = close === undefined ? text.length : close + 2;
+  }
+  return out + text.slice(from);
 }
 
 /**
@@ -153,14 +172,22 @@ export function quoteExcerpt(
 
 /**
  * A one line preview of the message a reply answers; empty when there is nothing to show. Spoilers
- * are hidden before anything is cut or escaped (an escaped `||` would print the secret).
+ * are hidden first, while code fences and escapes still tell which `||` count (stripping the fences
+ * before would let a fenced `||` pair up with a real one), and before anything is cut or escaped
+ * (an escaped `||` would print the secret).
  */
 export function replySnippet(
   text: string,
   hasMedia = false,
   max: number = hallOfFame.maxReplySnippetLength,
 ): string {
-  const flat = hideSpoilers(text.replace(/`{3,}/gu, '')).replace(/\s+/gu, ' ').trim();
+  // A `||` left over sat in code (or in a spoiler's doubt): split it, so the card, which hides
+  // spoilers again, never pairs it with anything.
+  const flat = hideSpoilers(text)
+    .replace(/`{3,}/gu, '')
+    .replace(/\|(?=\|)/gu, '| ')
+    .replace(/\s+/gu, ' ')
+    .trim();
   if (flat === '') return hasMedia ? '📎 attachment' : '';
   return truncateText(flat, max);
 }
@@ -341,12 +368,24 @@ export function classifySticker(sticker: StickerFacts): HallSticker {
   }
 }
 
-/** Whether `url` sits inside a `||spoiler||` span of `content`. */
-function inSpoilerSpan(content: string, url: string): boolean {
-  for (const span of content.matchAll(/\|\|[\s\S]*?\|\|/gu)) {
-    if (span[0].includes(url)) return true;
-  }
-  return false;
+/**
+ * Whether the media of an embed may sit inside a `||spoiler||` of `content`: true when any `||`
+ * marker (outside code, not escaped) comes before the link, the last mention of it counting. That
+ * also covers a span that closed earlier, which blurs a picture that was not hidden; a leaked
+ * spoiler is worse. When the link cannot be found in the text at all (Discord rewrote it), any
+ * marker in the message counts.
+ */
+function afterSpoilerMarker(
+  content: string,
+  links: readonly (string | null | undefined)[],
+): boolean {
+  const first = spoilerMarkerIndexes(content)[0];
+  if (first === undefined) return false;
+  const positions = links.flatMap((link) => {
+    const at = link ? content.lastIndexOf(link) : -1;
+    return at === -1 ? [] : [at];
+  });
+  return positions.length === 0 || first < Math.max(...positions);
 }
 
 function allowedMedia(media: EmbedMediaFacts | null | undefined): string | undefined {
@@ -365,7 +404,7 @@ function allowedMedia(media: EmbedMediaFacts | null | undefined): string | undef
  * The images and GIFs of link embeds, by URL, up to `limit`. Only hosts from the imaging allowlist
  * are kept (the proxied URL when there is one), so a hall post never points at a page that can
  * change after the fact. A GIF embed (Tenor, Giphy) contributes its thumbnail. A link inside a
- * `||spoiler||` stays a spoiler.
+ * `||spoiler||` stays a spoiler (see `afterSpoilerMarker`).
  */
 export function pickEmbedMedia(
   embeds: readonly EmbedFacts[],
@@ -385,9 +424,7 @@ export function pickEmbedMedia(
     picked.push({
       url,
       gif: gifv || /\.gif$/iu.test(new URL(url).pathname),
-      spoiler: [embed.url, media?.url, media?.proxyUrl].some(
-        (u) => !!u && inSpoilerSpan(content, u),
-      ),
+      spoiler: afterSpoilerMarker(content, [embed.url, media?.url, media?.proxyUrl]),
     });
   }
   return picked;

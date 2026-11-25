@@ -1,6 +1,8 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import {
+  hideSpoilers,
+  pickEmbedMedia,
   quoteExcerpt,
   quoteText,
   replySnippet,
@@ -158,5 +160,62 @@ describe('fuzz: hall of fame content', () => {
         expect(safe.length).toBeLessThanOrEqual(60);
       }),
     );
+  });
+
+  describe('spoilers', () => {
+    // Words without any character that matters to the spoiler tokenizer.
+    const words = fc
+      .string({ maxLength: 12 })
+      .map((value) => value.replace(/[\\`|]/gu, '').replace(/ZQX/gu, ''));
+    // Text that holds a literal || which Discord does not read as a marker.
+    const neutral = fc.oneof(
+      words,
+      fc.constantFrom('`||` ', '\\|| ', '```||``` ', '``||`` ', '```\n||\n``` ', '\\||\\|| '),
+    );
+    const before = fc.array(neutral, { maxLength: 6 }).map((parts) => parts.join(' '));
+
+    it('never shows the text between a balanced || pair', () => {
+      fc.assert(
+        fc.property(
+          before,
+          words,
+          words,
+          fc.integer({ min: 5, max: 400 }),
+          (head, tail, mid, max) => {
+            const input = `${head} ||ZQX${mid}ZQX|| ${tail}`;
+            expect(hideSpoilers(input)).not.toContain('ZQX');
+            expect(replySnippet(input, false, max)).not.toContain('ZQX');
+            expect(replySnippet(input, true, 400)).not.toContain('||');
+          },
+        ),
+        { numRuns: 1500 },
+      );
+    });
+
+    it('hides an unclosed || to the end', () => {
+      fc.assert(
+        fc.property(before, words, (head, tail) => {
+          expect(replySnippet(`${head} ||ZQX ${tail}`, false, 400)).not.toContain('ZQX');
+        }),
+      );
+    });
+
+    it('flags media that follows any || marker as a spoiler', () => {
+      const url = 'https://example.com/cat.png';
+      const embed = {
+        type: 'image',
+        url,
+        image: { url, proxyUrl: 'https://images-ext-1.discordapp.net/external/h/cat.png' },
+      };
+      fc.assert(
+        fc.property(before, words, words, fc.boolean(), (head, mid, tail, closed) => {
+          const content = `${head} ||${mid}${closed ? '||' : ''} ${url} ${tail}`;
+          expect(pickEmbedMedia([embed], content, 1)[0]?.spoiler).toBe(true);
+          // Without a marker of its own, text of this kind never makes media a spoiler.
+          expect(pickEmbedMedia([embed], `${head} ${url} ${tail}`, 1)[0]?.spoiler).toBe(false);
+        }),
+        { numRuns: 1000 },
+      );
+    });
   });
 });
