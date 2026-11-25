@@ -69,7 +69,8 @@ export function settingsCard(view: SettingsView): ContainerBuilder {
       `**Honeypot:** ${pot ? `<#${pot}> · ${kicks.toLocaleString('en-US')} ${kicks === 1 ? 'kick' : 'kicks'}${warn(potProblem)}` : 'not set'}`,
       `**Hall of Fame:** ${hall.channelId ? `<#${hall.channelId}> · ${people}${warn(hall.problem)}` : `not set (threshold ${people})`}`,
       `**Hall of Fame exempt:** ${exempt}`,
-      '-# The Hall of Fame always skips private threads, age-restricted channels (unless the hall is too), channels that someone who can see the hall cannot see, or hides from someone with a View Channel deny that the hall lacks (the check compares channel permissions and errs on the side of refusing, exempt a channel to be sure), bots, webhooks and system messages.',
+      '-# The Hall of Fame always skips private threads, age-restricted channels (unless the hall is too), channels that someone who can see the hall cannot see, that hide from someone with a View Channel deny that the hall lacks, or that deny a role while the hall allows another role by overwrite (the check compares channel permissions and errs on the side of refusing, exempt a channel to be sure), bots, webhooks and system messages.',
+      '-# It only looks at who can open a channel (View Channel): exempt channels that limit who can read old messages (a Read Message History deny) and the text chats of voice and stage channels.',
     ].join('\n'),
   );
 }

@@ -117,16 +117,16 @@ is missing a permission.
 These checks are automatic and silent: nothing tells the people who reacted. They are also listed
 in the intro card, in `/settings show` and in `/help halloffame`.
 
-| What              | Why                                                                                                                                                        |
-| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| The hall itself   | Messages in the hall channel (and its threads) are never inducted again.                                                                                   |
-| The honeypot      | The honeypot channel is never inducted.                                                                                                                    |
-| Exempt channels   | A channel staff exempted, a thread of one, or a channel in an exempt category.                                                                             |
-| Private threads   | The hall cannot tell who was invited to them.                                                                                                              |
-| Age-restricted    | A message from an age-restricted channel is skipped unless the hall channel is age-restricted too.                                                         |
-| Private channels  | A message is only posted into a hall that nobody can see who couldn't see the original, and the hall repeats the source's View Channel denies (see below). |
-| Bots and webhooks | Messages written by bots, or sent through webhooks.                                                                                                        |
-| System messages   | Only normal messages and replies count, not joins, boosts, pins or command results.                                                                        |
+| What              | Why                                                                                                                                                                                                |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The hall itself   | Messages in the hall channel (and its threads) are never inducted again.                                                                                                                           |
+| The honeypot      | The honeypot channel is never inducted.                                                                                                                                                            |
+| Exempt channels   | A channel staff exempted, a thread of one, or a channel in an exempt category.                                                                                                                     |
+| Private threads   | The hall cannot tell who was invited to them.                                                                                                                                                      |
+| Age-restricted    | A message from an age-restricted channel is skipped unless the hall channel is age-restricted too.                                                                                                 |
+| Private channels  | A message is only posted into a hall that nobody can open who couldn't open the original channel (View Channel), and the hall repeats the source's denies (see below; there are known exceptions). |
+| Bots and webhooks | Messages written by bots, or sent through webhooks.                                                                                                                                                |
+| System messages   | Only normal messages and replies count, not joins, boosts, pins or command results.                                                                                                                |
 
 A thread follows its parent channel for the age-restriction and private-channel checks. If the bot
 cannot resolve the hall channel, nothing is inducted.
@@ -162,6 +162,17 @@ so it can skip a message that would have been safe (for example when a role is d
 channel but nobody in it can see the hall either). It is a safety net, not a guarantee about your
 permission setup. To keep a channel out of the hall for certain, **exempt it**: exempting is the
 hard block for a private channel, and nothing else overrides it.
+
+**Known exceptions: exempt these channels.** The check looks at who can **View Channel**, nothing
+else, so it cannot see two kinds of setup, and a message from such a channel can be posted where
+people who could not read it can see it:
+
+- Channels whose **history** is restricted: members can open the channel but a Read Message History
+  deny stops them reading what was said before they arrived.
+- The **text chat of a voice or stage channel**, where joining (Connect) may be needed to read or
+  write in it, which the hall has no way to check.
+
+Staff should exempt such channels (`/settings halloffame exempt`).
 
 ## After the post
 

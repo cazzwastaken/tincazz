@@ -148,9 +148,11 @@ export function audienceCovers(source: ChannelFacts, hall: ChannelFacts): boolea
 }
 
 /**
- * Whether a message may be inducted. Never lets a message reach a hall that someone can see who
- * could not see the source (private threads are never inducted, and the hall's audience must be
- * within the source's), and never lets NSFW content reach a hall that is not NSFW.
+ * Whether a message may be inducted. Does not let a message reach a hall that someone can open
+ * who could not open the source, judged by View Channel only (private threads are never inducted,
+ * and the hall's audience must be within the source's; restricted message history and voice or
+ * stage text chats are known exceptions, see docs/halloffame.md), and never lets NSFW content reach
+ * a hall that is not NSFW.
  */
 export function eligibility(
   settings: EligibilitySettings,
@@ -226,7 +228,7 @@ export const guardNotes: readonly GuardNote[] = [
   {
     reason: 'audience-mismatch',
     title: 'Private channels',
-    text: "A message is only posted into a hall that nobody can see who couldn't already see the original: every role let into the hall must be let into the channel (a member the hall lets in by name is fine while everyone can see the channel and it hides itself from no role), every role or member the channel hides itself from (a View Channel deny) must be hidden from the hall too, and when the channel hides itself from a role, a role the hall lets in by overwrite must be let into the channel by overwrite as well. The check compares channel permissions, not who holds which roles, so it errs on the side of refusing: exempt a channel to keep it out for good.",
+    text: "A message is only posted into a hall that nobody can open who couldn't already open the original channel (View Channel): every role let into the hall must be let into the channel (a member the hall lets in by name is fine while everyone can see the channel and it hides itself from no role), every role or member the channel hides itself from (a View Channel deny) must be hidden from the hall too, and when the channel hides itself from a role, a role the hall lets in by overwrite must be let into the channel by overwrite as well. The check compares channel permissions, not who holds which roles, so it errs on the side of refusing: exempt a channel to keep it out for good.",
   },
   {
     reason: 'bot-author',

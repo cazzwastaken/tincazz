@@ -41,7 +41,7 @@ Type `/help` (or `?help`) in Discord for a paged guide with the live numbers.
 - Staff can host timed reaction giveaways with `/giveaway create`. Cancel a pending draw with `/giveaway cancel`. Use `/giveaway list` to find draws in channels you can read. See [giveaways](docs/giveaways.md).
 - `/poll` (or `?poll`): ask a question, members vote with reactions and a live bar chart shows the result. Yes/no or up to 9 options, optional anonymity and a timer up to 7 days. See [polls](docs/polls.md).
 - Hall of Fame: when enough different people react to a message (5 by default), Tincazz posts it in
-  a channel of your choice as a card with the author, the text, copied pictures and a link back,
+  a channel of your choice as a card with the author, the text, pictures (uploaded ones are copied) and a link back,
   with an icon that grows with the count. Staff set it up with `/settings halloffame`. See
   [Hall of Fame](docs/halloffame.md).
 - `/settings`: log channels, join roles, the jackpot role, which channels the games may be played in, and the Hall of Fame

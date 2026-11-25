@@ -204,8 +204,11 @@ ID (see `features/gamba/custom-ids.ts`), so handlers must ignore IDs they cannot
   source denies by overwrite is denied on the hall too (role denies combine per member in Discord,
   so judging roles one at a time misses them), and the hall allows no role by overwrite that the
   source does not when the source denies a role. A member the hall allows by name is covered only
-  while `@everyone` can see the source and it denies neither that member nor any role. Unknown audiences or overwrites fail closed. It is
-  conservative, not a guarantee: exempt channels are the hard block for private channels.
+  while `@everyone` can see the source and it denies neither that member nor any role. Unknown
+  audiences or overwrites fail closed. It is conservative, not a guarantee: exempt channels are the
+  hard block for private channels. Known exceptions, documented for staff to exempt: it reads View
+  Channel only, so channels whose history is restricted by a Read Message History deny and the text
+  chat of voice or stage channels (where Connect may be needed) are not understood.
   `test/halloffame-permissions.test.ts` checks it against discord.js' own permission math.
 - **`Partials.Message`** (`src/client.ts`) lets `messageDelete` and `messageDeleteBulk` include an
   uncached honeypot card so it can be re-posted. Do not remove it.
