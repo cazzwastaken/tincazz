@@ -105,6 +105,12 @@ describe('quoting', () => {
     expect(out.startsWith('> ')).toBe(true);
   });
 
+  it('falls back to a bare marker or nothing when even one character is too long', () => {
+    expect(quoteExcerpt('\n', 1, 2)).toBe('');
+    expect(quoteExcerpt('\n', 1, 3)).toBe('> …');
+    expect(quoteExcerpt('\n\n\n', 1, 5).length).toBeLessThanOrEqual(5);
+  });
+
   it('quotes a normal message whole', () => {
     expect(quoteExcerpt('hello\nworld')).toBe('> hello\n> world');
     expect(quoteExcerpt('')).toBe('');

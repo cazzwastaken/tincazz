@@ -91,8 +91,27 @@ describe('fuzz: hall of fame content', () => {
           if (input !== '') expect(line.startsWith('> ')).toBe(true);
         }
         const limit = max * 2;
-        expect(quoteExcerpt(input, max, limit).length).toBeLessThanOrEqual(Math.max(limit, 3));
+        expect(quoteExcerpt(input, max, limit).length).toBeLessThanOrEqual(limit);
       }),
+    );
+  });
+
+  it('respects a tight quoted limit for any text', () => {
+    // The counterexample ["\n", 1] (quoted limit 2) once gave seven characters.
+    const cases: [string, number][] = [['\n', 1]];
+    for (const [input, max] of cases) {
+      expect(quoteExcerpt(input, max, max * 2).length).toBeLessThanOrEqual(max * 2);
+    }
+    fc.assert(
+      fc.property(
+        text,
+        fc.integer({ min: 1, max: 6 }),
+        fc.integer({ min: 0, max: 8 }),
+        (input, max, cap) => {
+          expect(quoteExcerpt(input, max, cap).length).toBeLessThanOrEqual(cap);
+        },
+      ),
+      { numRuns: 1000 },
     );
   });
 

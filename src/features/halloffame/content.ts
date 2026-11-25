@@ -7,6 +7,7 @@ const ellipsis = '…';
 const fence = '```';
 /** Zero width space: keeps an empty quoted line from being trimmed away. */
 const zeroWidthSpace = '​';
+const quotedEllipsis = `> ${ellipsis}`;
 
 /**
  * Mentions, custom emoji, timestamps and slash mentions: never cut in half, since a torn
@@ -96,9 +97,13 @@ export function quoteExcerpt(
   let limit = Math.max(1, max);
   for (;;) {
     const quoted = quoteText(truncateText(text, limit));
-    if (quoted.length <= maxQuoted || limit <= 1) return quoted;
+    if (quoted.length <= maxQuoted) return quoted;
+    if (limit <= 1) break;
     limit = Math.max(1, limit - (quoted.length - maxQuoted));
   }
+  // Even one source character quotes to more than `maxQuoted` (line breaks cost three characters
+  // a line): show a bare marker when it fits, nothing otherwise.
+  return quotedEllipsis.length <= maxQuoted ? quotedEllipsis : '';
 }
 
 /** A one line preview of the message a reply answers; empty when there is nothing to show. */
