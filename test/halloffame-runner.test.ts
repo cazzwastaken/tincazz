@@ -325,6 +325,36 @@ describe('hall of fame induction', () => {
     expect(h.fake.log.send).toHaveLength(1);
   });
 
+  it('clears the countdowns with the failure memory, so a muted hall does not block messages', async () => {
+    const h = harness(db, vi);
+    // Message A is short of the threshold, which leaves a countdown of 2 reactions.
+    h.fake.addMessage();
+    h.fake.react(messageId, '⭐', people(0, 3));
+    h.add('2000');
+    await h.settle();
+    expect(entry()).toBeUndefined();
+
+    // The hall refuses a send for message B, so the hall is muted for a while.
+    h.fake.addMessage({ id: '101' });
+    h.fake.react('101', '⭐', people(0, 6));
+    h.fake.faults.send = 'forbidden';
+    h.add('2001', { messageId: '101' });
+    await h.settle();
+
+    // While muted, A gets the reactions it needed. Nothing is looked at, so the countdown stays.
+    h.fake.faults.send = undefined;
+    h.fake.react(messageId, '⭐', people(0, 7));
+    h.add('2002');
+    await h.settle();
+    expect(entry()).toBeUndefined();
+
+    // Staff fix the permissions and run `/settings halloffame set` again.
+    h.runner.forgetFailures(hallChannelId);
+    h.add('2003');
+    await h.settle();
+    expect(entry()?.status).toBe('posted');
+  });
+
   it('skips when the bot lacks permissions in the source or the hall, without claiming', async () => {
     const h = harness(db, vi);
     h.fake.addMessage();

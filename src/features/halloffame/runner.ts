@@ -96,7 +96,10 @@ export interface HallRunner {
   onHallChannelDeleted(channelId: string): HallEntry[];
   /** Adopts or releases claims left `publishing`. With `all` even a fresh claim counts. */
   recover(options?: { all?: boolean }): Promise<void>;
-  /** Forgets that channels were unreadable, such as after staff fixed permissions. */
+  /**
+   * Forgets that channels were unreadable, such as after staff fixed permissions, and the
+   * countdowns of reactions still needed, which went stale while the channel was muted.
+   */
   forgetFailures(channelId?: string): void;
   /** Resolves when the queue is empty and nothing is running (debounce timers excluded). */
   idle(): Promise<void>;
@@ -887,6 +890,10 @@ export function createHallRunner(deps: HallRunnerDeps): HallRunner {
     forgetFailures: (channelId) => {
       if (channelId === undefined) failures.clear();
       else failures.delete(channelId);
+      // Reactions that arrived while a channel was muted were dropped before the countdown, so a
+      // message may be past the threshold with its "reactions still needed" counter unchanged.
+      // The counters only save fetches, so all of them go.
+      counters.clear();
     },
     idle: () => queue.idle(),
     stop: () => {

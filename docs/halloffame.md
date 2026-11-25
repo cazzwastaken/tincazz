@@ -199,7 +199,8 @@ You can ignore this unless something looks slow or missing.
   Discord's rate limits are handled by the library, which waits and retries.
 - **No access, no retries.** If Discord refuses access to a channel, it is skipped for 10 minutes.
   Running `/settings halloffame set` for a hall channel, including the one already set, clears that
-  memory for it at once, so after fixing permissions just run it again.
+  memory at once (and the "reactions still needed" countdowns, which go stale while a channel is
+  skipped), so after fixing permissions just run it again.
 - **One post per message.** Tincazz reserves the message in its database before sending anything,
   so two reactions at the same time, or a restart in the middle, cannot produce two posts.
 - **Restarts and crashes.** Everything that matters is stored in the database. If the bot stops
