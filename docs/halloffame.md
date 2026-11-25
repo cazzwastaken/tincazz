@@ -210,7 +210,9 @@ You can ignore this unless something looks slow or missing.
 - **No access, no retries.** If Discord refuses access to a channel, it is skipped for 10 minutes.
   Running `/settings halloffame set` for a hall channel, including the one already set, clears that
   memory at once (and the "reactions still needed" countdowns, which go stale while a channel is
-  skipped), so after fixing permissions just run it again.
+  skipped), so after fixing permissions just run it again. For the channel that is already set
+  with the same threshold it checks the bot's permissions there again and answers "Rechecked ...
+  posting resumes", or says what is still missing.
 - **One post per message.** Tincazz reserves the message in its database before sending anything,
   so two reactions at the same time, or a restart in the middle, cannot produce two posts.
 - **Restarts and crashes.** Everything that matters is stored in the database. If the bot stops
@@ -241,7 +243,9 @@ If a message does not show up, check in this order:
 4. **Is the message eligible?** Messages by bots and webhooks and system messages are skipped.
 5. **Permissions.** The bot needs View Channel and Read Message History in the source channel, and
    View Channel, Send Messages, Attach Files and Read Message History in the hall. A channel that refused the bot is
-   skipped for 10 minutes. After fixing the hall's permissions, run `/settings halloffame set` for it again to clear that at once; a source channel is tried again after the 10 minutes.
+   skipped for 10 minutes. After fixing the hall's permissions, run `/settings halloffame set` for it
+   again (same channel, no new threshold needed) to clear that at once; a source channel is tried
+   again after the 10 minutes.
 6. **Was it posted before?** If staff deleted the post, it is never posted again. A message
    already in an older hall channel is not posted again either.
 7. **Nothing from any channel gets in?** Look at who can see the hall through an explicit allow

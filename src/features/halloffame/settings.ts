@@ -84,8 +84,8 @@ export const hallIsHoneypot = (id: string) =>
   `<#${id}> is the honeypot channel, which the Hall of Fame always ignores anyway.`;
 export const hallIsHall = (id: string) =>
   `<#${id}> is the Hall of Fame channel, which the Hall of Fame always ignores anyway.`;
-export const hallAlreadySet = (id: string, threshold: number) =>
-  `<#${id}> is already the Hall of Fame channel with a threshold of ${threshold} people.`;
+export const hallRechecked = (id: string) =>
+  `Rechecked <#${id}>: permissions are fine, posting resumes.`;
 export const hallNotSet = "The Hall of Fame isn't set.";
 export const hallThresholdUnchanged = (threshold: number) =>
   `The Hall of Fame threshold is already ${threshold} people.`;
@@ -137,7 +137,10 @@ export async function hallSetCommand(
     // Staff run this again after fixing permissions: let the channel be tried right away.
     forgetHallFailures(channel.id);
     if (threshold === current.threshold) {
-      return interaction.reply(errorReply(hallAlreadySet(channel.id, current.threshold)));
+      // Nothing to change: this is the "I fixed the permissions" re-run, so check them again.
+      const problem = hallChannelProblem(channel, me);
+      if (problem) return interaction.reply(errorReply(problem));
+      return interaction.reply(ephemeral(hallRechecked(channel.id)));
     }
     // Same channel: only the threshold differs, so there is nothing to post.
     return changeThreshold(interaction, deps, current.threshold, threshold);

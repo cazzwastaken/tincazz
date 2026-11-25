@@ -1,5 +1,11 @@
 import { container } from '@sapphire/framework';
-import { ChannelType, Events, PermissionFlagsBits, PermissionsBitField } from 'discord.js';
+import {
+  ChannelType,
+  Events,
+  MessageFlags,
+  PermissionFlagsBits,
+  PermissionsBitField,
+} from 'discord.js';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createClient } from '../src/client.js';
 import { openDatabase } from '../src/db/index.js';
@@ -141,18 +147,27 @@ describe('/settings halloffame set', () => {
     expect(logged(log)).toContain('Previously <#69>');
   });
 
-  it('says so when the channel and threshold are unchanged', async () => {
+  it('rechecks the permissions when the channel and threshold are unchanged', async () => {
     setHallChannel(container.db, '2', '70', 1);
     const hall = channel('70');
     const result = await run('set', { channel: hall, threshold: hallOfFame.defaultThreshold });
-    expect(result.text).toContain(
-      `<#70> is already the Hall of Fame channel with a threshold of ${hallOfFame.defaultThreshold} people.`,
-    );
+    expect(result.text).toContain('Rechecked <#70>: permissions are fine, posting resumes.');
+    expect(result.text).not.toContain('already');
+    expect(result.flags & MessageFlags.Ephemeral).toBeTruthy();
     expect(hall.send).not.toHaveBeenCalled();
-    // Re-running it after fixing permissions must not leave the channel marked unreadable.
+    // The failure memory is cleared, so the channel is tried right away.
     expect(runner.forgetFailures).toHaveBeenCalledWith('70');
     const bare = await run('set', { channel: hall });
-    expect(bare.text).toContain('is already the Hall of Fame channel');
+    expect(bare.text).toContain('Rechecked <#70>');
+  });
+
+  it('reports what is still missing when the unchanged channel is rechecked', async () => {
+    setHallChannel(container.db, '2', '70', 1);
+    const hall = channel('70', { bits: fullBits & ~PermissionFlagsBits.AttachFiles });
+    const result = await run('set', { channel: hall });
+    expect(result.text).toContain("I'm missing Attach Files in <#70>");
+    expect(result.text).not.toContain('Rechecked');
+    expect(hall.send).not.toHaveBeenCalled();
   });
 
   it('only updates the threshold of the channel that is already set', async () => {
