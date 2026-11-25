@@ -320,20 +320,39 @@ export function deleteHallEntries(db: DbOrTx, guildId: string, messageIds: strin
     .all();
 }
 
+const inSourceChannel = (channelId: string) =>
+  or(eq(hallOfFameEntries.channelId, channelId), eq(hallOfFameEntries.parentChannelId, channelId));
+
 /**
  * Deletes the entries of a deleted source channel or thread and returns them. Deleting a channel
- * or forum sends no delete event for its threads, so entries from its threads go with it.
+ * or forum sends no delete event for its threads, so entries from its threads go with it. With
+ * `keepPublishing` the claims still `publishing` stay (see {@link publishingHallEntriesBySourceChannel}).
  */
-export function deleteHallEntriesBySourceChannel(db: DbOrTx, channelId: string): HallEntry[] {
+export function deleteHallEntriesBySourceChannel(
+  db: DbOrTx,
+  channelId: string,
+  options: { keepPublishing?: boolean } = {},
+): HallEntry[] {
+  const where = options.keepPublishing
+    ? and(
+        inSourceChannel(channelId),
+        sql`${hallOfFameEntries.status} <> ${'publishing' satisfies HallStatus}`,
+      )
+    : inSourceChannel(channelId);
+  return db.delete(hallOfFameEntries).where(where).returning().all();
+}
+
+/** The claims of a source channel or thread that are still `publishing`. */
+export function publishingHallEntriesBySourceChannel(db: DbOrTx, channelId: string): HallEntry[] {
   return db
-    .delete(hallOfFameEntries)
+    .select()
+    .from(hallOfFameEntries)
     .where(
-      or(
-        eq(hallOfFameEntries.channelId, channelId),
-        eq(hallOfFameEntries.parentChannelId, channelId),
+      and(
+        inSourceChannel(channelId),
+        eq(hallOfFameEntries.status, 'publishing' satisfies HallStatus),
       ),
     )
-    .returning()
     .all();
 }
 

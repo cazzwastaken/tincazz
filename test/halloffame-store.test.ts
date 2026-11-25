@@ -18,6 +18,7 @@ import {
   hallSettings,
   markHallMessagesRemoved,
   markHallPosted,
+  publishingHallEntriesBySourceChannel,
   releaseHallClaim,
   removeExemptEverywhere,
   removeHallExempt,
@@ -357,6 +358,24 @@ describe('hall of fame entries', () => {
     expect(rows.map((row) => row.messageId).sort()).toEqual(['m1', 'm2']);
     expect(getHallEntry(db, 'g1', 'm3')).toBeDefined();
     expect(deleteHallEntriesBySourceChannel(db, 'c1')).toEqual([]);
+  });
+
+  it('can keep the claims that are still publishing, and list them', () => {
+    claimHallEntry(db, claim('m1', { channelId: 'c1' }), 1);
+    claimHallEntry(db, claim('m2', { channelId: 'c1' }), 1);
+    markHallPosted(db, 'g1', 'm2', { hallMessageId: 'h2', peakCount: 5, renderedHash: 'x' }, 2);
+    claimHallEntry(db, claim('m3', { channelId: 't1', parentChannelId: 'c1' }), 1);
+    claimHallEntry(db, claim('m4', { channelId: 'c2' }), 1);
+    expect(
+      publishingHallEntriesBySourceChannel(db, 'c1')
+        .map((row) => row.messageId)
+        .sort(),
+    ).toEqual(['m1', 'm3']);
+    const rows = deleteHallEntriesBySourceChannel(db, 'c1', { keepPublishing: true });
+    expect(rows.map((row) => row.messageId)).toEqual(['m2']);
+    expect(getHallEntry(db, 'g1', 'm1')?.status).toBe('publishing');
+    expect(getHallEntry(db, 'g1', 'm3')?.status).toBe('publishing');
+    expect(getHallEntry(db, 'g1', 'm4')?.status).toBe('publishing');
   });
 
   it('deletes the entries of threads when their parent channel is deleted', () => {

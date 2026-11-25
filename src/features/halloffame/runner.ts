@@ -47,6 +47,7 @@ import {
   hallSettings,
   markHallMessagesRemoved,
   markHallPosted,
+  publishingHallEntriesBySourceChannel,
   releaseHallClaim,
   setHallRenderedHash,
 } from './store.js';
@@ -772,6 +773,10 @@ export function createHallRunner(deps: HallRunnerDeps): HallRunner {
       // its fetch and its claim, and the post it is about to make must be deleted right after.
       await lock.run(key, async () => {
         // Row first, then the hall message, so the hall message's own delete event is a no-op.
+        if (getHallEntry(db, guildId, messageId)?.status === 'publishing') {
+          await dropAbandonedClaim(guildId, messageId);
+          return;
+        }
         const removed = deleteHallEntry(db, guildId, messageId);
         if (removed?.status === 'posted') await discardHallMessage(removed);
       });
@@ -780,10 +785,20 @@ export function createHallRunner(deps: HallRunnerDeps): HallRunner {
 
   async function onSourceChannelDeleted(channelId: string) {
     failures.delete(channelId);
-    const rows = deleteHallEntriesBySourceChannel(db, channelId);
+    // A claim still `publishing` may have a card that nothing records: its row stays until the
+    // card has been looked for.
+    const claims = publishingHallEntriesBySourceChannel(db, channelId);
+    const rows = deleteHallEntriesBySourceChannel(db, channelId, { keepPublishing: true });
     for (const row of rows) {
       forget(keyOf(row.guildId, row.messageId));
       if (row.status === 'posted') await discardHallMessage(row);
+    }
+    for (const claim of claims) {
+      const key = keyOf(claim.guildId, claim.messageId);
+      forget(key);
+      // Through the lock: an induction may still be sending (and then discards its own card).
+      await lock.run(key, () => dropAbandonedClaim(claim.guildId, claim.messageId));
+      if (getHallEntry(db, claim.guildId, claim.messageId) === undefined) rows.push(claim);
     }
     return rows;
   }
@@ -818,6 +833,37 @@ export function createHallRunner(deps: HallRunnerDeps): HallRunner {
       before = oldest.id;
     }
     return undefined;
+  }
+
+  /**
+   * The source of this entry is gone: delete its row and, when it has one, its card. A claim still
+   * `publishing` may have a card that Discord created and nothing recorded, so it is looked for
+   * first, and when that fails the claim stays: the recovery adopts it and the next sync, finding
+   * the source gone, deletes the card. Call it with the message's lock held.
+   */
+  async function dropAbandonedClaim(guildId: string, messageId: string): Promise<void> {
+    const row = getHallEntry(db, guildId, messageId);
+    if (row === undefined) return;
+    if (row.status === 'posted') {
+      deleteHallEntry(db, guildId, messageId);
+      await discardHallMessage(row);
+      return;
+    }
+    if (row.status !== 'publishing') return;
+    let found: string | undefined;
+    try {
+      found = await findPostedCard(row);
+    } catch (error) {
+      logger.warn(
+        `Hall of Fame could not look for the card of ${messageId}, keeping the claim`,
+        error,
+      );
+      return;
+    }
+    releaseHallClaim(db, guildId, messageId);
+    if (found !== undefined) {
+      await discardHallMessage({ hallChannelId: row.hallChannelId, hallMessageId: found });
+    }
   }
 
   async function recoverClaim(claim: HallEntry, all: boolean) {
